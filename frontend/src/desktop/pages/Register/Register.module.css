@@ -4,20 +4,42 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
+  background: var(--gray-1);
 }
 
 .card {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
 }
 
-.link {
+.header {
+  text-align: center;
+}
+
+.logo {
+  width: 40px;
+  height: 40px;
+  background: var(--accent-9);
+  border-radius: var(--radius-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.input {
+  width: 100%;
+}
+
+.footerLink {
   color: var(--accent-9);
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
+  font-weight: 500;
 }
 
-.link:hover {
+.footerLink:hover {
   color: var(--accent-10);
   text-decoration: underline;
 }

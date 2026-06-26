@@ -187,6 +187,12 @@ frontend/build/
 backend/build/
 backend/dist/
 
+# Ruff cache
+.ruff_cache/
+
+# Playwright test artifacts
+frontend/test-results/
+
 # AI model files
 *.pkl
 *.joblib
@@ -200,3 +206,5 @@ dump.rdb
 *.pem
 *.key
 *.crt 
+test-results/
+

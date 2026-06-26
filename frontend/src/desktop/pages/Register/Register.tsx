@@ -1,40 +1,45 @@
 import { useState, type JSX } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { Box, Card, Flex, Heading, Text, Button, TextField, IconButton } from '@radix-ui/themes'
-import { Eye, EyeOff } from 'lucide-react'
+import { Box, Flex, Heading, Text, Button, Card, TextField } from '@radix-ui/themes'
 import toast from 'react-hot-toast'
-import { useAuthStore } from '../../../store/authStore.ts'
+import { useBoundStore } from '../../../store/index.ts'
 import styles from './Register.module.css'
 
-interface RegisterForm {
-  name?: string
-  email: string
-  password: string
-  confirmPassword: string
-}
-
 export const Register = (): JSX.Element => {
-  const register_ = useAuthStore((s) => s.register)
+  const register = useBoundStore((s) => s.register)
   const navigate = useNavigate()
-  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [password, setPassword] = useState('')
+  const [errors, setErrors] = useState<{ email?: string; fullName?: string; password?: string }>({})
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors },
-  } = useForm<RegisterForm>()
+  const validate = () => {
+    const e: typeof errors = {}
+    if (!email) e.email = 'Email is required'
+    else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email)) e.email = 'Invalid email'
+    if (!fullName) e.fullName = 'Full name is required'
+    else if (fullName.length < 2) e.fullName = 'Minimum 2 characters'
+    if (!password) e.password = 'Password is required'
+    else if (password.length < 6) e.password = 'Minimum 6 characters'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
 
-  const onSubmit = async (data: RegisterForm) => {
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validate()) return
     setLoading(true)
     try {
-      await register_(data.email, data.password, data.name)
-      toast.success('Account created successfully!')
+      await register(email, password, fullName)
+      toast.success('Account created')
       navigate('/')
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Registration failed')
+      const detail = error.response?.data?.detail
+      const msg = Array.isArray(detail)
+        ? detail.map((e: any) => e.msg).join('; ')
+        : detail || 'Registration failed'
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -43,121 +48,106 @@ export const Register = (): JSX.Element => {
   return (
     <Box className={styles.page}>
       <Card size="3" className={styles.card}>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <Flex direction="column" gap="4">
-            <Flex direction="column" gap="1">
-              <Heading size="6">Create an account</Heading>
-              <Text size="2" color="gray">
-                Start tracking your finances
-              </Text>
+        <Flex direction="column" gap="6">
+          <Box className={styles.header}>
+            <Flex justify="center" mb="4">
+              <Box className={styles.logo}>F</Box>
             </Flex>
+            <Heading size="7" align="center">
+              Create account
+            </Heading>
+            <Text size="2" color="gray" align="center" mt="1">
+              Start managing your finances
+            </Text>
+          </Box>
 
-            <Flex direction="column" gap="3">
+          <form onSubmit={onSubmit}>
+            <Flex direction="column" gap="4">
               <Flex direction="column" gap="1">
-                <Text as="label" size="2" weight="medium" htmlFor="name">
-                  Name (optional)
+                <Text size="2" weight="medium">
+                  Full name
                 </Text>
-                <TextField.Root>
-                  <input id="name" placeholder="Your name" {...register('name')} />
-                </TextField.Root>
+                <TextField.Root
+                  color={errors.fullName ? 'red' : undefined}
+                  id="fullName"
+                  type="text"
+                  placeholder="Jane Doe"
+                  value={fullName}
+                  onChange={(e) => {
+                    setFullName(e.target.value)
+                    setErrors((p) => ({ ...p, fullName: undefined }))
+                  }}
+                  autoComplete="name"
+                  className={styles.input}
+                />
+                {errors.fullName && (
+                  <Text size="1" color="red">
+                    {errors.fullName}
+                  </Text>
+                )}
               </Flex>
 
               <Flex direction="column" gap="1">
-                <Text as="label" size="2" weight="medium" htmlFor="email">
+                <Text size="2" weight="medium">
                   Email
                 </Text>
-                <TextField.Root>
-                  <input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    {...register('email', {
-                      required: 'Email is required',
-                      pattern: {
-                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                        message: 'Invalid email address',
-                      },
-                    })}
-                  />
-                </TextField.Root>
+                <TextField.Root
+                  color={errors.email ? 'red' : undefined}
+                  id="regEmail"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    setErrors((p) => ({ ...p, email: undefined }))
+                  }}
+                  autoComplete="email"
+                  className={styles.input}
+                />
                 {errors.email && (
                   <Text size="1" color="red">
-                    {errors.email.message}
+                    {errors.email}
                   </Text>
                 )}
               </Flex>
 
               <Flex direction="column" gap="1">
-                <Text as="label" size="2" weight="medium" htmlFor="password">
+                <Text size="2" weight="medium">
                   Password
                 </Text>
-                <TextField.Root>
-                  <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Create a password"
-                    {...register('password', {
-                      required: 'Password is required',
-                      minLength: {
-                        value: 6,
-                        message: 'Password must be at least 6 characters',
-                      },
-                    })}
-                  />
-                  <TextField.Slot>
-                    <IconButton
-                      type="button"
-                      variant="ghost"
-                      size="1"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </IconButton>
-                  </TextField.Slot>
-                </TextField.Root>
+                <TextField.Root
+                  color={errors.password ? 'red' : undefined}
+                  id="regPassword"
+                  type="password"
+                  placeholder="At least 6 characters"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    setErrors((p) => ({ ...p, password: undefined }))
+                  }}
+                  autoComplete="new-password"
+                  className={styles.input}
+                />
                 {errors.password && (
                   <Text size="1" color="red">
-                    {errors.password.message}
+                    {errors.password}
                   </Text>
                 )}
               </Flex>
 
-              <Flex direction="column" gap="1">
-                <Text as="label" size="2" weight="medium" htmlFor="confirmPassword">
-                  Confirm password
-                </Text>
-                <TextField.Root>
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    placeholder="Confirm your password"
-                    {...register('confirmPassword', {
-                      required: 'Please confirm your password',
-                      validate: (value) => value === watch('password') || 'Passwords do not match',
-                    })}
-                  />
-                </TextField.Root>
-                {errors.confirmPassword && (
-                  <Text size="1" color="red">
-                    {errors.confirmPassword.message}
-                  </Text>
-                )}
-              </Flex>
+              <Button type="submit" size="3" loading={loading} mt="2">
+                Create account
+              </Button>
             </Flex>
+          </form>
 
-            <Button type="submit" loading={loading} size="3">
-              Create account
-            </Button>
-
-            <Text size="2" align="center" color="gray">
-              Already have an account?{' '}
-              <Link to="/login" className={styles.link}>
-                Sign in
-              </Link>
-            </Text>
-          </Flex>
-        </form>
+          <Text size="2" color="gray" align="center">
+            Already have an account?{' '}
+            <Link to="/login" className={styles.footerLink}>
+              Sign in
+            </Link>
+          </Text>
+        </Flex>
       </Card>
     </Box>
   )

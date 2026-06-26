@@ -6,9 +6,12 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from core.config import settings
+from core.logging import get_logger
 from core.security import create_access_token, get_password_hash, verify_password, verify_token
 from database.models import User
 from database.session import get_db
+
+log = get_logger(__name__)
 
 router = APIRouter()
 security = HTTPBearer()
@@ -78,6 +81,8 @@ async def get_current_user(
 
 @router.post("/register", response_model=Token)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+    log.info("Registration attempt — email=%s", user_data.email)
+
     existing_user = (
         db.query(User)
         .filter((User.email == user_data.email) | (User.username == user_data.username))
@@ -85,6 +90,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     )
 
     if existing_user:
+        log.warning("Registration failed — email already exists: %s", user_data.email)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email or username already registered",
@@ -101,6 +107,8 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
 
+    log.info("Registration successful — user_id=%d email=%s", db_user.id, db_user.email)
+
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": str(db_user.id)}, expires_delta=access_token_expires
@@ -116,8 +124,11 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
+    log.info("Login attempt — email=%s", user_credentials.email)
+
     user = db.query(User).filter(User.email == user_credentials.email).first()
     if not user:
+        log.warning("Login failed — user not found: %s", user_credentials.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -125,6 +136,7 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
         )
 
     if not verify_password(user_credentials.password, user.hashed_password):
+        log.warning("Login failed — wrong password for: %s", user_credentials.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -132,10 +144,13 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
         )
 
     if not user.is_active:
+        log.warning("Login failed — inactive user: %s", user_credentials.email)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user",
         )
+
+    log.info("Login successful — user_id=%d email=%s", user.id, user.email)
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -152,4 +167,5 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
+    log.debug("User info fetched — user_id=%d email=%s", current_user.id, current_user.email)
     return current_user

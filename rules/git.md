@@ -23,7 +23,7 @@
 - Run `git status` and `git diff` before any commit
 - Stage only intended files — no secrets or debug files
 - Ensure no `.env`, `node_modules`, `__pycache__`, or build artifacts
-- Run linter before committing (eslint for frontend, flake8 for backend)
+- Run linter and formatter before committing (eslint + prettier for frontend, ruff for backend)
 
 ## What Not To Do
 - No commits directly to main

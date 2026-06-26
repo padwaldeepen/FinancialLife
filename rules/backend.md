@@ -51,6 +51,7 @@ backend/
 
 ## Formatting & Linting
 - Format with Ruff: `ruff check .` (lint) and `ruff format .` (format)
-- Run both before committing — `ruff check . && ruff format .`
+- Auto-fix lint issues: `ruff check --fix .`
+- Run both after every change — `ruff check . && ruff format .`
 - Rules defined in `pyproject.toml` under `[tool.ruff]`
 - Line length: 100

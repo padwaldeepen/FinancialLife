@@ -4,10 +4,43 @@
   flex-direction: column;
   justify-content: center;
   padding: var(--space-4);
+  background: var(--gray-1);
 }
 
-.link {
+.card {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.header {
+  text-align: center;
+}
+
+.logo {
+  width: 36px;
+  height: 36px;
+  background: var(--accent-9);
+  border-radius: var(--radius-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.input {
+  width: 100%;
+}
+
+.footerLink {
   color: var(--accent-9);
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
+  font-weight: 500;
+}
+
+.footerLink:hover {
+  color: var(--accent-10);
+  text-decoration: underline;
 }

@@ -94,23 +94,22 @@ export const AddTransaction = (): JSX.Element => {
             <Text size="2" weight="medium">
               Describe your transaction
             </Text>
-            <TextField.Root>
-              <TextField.Slot>
+            <TextField.Root
+              className={styles.input}
+              placeholder="spent 15 on groceries"
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value)
+                setParsed(null)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleParse()
+              }}
+            >
+              <TextField.Slot side="left">
                 <Sparkles size={16} />
               </TextField.Slot>
-              <input
-                className={styles.input}
-                placeholder="spent 15 on groceries"
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value)
-                  setParsed(null)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleParse()
-                }}
-              />
-              <TextField.Slot>
+              <TextField.Slot side="right">
                 <IconButton
                   variant="ghost"
                   size="2"

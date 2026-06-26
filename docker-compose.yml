@@ -25,6 +25,8 @@ services:
       dockerfile: Dockerfile
     container_name: financeflareai-backend
     env_file: ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql://financeflareai_user:financeflareai_password@postgres:5432/financeflareai
     ports:
       - "8080:8080"
     depends_on:

@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from './shared/theme/ThemeProvider.tsx'
 import App from './App.tsx'
+import '@radix-ui/themes/styles.css'
 import './styles/index.css'
 
 const queryClient = new QueryClient()

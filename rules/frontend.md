@@ -3,20 +3,20 @@
 ## Component Pattern
 - Named arrow function exports only: `export const ComponentName = () => {`
 - No default exports, no `function` keyword for components
-- Every component gets its own folder: `ComponentName/ComponentName.tsx` + `ComponentName.module.css`
-- No exceptions to this pattern
+- Page/layout components each have their own folder: `ComponentName/ComponentName.tsx` + `ComponentName.module.css`
 - Desktop and mobile components never share CSS
 
+## Radix UI
+- Use `@radix-ui/themes` components directly — Button, Card, TextField, Dialog, Select, DropdownMenu, etc.
+- No custom wrappers around Radix components; import and use them as-is
+- Custom styling via `className` + CSS Modules for layout tweaks only
+- Radix handles all visuals and theming via its token system
+
 ## Styling
-- CSS Modules only, no Tailwind, no inline styles, no CSS-in-JS
-- Use CSS custom properties from theme (`var(--color-primary-600)`)
+- Use Radix CSS custom properties: `var(--space-4)`, `var(--orange-9)`, `var(--gray-3)`, etc.
+- CSS Modules only for layout and page-specific styles, no Tailwind, no inline styles, no CSS-in-JS
 - Mobile-first media queries in every module
 - Responsive breakpoints: 640px (sm), 768px (md), 1024px (lg), 1280px (xl)
-
-## Radix UI
-- Use Radix primitives for behavior and accessibility (Dialog, DropdownMenu, Tabs, etc.)
-- All visuals go in `*.module.css`, never in Radix props
-- Do not use `style` prop on Radix components
 
 ## State Management
 - Zustand for client state (auth, UI preferences)
@@ -29,7 +29,8 @@
 - Chart components live inside their page's components folder
 
 ## Folder Boundaries
-- `shared/components/` — only truly reusable primitives (Button, Card, Input, Modal)
-- Page-specific components stay inside `pages/PageName/components/`
-- Desktop and mobile pages are completely independent
-- Shared business logic only in `shared/` (stores, services, types, utils)
+- `shared/` — business logic only (stores, services, types, utils, theme)
+- `desktop/` — desktop-specific layouts, pages, and components
+- `mobile/` — mobile-specific layouts, pages, and components
+- Desktop and mobile are completely independent; no cross-imports
+- No `shared/components/` — use Radix Themes components directly

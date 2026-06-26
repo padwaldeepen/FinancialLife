@@ -61,14 +61,12 @@ FinanceFlare/
 │   ├── public/
 │   │   └── vite.svg
 │   ├── src/
-│   │   ├── shared/
-│   │   │   ├── services/       api.ts, axios instance
-│   │   │   ├── store/          Zustand (authStore, uiStore)
-│   │   │   ├── theme/          theme.ts + ThemeProvider
-│   │   │   ├── types/          User, Transaction, Budget interfaces
-│   │   │   ├── utils/          formatCurrency, formatDate, constants
-│   │   │   ├── hooks/          useMediaQuery, etc.
-│   │   │   └── components/     Button, Card, Input, Modal (Radix)
+│   │   ├── theme.tsx           ThemeProvider wrapping Radix <Theme>
+│   │   ├── services/           api.ts, axios instance
+│   │   ├── store/              Zustand (authStore, uiStore)
+│   │   ├── types/              User, Transaction, Budget interfaces
+│   │   ├── utils/              formatCurrency, formatDate, constants
+│   │   ├── hooks/              useMediaQuery, etc.
 │   │   ├── desktop/
 │   │   │   ├── components/     Sidebar, TopBar, DataTable, CommandPalette
 │   │   │   ├── pages/
@@ -124,8 +122,7 @@ FinanceFlare/
 
 ## Theme System
 
-- `shared/theme/theme.ts` — single source of truth for colors, spacing, breakpoints
-- `shared/theme/ThemeProvider.tsx` — injects all tokens as CSS custom properties on `:root` and `[data-theme="dark"]`
+- `src/theme.tsx` — single file: ThemeProvider wrapping Radix `<Theme>` with accentColor="orange"
 - Every CSS module references variables: `var(--color-primary-600)`, `var(--spacing-4)`, etc.
 - Dark mode toggles via `data-theme` attribute on `<html>` — zero JS cost
 
@@ -176,7 +173,7 @@ export const theme = {
 ### Shared (Same on Both)
 - API client (`shared/services/api.ts`)
 - Zustand stores (`shared/store/`)
-- Theme config (`shared/theme/`)
+- Theme config (`src/theme.tsx`)
 - TypeScript types (`shared/types/`)
 - Utility functions (`shared/utils/`)
 - Radix Themes (`@radix-ui/themes`) provides all UI primitives — no custom wrappers
@@ -210,7 +207,7 @@ The NL quick-add ("spent 15 on groceries") uses a simple regex/rule parser initi
 - Create `opencode.json` + `rules/*.md` + `AGENTS.md`
 
 ### Phase 1 — Theme + Global CSS
-- Create `shared/theme/theme.ts` + `ThemeProvider.tsx`
+- Create `src/theme.tsx` — single file with ThemeProvider wrapping Radix `<Theme>`
 - Write `styles/index.css` — only CSS custom properties + minimal reset
 - No Tailwind anywhere
 

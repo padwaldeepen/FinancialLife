@@ -1,10 +1,10 @@
 # UI/UX Rules
 
 ## Theme System
-- All colors, spacing, and breakpoints defined in `shared/theme/theme.ts`
-- ThemeProvider injects tokens as CSS custom properties
-- Components reference themes via `var(--token-name)`, never hardcoded values
-- Dark mode via `[data-theme="dark"]` selector, zero JS cost
+- `src/theme.tsx` wraps Radix `<Theme>` with accentColor="orange", grayColor="slate"
+- Use Radix CSS tokens: `var(--space-4)`, `var(--orange-9)`, `var(--gray-3)`, etc.
+- No hardcoded colors — always use Radix token variables
+- Dark mode via Radix `appearance` prop, set once at root
 
 ## Mobile vs Desktop Separation
 - Desktop and mobile have completely separate component trees

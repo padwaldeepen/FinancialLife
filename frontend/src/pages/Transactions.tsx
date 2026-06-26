@@ -59,7 +59,7 @@ const Transactions: React.FC = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'USD',
     }).format(Math.abs(amount))
   }
 
@@ -71,9 +71,11 @@ const Transactions: React.FC = () => {
     }
   }
 
-  const filteredTransactions = transactions.filter(transaction =>
-    transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (transaction.category_name && transaction.category_name.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredTransactions = transactions.filter(
+    (transaction) =>
+      transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (transaction.category_name &&
+        transaction.category_name.toLowerCase().includes(searchTerm.toLowerCase())),
   )
 
   if (loading) {
@@ -94,9 +96,7 @@ const Transactions: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-          Transactions
-        </h1>
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Transactions</h1>
         <button
           onClick={() => setShowAddModal(true)}
           className="btn-primary flex items-center space-x-2"
@@ -163,11 +163,11 @@ const Transactions: React.FC = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span 
+                    <span
                       className="inline-flex px-2 py-1 text-xs font-semibold rounded-full text-neutral-800 dark:text-neutral-200"
-                      style={{ 
+                      style={{
                         backgroundColor: transaction.category_color || '#6B7280',
-                        color: '#FFFFFF'
+                        color: '#FFFFFF',
                       }}
                     >
                       {transaction.category_name || 'Uncategorized'}
@@ -177,15 +177,22 @@ const Transactions: React.FC = () => {
                     {formatDate(transaction.date)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <span className={transaction.transaction_type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                      {transaction.transaction_type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    <span
+                      className={
+                        transaction.transaction_type === 'income'
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
+                      }
+                    >
+                      {transaction.transaction_type === 'income' ? '+' : '-'}
+                      {formatCurrency(transaction.amount)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 mr-3">
                       <Edit size={16} />
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDeleteTransaction(transaction.id)}
                       className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                     >
@@ -204,10 +211,7 @@ const Transactions: React.FC = () => {
               {searchTerm ? 'No transactions found matching your search.' : 'No transactions yet.'}
             </p>
             {!searchTerm && (
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="mt-4 btn-primary"
-              >
+              <button onClick={() => setShowAddModal(true)} className="mt-4 btn-primary">
                 Add your first transaction
               </button>
             )}
@@ -225,4 +229,4 @@ const Transactions: React.FC = () => {
   )
 }
 
-export default Transactions 
+export default Transactions

@@ -29,7 +29,10 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/" element={<Layout isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />}>
+          <Route
+            path="/"
+            element={<Layout isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />}
+          >
             <Route index element={<Dashboard />} />
             <Route path="transactions" element={<Transactions />} />
             <Route path="budgets" element={<Budgets />} />
@@ -41,4 +44,4 @@ function App() {
   )
 }
 
-export default App 
+export default App

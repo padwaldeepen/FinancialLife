@@ -1,61 +1,122 @@
-# FinanceFlareAI
+# FinanceFlare
 
-AI-powered personal budget tracker with automatic expense categorization and spending insights.
+Free, open-source personal finance tracker. Track your expenses by typing "spent 15 on groceries" — zero friction, zero cost.
 
 ## Features
 
 - 🔐 JWT authentication
-- 💰 Transaction management (income/expenses)
-- 🤖 AI-powered categorization using OpenAI
-- 📊 Interactive dashboard with charts
+- 💰 Natural language quick-add ("spent 15 on groceries")
+- 📊 Interactive dashboard with Nivo charts
+- 📱 Mobile app (PWA) + 💻 Desktop app — different UX for each
 - 🌙 Dark/light mode
-- 📱 Responsive design
+- 🤖 Free AI parsing (no paid API)
 
 ## Tech Stack
 
-- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, Recharts
-- **Backend**: FastAPI, SQLAlchemy, PostgreSQL, JWT
-- **AI**: OpenAI GPT for transaction categorization
+- **Frontend**: React 19, TypeScript, Vite, CSS Modules, Radix UI, Nivo charts
+- **State**: Zustand (client), TanStack Query (server)
+- **Backend**: FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL, JWT auth
+- **AI**: Rule-based NL parsing (no paid API, no OpenAI)
 
 ## Quick Start
 
-1. **Clone and setup**
-   ```bash
-   git clone <repository-url>
-   cd FinanceFlareAI
-   cp env.example .env
-   # Add your OpenAI API key to .env
-   ```
+### Without Docker (recommended for development)
 
-2. **Start with Docker**
-   ```bash
-   docker-compose up --build -d
-   ```
-
-3. **Access the application**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - API Docs: http://localhost:8000/docs
-
-## Environment Variables
-
-Create `.env` file with:
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-SECRET_KEY=your_secret_key_here
-DATABASE_URL=postgresql://financeflareai_user:financeflareai_password@postgres:5432/financeflareai
-```
-
-## Development
+#### Backend
 
 ```bash
-# Frontend
+# Prerequisites: Python 3.13+, PostgreSQL running locally
+
+cd backend
+
+# Create and activate virtual environment
+python -m venv venv
+
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.lock
+
+# Configure environment
+copy .env.example .env    # Windows
+# cp .env.example .env    # macOS/Linux
+# Edit .env with your PostgreSQL credentials
+
+# Run database migrations
+alembic upgrade head
+
+# Start the server
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+#### Frontend
+
+```bash
 cd frontend
 npm install
 npm run dev
-
-# Backend
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
 ```
+
+Open http://localhost:3000
+
+### With Docker
+
+```bash
+docker-compose up --build -d
+```
+
+Access:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+## Environment Variables
+
+Create `.env` file in `backend/`:
+```env
+SECRET_KEY=your-secret-key-here
+DATABASE_URL=postgresql://user:password@localhost/financeflareai
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
+
+No OpenAI key needed — all AI features use free local parsing.
+
+## Project Structure
+
+```
+FinanceFlare/
+├── backend/
+│   ├── database/         SQLAlchemy models + session
+│   ├── routers/          FastAPI route handlers (thin)
+│   ├── services/         Business logic + NL parsing
+│   ├── alembic/          Database migrations
+│   └── main.py           FastAPI app
+├── frontend/
+│   ├── shared/           Shared logic (stores, services, theme)
+│   ├── desktop/          Desktop-specific UI
+│   ├── mobile/           Mobile-specific UI
+│   └── main.tsx          Device detection entry point
+├── rules/                opencode instruction files
+├── AGENTS.md
+├── opencode.json
+└── docker-compose.yml
+```
+
+## Development Commands
+
+| Command | Description |
+|---------|-------------|
+| `uvicorn main:app --reload` | Start backend |
+| `alembic upgrade head` | Run migrations |
+| `alembic revision --autogenerate -m "desc"` | Create migration |
+| `npm run dev` | Start frontend |
+| `npm run build` | Build frontend |
+| `pip-compile requirements.in` | Lock dependencies |
+
+## License
+
+AGPL-3.0 — Free for everyone.

@@ -38,18 +38,13 @@ venv\Scripts\activate
 source venv/bin/activate
 
 # Install dependencies
-pip install -r requirements.lock
-
-# Configure environment
-copy .env.example .env    # Windows
-# cp .env.example .env    # macOS/Linux
-# Edit .env with your PostgreSQL credentials
+pip install -r requirements.txt
 
 # Run database migrations
 alembic upgrade head
 
 # Start the server
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
 #### Frontend
@@ -70,20 +65,19 @@ docker-compose up --build -d
 
 Access:
 - Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+- Backend API: http://localhost:8080
+- API Docs: http://localhost:8080/docs
 
 ## Environment Variables
 
-Create `.env` file in `backend/`:
-```env
-SECRET_KEY=your-secret-key-here
-DATABASE_URL=postgresql://user:password@localhost/financeflareai
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+Backend config is in `backend/.env`. Copy the template:
+
+```bash
+copy backend\.env.example backend\.env   # Windows
+# cp backend/.env.example backend/.env   # macOS/Linux
 ```
 
-No OpenAI key needed — all AI features use free local parsing.
+Then edit with your credentials. No OpenAI key needed — all AI features use free local parsing.
 
 ## Project Structure
 
@@ -115,7 +109,7 @@ FinanceFlare/
 | `alembic revision --autogenerate -m "desc"` | Create migration |
 | `npm run dev` | Start frontend |
 | `npm run build` | Build frontend |
-| `pip-compile requirements.in` | Lock dependencies |
+| `pip install -r requirements.txt` | Install dependencies |
 
 ## License
 

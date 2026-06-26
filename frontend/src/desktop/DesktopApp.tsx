@@ -4,6 +4,10 @@ import { Heading, Text, Flex } from '@radix-ui/themes'
 import { DesktopLayout } from './layouts/DesktopLayout.tsx'
 import { Login } from './pages/Login/Login.tsx'
 import { Register } from './pages/Register/Register.tsx'
+import { AddTransaction } from './pages/AddTransaction/AddTransaction.tsx'
+import { Transactions } from './pages/Transactions/Transactions.tsx'
+import { Dashboard } from './pages/Dashboard/Dashboard.tsx'
+import { Budgets } from './pages/Budgets/Budgets.tsx'
 
 const PlaceholderPage = ({ title }: { title: string }) => (
   <Flex direction="column" gap="4">
@@ -18,9 +22,10 @@ export const DesktopApp = (): JSX.Element => {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route element={<DesktopLayout />}>
-        <Route path="/" element={<PlaceholderPage title="Dashboard" />} />
-        <Route path="/transactions" element={<PlaceholderPage title="Transactions" />} />
-        <Route path="/budgets" element={<PlaceholderPage title="Budgets" />} />
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/add" element={<AddTransaction />} />
+        <Route path="/transactions" element={<Transactions />} />
+        <Route path="/budgets" element={<Budgets />} />
         <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

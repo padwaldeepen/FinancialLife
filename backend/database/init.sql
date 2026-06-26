@@ -1,0 +1,3 @@
+-- Initial database setup for FinanceFlare
+-- Tables are created by SQLAlchemy on startup
+-- This file exists to satisfy the docker-compose volume mount

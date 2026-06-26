@@ -176,10 +176,10 @@ export const theme = {
 ### Shared (Same on Both)
 - API client (`shared/services/api.ts`)
 - Zustand stores (`shared/store/`)
-- Theme tokens (`shared/theme/`)
+- Theme config (`shared/theme/`)
 - TypeScript types (`shared/types/`)
 - Utility functions (`shared/utils/`)
-- Primitive components: Button, Card, Input, Modal (`shared/components/`)
+- Radix Themes (`@radix-ui/themes`) provides all UI primitives — no custom wrappers
 
 ---
 
@@ -214,9 +214,12 @@ The NL quick-add ("spent 15 on groceries") uses a simple regex/rule parser initi
 - Write `styles/index.css` — only CSS custom properties + minimal reset
 - No Tailwind anywhere
 
-### Phase 2 — Shared Components
-- Button, Card, Input, Modal (Radix Dialog), Loader, EmptyState
-- Each with own `ComponentName.tsx` + `ComponentName.module.css`
+### Phase 2 — Radix Themes Integration
+- Install `@radix-ui/themes` — full component library with built-in theming
+- Use Radix Button, Card, TextField, Dialog, Select, DropdownMenu, etc. directly
+- No custom wrappers; Radix handles visuals and accessibility
+- Import Radix CSS: `@import '@radix-ui/themes/styles.css'`
+- ThemeProvider wraps `@radix-ui/themes/Theme` with accentColor="orange"
 
 ### Phase 3 — Layouts
 - **Desktop**: Sidebar + TopBar + DesktopLayout + DesktopApp.tsx

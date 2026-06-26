@@ -30,32 +30,32 @@ FinanceFlare is a free, open-source personal finance tracker. The goal is to mak
 FinanceFlare/
 │
 ├── backend/
+│   ├── core/
+│   │   ├── config.py           Settings (pydantic-settings)
+│   │   └── security.py         Password hash, JWT
 │   ├── database/
 │   │   ├── __init__.py
 │   │   ├── session.py          Engine, SessionLocal, Base
-│   │   └── models.py           User, Category, Transaction, Budget
+│   │   ├── models.py           User, Category, Transaction, Budget
+│   │   ├── alembic.ini
+│   │   ├── init.sql
+│   │   └── alembic/
+│   │       ├── env.py
+│   │       ├── script.py.mako
+│   │       └── versions/
 │   ├── routers/
 │   │   ├── __init__.py
 │   │   ├── auth.py             /login, /register, /me
 │   │   ├── transactions.py     CRUD + /parse endpoint
-│   │   └── budgets.py          CRUD
+│   │   ├── budgets.py          CRUD
+│   │   └── ai.py               Rule-based fallback
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── auth_service.py     Password hash, token create/verify
-│   │   ├── transaction_service.py  Business logic + NL parsing (free)
-│   │   └── budget_service.py   Budget logic
-│   ├── alembic/
-│   │   ├── versions/
-│   │   │   └── .gitkeep
-│   │   ├── env.py
-│   │   └── script.py.mako
-│   ├── alembic.ini
+│   │   └── transaction_service.py  NL parsing (rule-based)
 │   ├── main.py                 FastAPI app, CORS, routers
-│   ├── .env.example
-│   ├── requirements.in         Direct dependencies
-│   ├── requirements.lock       Pinned via pip-compile
-│   ├── Dockerfile
-│   └── Dockerfile.dev
+│   ├── requirements.txt
+│   ├── .env
+│   └── Dockerfile
 │
 ├── frontend/
 │   ├── public/
@@ -293,18 +293,16 @@ venv\Scripts\activate
 source venv/bin/activate
 
 # 4. Install dependencies
-pip install -r requirements.lock
+pip install -r requirements.txt
 
 # 5. Configure environment
-copy .env.example .env    # Windows
-# cp .env.example .env    # macOS/Linux
-# Edit .env with your PostgreSQL credentials
+# backend/.env already exists — edit with your PostgreSQL credentials
 
 # 6. Run database migrations
 alembic upgrade head
 
 # 7. Start the server
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
 ### With Docker

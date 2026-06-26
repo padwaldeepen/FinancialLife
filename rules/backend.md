@@ -2,30 +2,55 @@
 
 ## Architecture
 - Routers are thin — validate input with Pydantic, call service, return response
-- Services contain all business logic — password hashing, token creation, NL parsing
-- Never import models or database sessions directly in routers
-- Controllers (routers) should not contain if/else business logic
+- Services contain all business logic — NL parsing, etc.
+- Keep business logic out of routers; no if/else chains in route handlers
+- Routers live in `routers/`, services in `services/`, config in `core/`
+
+## Project Structure
+```
+backend/
+├── core/              Config, security, logging
+├── database/          Session, models, Alembic migrations
+├── routers/           FastAPI route handlers (thin)
+├── services/          Business logic (NL parsing, etc.)
+├── main.py            FastAPI app setup
+├── .env               Environment variables
+├── requirements.txt   Pinned dependencies
+├── pyproject.toml     Ruff + pytest config
+└── Dockerfile
+```
 
 ## API Design
 - Use Pydantic v2 for all request/response schemas
-- Return proper HTTP status codes (201 for create, 204 for delete, etc.)
+- Return proper HTTP status codes (201 for create, 204 for delete)
 - Use descriptive endpoint paths: `/api/transactions/parse` not `/api/parse-transaction`
-- Consistent error response format: `{ "detail": "message" }`
+- Consistent error format: `{ "detail": "message" }`
 
 ## Authentication
 - JWT via python-jose with HS256
 - Passwords hashed with bcrypt via passlib
 - Token expiry configurable via settings (default 30 min)
-- Protected routes use a `get_current_user` dependency
+- Protected routes use `get_current_user` dependency from `routers/auth.py`
 
 ## AI / NL Parsing
 - No paid API calls (no OpenAI, no external services)
-- NL parsing uses rule-based regex + keyword matching
-- Keep parsing logic in `services/transaction_service.py`
+- NL parsing uses rule-based regex + keyword matching in `services/transaction_service.py`
 - Free and local-only — user data never leaves the server
 
+## Logging
+- Use `core/logging.py` for all logging
+- Import `get_logger(__name__)` from `core.logging` in each module
+- Never use `print()` — always use structured logging
+- Log levels: DEBUG for development details, INFO for lifecycle events, WARNING for unexpected states, ERROR for failures
+
 ## Code Style
-- Type hints on all functions
-- Async for all route handlers
-- Services can be sync if no I/O; async if DB or external calls
+- Type hints on all functions and parameters
+- Async for all route handlers; services can be sync if no I/O
 - No raw SQL — always use SQLAlchemy ORM
+- Use modern Python 3.12+ syntax: `list[str]` not `List[str]`, `str | None` not `Optional[str]`
+
+## Formatting & Linting
+- Format with Ruff: `ruff check .` (lint) and `ruff format .` (format)
+- Run both before committing — `ruff check . && ruff format .`
+- Rules defined in `pyproject.toml` under `[tool.ruff]`
+- Line length: 100

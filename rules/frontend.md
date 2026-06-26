@@ -7,7 +7,13 @@
 - Desktop and mobile components never share CSS
 
 ## Radix UI
-- Use `@radix-ui/themes` components directly — Button, Card, TextField, Dialog, Select, DropdownMenu, etc.
+- Use `@radix-ui/themes` components exclusively — Button, Card, TextField, Dialog,
+  Box, Flex, Grid, Heading, Text, Badge, IconButton, Select, DropdownMenu, etc.
+- No `<div>` or `<span>` — use Radix `<Box>`, `<Flex>`, `<Grid>` instead
+- Semantic HTML elements (`<nav>`, `<main>`, `<header>`, `<aside>`, `<form>`,
+  `<section>`, `<article>`) are fine and preferred for accessibility
+- No `<button>` — use Radix `<Button>` or `<IconButton>`
+- No `<a>` — use Radix `<Link>` or react-router `<NavLink>`
 - No custom wrappers around Radix components; import and use them as-is
 - Custom styling via `className` + CSS Modules for layout tweaks only
 - Radix handles all visuals and theming via its token system

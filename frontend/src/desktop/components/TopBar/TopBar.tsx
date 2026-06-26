@@ -1,5 +1,5 @@
 import { type JSX } from 'react'
-import { Flex, Avatar, Text } from '@radix-ui/themes'
+import { Flex, Text, Avatar } from '@radix-ui/themes'
 import styles from './TopBar.module.css'
 
 export const TopBar = (): JSX.Element => {

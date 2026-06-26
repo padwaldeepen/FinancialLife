@@ -1,7 +1,7 @@
 import { useState, type JSX } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Card, Flex, Heading, Text, Button, TextField } from '@radix-ui/themes'
+import { Box, Card, Flex, Heading, Text, Button, TextField, IconButton } from '@radix-ui/themes'
 import { Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../../../store/authStore.ts'
@@ -38,10 +38,10 @@ export const Login = (): JSX.Element => {
   }
 
   return (
-    <div className={styles.page}>
+    <Box className={styles.page}>
       <Card size="3" className={styles.card}>
-        <Flex direction="column" gap="4" asChild>
-          <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <Flex direction="column" gap="4">
             <Flex direction="column" gap="1">
               <Heading size="6">Welcome back</Heading>
               <Text size="2" color="gray">
@@ -93,14 +93,15 @@ export const Login = (): JSX.Element => {
                     })}
                   />
                   <TextField.Slot>
-                    <button
+                    <IconButton
                       type="button"
-                      className={styles.togglePassword}
+                      variant="ghost"
+                      size="1"
                       onClick={() => setShowPassword(!showPassword)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
+                    </IconButton>
                   </TextField.Slot>
                 </TextField.Root>
                 {errors.password && (
@@ -121,9 +122,9 @@ export const Login = (): JSX.Element => {
                 Sign up
               </Link>
             </Text>
-          </form>
-        </Flex>
+          </Flex>
+        </form>
       </Card>
-    </div>
+    </Box>
   )
 }

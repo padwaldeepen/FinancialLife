@@ -1,0 +1,8 @@
+.topBar {
+  height: 56px;
+  border-bottom: 1px solid var(--gray-5);
+  background-color: var(--color-panel);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}

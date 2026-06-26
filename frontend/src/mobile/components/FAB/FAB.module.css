@@ -1,0 +1,24 @@
+.fab {
+  position: fixed;
+  bottom: 80px;
+  right: var(--space-4);
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background-color: var(--accent-9);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-5);
+  border: none;
+  cursor: pointer;
+  z-index: 30;
+  transition: transform 0.15s, background-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fab:active {
+  transform: scale(0.95);
+  background-color: var(--accent-10);
+}

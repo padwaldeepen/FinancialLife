@@ -52,6 +52,7 @@ export default [
       'react-hooks/incompatible-library': 'warn',
       'react-hooks/immutability': 'warn',
       'react-hooks/set-state-in-effect': 'warn',
+
     },
   },
   {
@@ -63,6 +64,21 @@ export default [
         ...globals.browser,
         ...globals.es2024,
       },
+    },
+  },
+  {
+    files: ['vite.config.ts'],
+    rules: {
+      'no-restricted-exports': 'off',
+    },
+  },
+  {
+    files: ['src/shared/**/*.tsx', 'src/desktop/**/*.tsx', 'src/mobile/**/*.tsx'],
+    rules: {
+      'no-restricted-exports': [
+        'error',
+        { restrictDefaultExports: { direct: true } },
+      ],
     },
   },
   {

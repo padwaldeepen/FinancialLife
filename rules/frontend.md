@@ -1,6 +1,8 @@
 # Frontend Rules
 
 ## Component Pattern
+- Named arrow function exports only: `export const ComponentName = () => {`
+- No default exports, no `function` keyword for components
 - Every component gets its own folder: `ComponentName/ComponentName.tsx` + `ComponentName.module.css`
 - No exceptions to this pattern
 - Desktop and mobile components never share CSS

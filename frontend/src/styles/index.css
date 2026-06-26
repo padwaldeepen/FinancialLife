@@ -1,32 +1,61 @@
-/* Theme variables — injected by ThemeProvider at runtime */
-:root {
-  color-scheme: light dark;
-}
-
+/* CSS reset */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 html {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: light dark;
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  background-color: var(--color-bg, #fafafa);
-  color: var(--color-text, #171717);
-}
-
-[data-theme='dark'] body {
-  background-color: var(--color-bg, #171717);
-  color: var(--color-text, #fafafa);
+  background-color: var(--color-neutral-50);
+  color: var(--color-neutral-900);
+  line-height: 1.5;
+  min-height: 100dvh;
 }
 
 #root {
   min-height: 100dvh;
+}
+
+[data-theme='dark'] body {
+  background-color: var(--color-neutral-900);
+  color: var(--color-neutral-50);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
 }

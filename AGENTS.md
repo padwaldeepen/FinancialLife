@@ -25,6 +25,12 @@ Free, open-source personal finance tracker.
 - Every DB schema change requires an Alembic migration
 - Always use SQLAlchemy ORM, never raw SQL
 
+## Required After Every Change
+
+- Frontend: `npm run lint:fix && npm run format:fix` (from `frontend/`)
+- Backend: `ruff check . && ruff format .` (from `backend/`)
+- Always run both before committing
+
 ## Commands
 
 - `uvicorn main:app --reload` — start backend

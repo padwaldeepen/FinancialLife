@@ -100,16 +100,16 @@ export const Transactions = (): JSX.Element => {
         Transactions
       </Heading>
 
-      <TextField.Root mb="2">
-        <TextField.Slot>
+      <TextField.Root
+        mb="2"
+        className={styles.searchInput}
+        placeholder="Search..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      >
+        <TextField.Slot side="left">
           <Search size={16} />
         </TextField.Slot>
-        <input
-          className={styles.searchInput}
-          placeholder="Search..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
       </TextField.Root>
 
       <Flex gap="2" mb="3" align="center">

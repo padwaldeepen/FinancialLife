@@ -101,16 +101,15 @@ export const Transactions = (): JSX.Element => {
       </Heading>
 
       <Flex direction="column" gap="3" mb="4">
-        <TextField.Root>
-          <TextField.Slot>
+        <TextField.Root
+          className={styles.searchInput}
+          placeholder="Search transactions..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        >
+          <TextField.Slot side="left">
             <Search size={16} />
           </TextField.Slot>
-          <input
-            className={styles.searchInput}
-            placeholder="Search transactions..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
         </TextField.Root>
 
         <Flex gap="2" wrap="wrap" align="center">

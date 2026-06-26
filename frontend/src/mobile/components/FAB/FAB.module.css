@@ -14,7 +14,9 @@
   border: none;
   cursor: pointer;
   z-index: 30;
-  transition: transform 0.15s, background-color 0.15s;
+  transition:
+    transform 0.15s,
+    background-color 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
 

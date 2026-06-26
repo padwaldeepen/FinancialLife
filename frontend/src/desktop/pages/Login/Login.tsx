@@ -1,37 +1,42 @@
 import { useState, type JSX } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { Box, Card, Flex, Heading, Text, Button, TextField, IconButton } from '@radix-ui/themes'
-import { Eye, EyeOff } from 'lucide-react'
+import { Box, Flex, Heading, Text, Button, Card, TextField } from '@radix-ui/themes'
 import toast from 'react-hot-toast'
-import { useAuthStore } from '../../../store/authStore.ts'
+import { useBoundStore } from '../../../store/index.ts'
 import styles from './Login.module.css'
 
-interface LoginForm {
-  email: string
-  password: string
-}
-
 export const Login = (): JSX.Element => {
-  const login = useAuthStore((s) => s.login)
+  const login = useBoundStore((s) => s.login)
   const navigate = useNavigate()
-  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginForm>()
+  const validate = () => {
+    const e: typeof errors = {}
+    if (!email) e.email = 'Email is required'
+    else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email)) e.email = 'Invalid email'
+    if (!password) e.password = 'Password is required'
+    else if (password.length < 6) e.password = 'Minimum 6 characters'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
 
-  const onSubmit = async (data: LoginForm) => {
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validate()) return
     setLoading(true)
     try {
-      await login(data.email, data.password)
-      toast.success('Logged in successfully!')
+      await login(email, password)
+      toast.success('Logged in')
       navigate('/')
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Login failed')
+      const detail = error.response?.data?.detail
+      const msg = Array.isArray(detail)
+        ? detail.map((e: any) => e.msg).join('; ')
+        : detail || 'Login failed'
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -40,90 +45,82 @@ export const Login = (): JSX.Element => {
   return (
     <Box className={styles.page}>
       <Card size="3" className={styles.card}>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <Flex direction="column" gap="4">
-            <Flex direction="column" gap="1">
-              <Heading size="6">Welcome back</Heading>
-              <Text size="2" color="gray">
-                Sign in to your account to continue
-              </Text>
+        <Flex direction="column" gap="6">
+          <Box className={styles.header}>
+            <Flex justify="center" mb="4">
+              <Box className={styles.logo}>F</Box>
             </Flex>
+            <Heading size="7" align="center">
+              Welcome back
+            </Heading>
+            <Text size="2" color="gray" align="center" mt="1">
+              Sign in to your account
+            </Text>
+          </Box>
 
-            <Flex direction="column" gap="3">
+          <form onSubmit={onSubmit}>
+            <Flex direction="column" gap="4">
               <Flex direction="column" gap="1">
-                <Text as="label" size="2" weight="medium" htmlFor="email">
+                <Text size="2" weight="medium">
                   Email
                 </Text>
-                <TextField.Root>
-                  <input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    {...register('email', {
-                      required: 'Email is required',
-                      pattern: {
-                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                        message: 'Invalid email address',
-                      },
-                    })}
-                  />
-                </TextField.Root>
+                <TextField.Root
+                  color={errors.email ? 'red' : undefined}
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    setErrors((p) => ({ ...p, email: undefined }))
+                  }}
+                  autoComplete="email"
+                  className={styles.input}
+                />
                 {errors.email && (
                   <Text size="1" color="red">
-                    {errors.email.message}
+                    {errors.email}
                   </Text>
                 )}
               </Flex>
 
               <Flex direction="column" gap="1">
-                <Text as="label" size="2" weight="medium" htmlFor="password">
+                <Text size="2" weight="medium">
                   Password
                 </Text>
-                <TextField.Root>
-                  <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Enter your password"
-                    {...register('password', {
-                      required: 'Password is required',
-                      minLength: {
-                        value: 6,
-                        message: 'Password must be at least 6 characters',
-                      },
-                    })}
-                  />
-                  <TextField.Slot>
-                    <IconButton
-                      type="button"
-                      variant="ghost"
-                      size="1"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </IconButton>
-                  </TextField.Slot>
-                </TextField.Root>
+                <TextField.Root
+                  color={errors.password ? 'red' : undefined}
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    setErrors((p) => ({ ...p, password: undefined }))
+                  }}
+                  autoComplete="current-password"
+                  className={styles.input}
+                />
                 {errors.password && (
                   <Text size="1" color="red">
-                    {errors.password.message}
+                    {errors.password}
                   </Text>
                 )}
               </Flex>
+
+              <Button type="submit" size="3" loading={loading} mt="2">
+                Sign in
+              </Button>
             </Flex>
+          </form>
 
-            <Button type="submit" loading={loading} size="3">
-              Sign in
-            </Button>
-
-            <Text size="2" align="center" color="gray">
-              Don&apos;t have an account?{' '}
-              <Link to="/register" className={styles.link}>
-                Sign up
-              </Link>
-            </Text>
-          </Flex>
-        </form>
+          <Text size="2" color="gray" align="center">
+            Don&apos;t have an account?{' '}
+            <Link to="/register" className={styles.footerLink}>
+              Sign up
+            </Link>
+          </Text>
+        </Flex>
       </Card>
     </Box>
   )

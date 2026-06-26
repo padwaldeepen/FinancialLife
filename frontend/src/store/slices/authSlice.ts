@@ -1,13 +1,14 @@
-import { create } from 'zustand'
-import api from '../utils/api.ts'
+import { type StateCreator } from 'zustand'
+import type { StoreState } from '../types.ts'
+import api from '../../utils/api.ts'
 
-interface User {
+export interface User {
   id: number
   email: string
   name?: string
 }
 
-interface AuthState {
+export interface AuthSlice {
   user: User | null
   token: string | null
   loading: boolean
@@ -17,23 +18,32 @@ interface AuthState {
   verifyToken: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set, get) => ({
   user: null,
   token: localStorage.getItem('token'),
   loading: false,
 
   login: async (email: string, password: string) => {
     const response = await api.post('/api/auth/login', { email, password })
-    const { access_token, user } = response.data
+    const { access_token, user_id, email: userEmail } = response.data
     localStorage.setItem('token', access_token)
-    set({ token: access_token, user })
+    set({ token: access_token, user: { id: user_id, email: userEmail } })
   },
 
   register: async (email: string, password: string, name?: string) => {
-    const response = await api.post('/api/auth/register', { email, password, name })
-    const { access_token, user } = response.data
+    const username = email.split('@')[0]
+    const response = await api.post('/api/auth/register', {
+      email,
+      username,
+      password,
+      full_name: name,
+    })
+    const { access_token, user_id, email: userEmail } = response.data
     localStorage.setItem('token', access_token)
-    set({ token: access_token, user })
+    set({
+      token: access_token,
+      user: { id: user_id, email: userEmail, name },
+    })
   },
 
   logout: () => {
@@ -53,4 +63,4 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ token: null, user: null, loading: false })
     }
   },
-}))
+})

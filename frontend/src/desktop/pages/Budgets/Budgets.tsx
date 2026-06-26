@@ -118,26 +118,23 @@ export const Budgets = (): JSX.Element => {
                 <Text size="2" weight="medium">
                   Name
                 </Text>
-                <TextField.Root>
-                  <input
-                    placeholder="e.g. Groceries"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </TextField.Root>
+                <TextField.Root
+                  placeholder="e.g. Groceries"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </Flex>
               <Flex direction="column" gap="1">
                 <Text size="2" weight="medium">
                   Amount
                 </Text>
-                <TextField.Root>
-                  <TextField.Slot>$</TextField.Slot>
-                  <input
-                    type="number"
-                    placeholder="500"
-                    value={budgetAmount}
-                    onChange={(e) => setBudgetAmount(e.target.value)}
-                  />
+                <TextField.Root
+                  type="number"
+                  placeholder="500"
+                  value={budgetAmount}
+                  onChange={(e) => setBudgetAmount(e.target.value)}
+                >
+                  <TextField.Slot side="left">$</TextField.Slot>
                 </TextField.Root>
               </Flex>
               <Flex direction="column" gap="1">

@@ -1,0 +1,41 @@
+.page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.card {
+  width: 100%;
+  max-width: 400px;
+}
+
+.togglePassword {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--gray-10);
+  border-radius: var(--radius-2);
+  transition: color 0.15s;
+}
+
+.togglePassword:hover {
+  color: var(--gray-12);
+}
+
+.link {
+  color: var(--accent-9);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--accent-10);
+  text-decoration: underline;
+}

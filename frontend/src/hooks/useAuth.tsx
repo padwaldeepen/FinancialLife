@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect } from 'react'
 import api from '../utils/api'
 
 interface User {
@@ -61,22 +62,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const response = await api.post('/api/auth/login', {
         email,
-        password
+        password,
       })
-      
+
       const { access_token, user_id, email: userEmail } = response.data
-      
+
       setToken(access_token)
       // Get user info from the token response
       const userData = {
         id: user_id,
         email: userEmail,
         username: '', // Will be fetched from /me endpoint
-        full_name: ''
+        full_name: '',
       }
       setUser(userData)
       localStorage.setItem('token', access_token)
-      
+
       // Fetch complete user info
       const userResponse = await api.get('/api/auth/me')
       setUser(userResponse.data)
@@ -92,18 +93,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email,
         username,
         password,
-        full_name: fullName
+        full_name: fullName,
       })
-      
+
       const { access_token, user_id, email: userEmail } = response.data
-      
+
       setToken(access_token)
       // Get user info from the token response
       const userData = {
         id: user_id,
         email: userEmail,
         username: username,
-        full_name: fullName || ''
+        full_name: fullName || '',
       }
       setUser(userData)
       localStorage.setItem('token', access_token)
@@ -125,12 +126,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     register,
     logout,
-    loading
+    loading,
   }
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  )
-} 
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}

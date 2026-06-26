@@ -37,7 +37,6 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
   const [mode, setMode] = useState<'manual' | 'ai'>('manual')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiResult, setAiResult] = useState<AICategorization | null>(null)
-  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(false)
 
   const {
@@ -46,7 +45,7 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
     setValue,
     watch,
     reset,
-    formState: { errors }
+    formState: { errors },
   } = useForm<TransactionForm>()
 
   const watchedDescription = watch('description')
@@ -78,11 +77,11 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
       const response = await api.post('/api/ai/categorize', {
         description: watchedDescription,
         amount: watch('amount'),
-        date: watch('date')
+        date: watch('date'),
       })
 
       setAiResult(response.data)
-      
+
       // Auto-fill form with AI suggestions
       setValue('transaction_type', response.data.transaction_type)
       if (response.data.extracted_amount) {
@@ -92,7 +91,9 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
         setValue('date', response.data.extracted_date)
       }
 
-      toast.success(`AI categorized as: ${response.data.suggested_category} (${(response.data.confidence * 100).toFixed(0)}% confidence)`)
+      toast.success(
+        `AI categorized as: ${response.data.suggested_category} (${(response.data.confidence * 100).toFixed(0)}% confidence)`,
+      )
     } catch (error: any) {
       console.error('AI categorization failed:', error)
       toast.error(error.response?.data?.detail || 'AI categorization failed')
@@ -106,9 +107,9 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
     try {
       await api.post('/api/transactions/', {
         ...data,
-        date: new Date(data.date).toISOString()
+        date: new Date(data.date).toISOString(),
       })
-      
+
       toast.success('Transaction added successfully!')
       reset()
       setAiResult(null)
@@ -190,7 +191,9 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
                 />
               </div>
               {errors.description && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.description.message}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.description.message}
+                </p>
               )}
             </div>
 
@@ -211,14 +214,24 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
                   <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                     <div className="flex items-center space-x-2 mb-2">
                       <Sparkles size={16} className="text-green-600 dark:text-green-400" />
-                      <span className="font-medium text-green-800 dark:text-green-200">AI Suggestion</span>
+                      <span className="font-medium text-green-800 dark:text-green-200">
+                        AI Suggestion
+                      </span>
                     </div>
                     <div className="text-sm text-green-700 dark:text-green-300">
-                      <p><strong>Category:</strong> {aiResult.suggested_category}</p>
-                      <p><strong>Type:</strong> {aiResult.transaction_type}</p>
-                      <p><strong>Confidence:</strong> {(aiResult.confidence * 100).toFixed(0)}%</p>
+                      <p>
+                        <strong>Category:</strong> {aiResult.suggested_category}
+                      </p>
+                      <p>
+                        <strong>Type:</strong> {aiResult.transaction_type}
+                      </p>
+                      <p>
+                        <strong>Confidence:</strong> {(aiResult.confidence * 100).toFixed(0)}%
+                      </p>
                       {aiResult.extracted_amount && (
-                        <p><strong>Extracted Amount:</strong> ${aiResult.extracted_amount}</p>
+                        <p>
+                          <strong>Extracted Amount:</strong> ${aiResult.extracted_amount}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -236,9 +249,9 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
                   <DollarSign className="h-5 w-5 text-neutral-400" />
                 </div>
                 <input
-                  {...register('amount', { 
+                  {...register('amount', {
                     required: 'Amount is required',
-                    min: { value: 0.01, message: 'Amount must be greater than 0' }
+                    min: { value: 0.01, message: 'Amount must be greater than 0' },
                   })}
                   type="number"
                   step="0.01"
@@ -247,7 +260,9 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
                 />
               </div>
               {errors.amount && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.amount.message}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.amount.message}
+                </p>
               )}
             </div>
 
@@ -264,7 +279,9 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
                 <option value="income">Income</option>
               </select>
               {errors.transaction_type && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.transaction_type.message}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.transaction_type.message}
+                </p>
               )}
             </div>
 
@@ -277,21 +294,33 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Tag className="h-5 w-5 text-neutral-400" />
                 </div>
-                <select
-                  {...register('category_id')}
-                  className="input-field pl-10"
-                >
+                <select {...register('category_id')} className="input-field pl-10">
                   <option value="">Select a category</option>
                   {mockCategories
-                    .filter(cat => {
+                    .filter((cat) => {
                       const type = watch('transaction_type')
                       if (type === 'income') {
-                        return ['Salary', 'Freelance', 'Investment', 'Business', 'Gift', 'Refund', 'Other'].includes(cat.name)
+                        return [
+                          'Salary',
+                          'Freelance',
+                          'Investment',
+                          'Business',
+                          'Gift',
+                          'Refund',
+                          'Other',
+                        ].includes(cat.name)
                       } else {
-                        return !['Salary', 'Freelance', 'Investment', 'Business', 'Gift', 'Refund'].includes(cat.name)
+                        return ![
+                          'Salary',
+                          'Freelance',
+                          'Investment',
+                          'Business',
+                          'Gift',
+                          'Refund',
+                        ].includes(cat.name)
                       }
                     })
-                    .map(category => (
+                    .map((category) => (
                       <option key={category.id} value={category.id}>
                         {category.name}
                       </option>
@@ -336,18 +365,10 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
 
             {/* Submit Buttons */}
             <div className="flex justify-end space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="btn-outline"
-              >
+              <button type="button" onClick={handleClose} className="btn-outline">
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary"
-              >
+              <button type="submit" disabled={loading} className="btn-primary">
                 {loading ? 'Adding...' : 'Add Transaction'}
               </button>
             </div>
@@ -358,4 +379,4 @@ const AddTransaction: React.FC<AddTransactionProps> = ({ isOpen, onClose, onSucc
   )
 }
 
-export default AddTransaction 
+export default AddTransaction

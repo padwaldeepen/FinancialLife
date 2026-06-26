@@ -19,7 +19,7 @@ const Login: React.FC = () => {
   const {
     register,
     handleSubmit,
-    formState: { errors }
+    formState: { errors },
   } = useForm<LoginForm>()
 
   const onSubmit = async (data: LoginForm) => {
@@ -46,11 +46,14 @@ const Login: React.FC = () => {
             Sign in to your account to continue
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
+              >
                 Email address
               </label>
               <div className="mt-1 relative">
@@ -62,8 +65,8 @@ const Login: React.FC = () => {
                     required: 'Email is required',
                     pattern: {
                       value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: 'Invalid email address'
-                    }
+                      message: 'Invalid email address',
+                    },
                   })}
                   type="email"
                   className="input-field pl-10"
@@ -71,12 +74,17 @@ const Login: React.FC = () => {
                 />
               </div>
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email.message}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
+              >
                 Password
               </label>
               <div className="mt-1 relative">
@@ -88,8 +96,8 @@ const Login: React.FC = () => {
                     required: 'Password is required',
                     minLength: {
                       value: 6,
-                      message: 'Password must be at least 6 characters'
-                    }
+                      message: 'Password must be at least 6 characters',
+                    },
                   })}
                   type={showPassword ? 'text' : 'password'}
                   className="input-field pl-10 pr-10"
@@ -108,7 +116,9 @@ const Login: React.FC = () => {
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.password.message}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.password.message}
+                </p>
               )}
             </div>
           </div>
@@ -140,4 +150,4 @@ const Login: React.FC = () => {
   )
 }
 
-export default Login 
+export default Login

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { DollarSign, TrendingUp, TrendingDown, PiggyBank } from 'lucide-react'
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import api from '../utils/api'
 import toast from 'react-hot-toast'
 import { format, parseISO } from 'date-fns'
@@ -58,7 +57,7 @@ const Dashboard: React.FC = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'USD',
     }).format(amount)
   }
 
@@ -70,15 +69,11 @@ const Dashboard: React.FC = () => {
     }
   }
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B6B']
-
   if (loading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-            Dashboard
-          </h1>
+          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Dashboard</h1>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
@@ -96,9 +91,7 @@ const Dashboard: React.FC = () => {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-            Dashboard
-          </h1>
+          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Dashboard</h1>
         </div>
         <div className="card">
           <p className="text-center text-neutral-600 dark:text-neutral-400">
@@ -112,9 +105,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-          Dashboard
-        </h1>
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Dashboard</h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
           Welcome back! Here's your financial overview.
         </p>
@@ -163,7 +154,9 @@ const Dashboard: React.FC = () => {
               <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
                 Net Amount
               </p>
-              <p className={`text-2xl font-bold ${summary.net_amount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              <p
+                className={`text-2xl font-bold ${summary.net_amount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
+              >
                 {formatCurrency(summary.net_amount)}
               </p>
             </div>
@@ -194,25 +187,17 @@ const Dashboard: React.FC = () => {
             Spending by Category
           </h3>
           {summary.category_summaries.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={summary.category_summaries}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ category_name, percent }) => `${category_name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="total_amount"
-                >
-                  {summary.category_summaries.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.category_color || COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value: number) => formatCurrency(value)} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div
+              style={{
+                height: 300,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-neutral-500, #737373)',
+              }}
+            >
+              <p>Chart coming soon (Nivo Pie)</p>
+            </div>
           ) : (
             <div className="h-64 flex items-center justify-center text-neutral-500 dark:text-neutral-400">
               <p>No spending data available</p>
@@ -225,15 +210,17 @@ const Dashboard: React.FC = () => {
             Category Breakdown
           </h3>
           {summary.category_summaries.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={summary.category_summaries}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="category_name" />
-                <YAxis />
-                <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                <Bar dataKey="total_amount" fill="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
+            <div
+              style={{
+                height: 300,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-neutral-500, #737373)',
+              }}
+            >
+              <p>Chart coming soon (Nivo Bar)</p>
+            </div>
           ) : (
             <div className="h-64 flex items-center justify-center text-neutral-500 dark:text-neutral-400">
               <p>No category data available</p>
@@ -250,7 +237,10 @@ const Dashboard: React.FC = () => {
         {summary.recent_transactions.length > 0 ? (
           <div className="space-y-4">
             {summary.recent_transactions.map((transaction) => (
-              <div key={transaction.id} className="flex items-center justify-between p-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg">
+              <div
+                key={transaction.id}
+                className="flex items-center justify-between p-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg"
+              >
                 <div>
                   <p className="font-medium text-neutral-900 dark:text-neutral-100">
                     {transaction.description}
@@ -259,8 +249,11 @@ const Dashboard: React.FC = () => {
                     {transaction.category_name || 'Uncategorized'} • {formatDate(transaction.date)}
                   </p>
                 </div>
-                <span className={`font-medium ${transaction.transaction_type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                  {transaction.transaction_type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                <span
+                  className={`font-medium ${transaction.transaction_type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
+                >
+                  {transaction.transaction_type === 'income' ? '+' : '-'}
+                  {formatCurrency(transaction.amount)}
                 </span>
               </div>
             ))}
@@ -275,4 +268,4 @@ const Dashboard: React.FC = () => {
   )
 }
 
-export default Dashboard 
+export default Dashboard

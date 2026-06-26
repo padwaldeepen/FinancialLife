@@ -24,7 +24,7 @@ const Register: React.FC = () => {
     register,
     handleSubmit,
     watch,
-    formState: { errors }
+    formState: { errors },
   } = useForm<RegisterForm>()
 
   const password = watch('password')
@@ -53,11 +53,14 @@ const Register: React.FC = () => {
             Join FinanceFlareAI to start managing your finances
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <label
+                htmlFor="fullName"
+                className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
+              >
                 Full Name
               </label>
               <div className="mt-1 relative">
@@ -66,7 +69,7 @@ const Register: React.FC = () => {
                 </div>
                 <input
                   {...register('fullName', {
-                    required: 'Full name is required'
+                    required: 'Full name is required',
                   })}
                   type="text"
                   className="input-field pl-10"
@@ -74,12 +77,17 @@ const Register: React.FC = () => {
                 />
               </div>
               {errors.fullName && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.fullName.message}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.fullName.message}
+                </p>
               )}
             </div>
 
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <label
+                htmlFor="username"
+                className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
+              >
                 Username
               </label>
               <div className="mt-1 relative">
@@ -91,12 +99,12 @@ const Register: React.FC = () => {
                     required: 'Username is required',
                     minLength: {
                       value: 3,
-                      message: 'Username must be at least 3 characters'
+                      message: 'Username must be at least 3 characters',
                     },
                     pattern: {
                       value: /^[a-zA-Z0-9_]+$/,
-                      message: 'Username can only contain letters, numbers, and underscores'
-                    }
+                      message: 'Username can only contain letters, numbers, and underscores',
+                    },
                   })}
                   type="text"
                   className="input-field pl-10"
@@ -104,12 +112,17 @@ const Register: React.FC = () => {
                 />
               </div>
               {errors.username && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.username.message}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.username.message}
+                </p>
               )}
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
+              >
                 Email address
               </label>
               <div className="mt-1 relative">
@@ -121,8 +134,8 @@ const Register: React.FC = () => {
                     required: 'Email is required',
                     pattern: {
                       value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: 'Invalid email address'
-                    }
+                      message: 'Invalid email address',
+                    },
                   })}
                   type="email"
                   className="input-field pl-10"
@@ -130,12 +143,17 @@ const Register: React.FC = () => {
                 />
               </div>
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email.message}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
+              >
                 Password
               </label>
               <div className="mt-1 relative">
@@ -147,8 +165,8 @@ const Register: React.FC = () => {
                     required: 'Password is required',
                     minLength: {
                       value: 6,
-                      message: 'Password must be at least 6 characters'
-                    }
+                      message: 'Password must be at least 6 characters',
+                    },
                   })}
                   type={showPassword ? 'text' : 'password'}
                   className="input-field pl-10 pr-10"
@@ -167,12 +185,17 @@ const Register: React.FC = () => {
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.password.message}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.password.message}
+                </p>
               )}
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
+              >
                 Confirm Password
               </label>
               <div className="mt-1 relative">
@@ -182,7 +205,7 @@ const Register: React.FC = () => {
                 <input
                   {...register('confirmPassword', {
                     required: 'Please confirm your password',
-                    validate: value => value === password || 'Passwords do not match'
+                    validate: (value) => value === password || 'Passwords do not match',
                   })}
                   type={showConfirmPassword ? 'text' : 'password'}
                   className="input-field pl-10 pr-10"
@@ -201,7 +224,9 @@ const Register: React.FC = () => {
                 </button>
               </div>
               {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.confirmPassword.message}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.confirmPassword.message}
+                </p>
               )}
             </div>
           </div>
@@ -233,4 +258,4 @@ const Register: React.FC = () => {
   )
 }
 
-export default Register 
+export default Register

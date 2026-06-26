@@ -27,7 +27,7 @@ const Budgets: React.FC = () => {
       category: 'Food & Dining',
       startDate: '2024-01-01',
       endDate: '2024-01-31',
-      isActive: true
+      isActive: true,
     },
     {
       id: 2,
@@ -38,7 +38,7 @@ const Budgets: React.FC = () => {
       category: 'Entertainment',
       startDate: '2024-01-01',
       endDate: '2024-01-31',
-      isActive: true
+      isActive: true,
     },
     {
       id: 3,
@@ -49,14 +49,14 @@ const Budgets: React.FC = () => {
       category: 'Transportation',
       startDate: '2024-01-01',
       endDate: '2024-01-31',
-      isActive: true
-    }
+      isActive: true,
+    },
   ]
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'USD',
     }).format(amount)
   }
 
@@ -64,7 +64,7 @@ const Budgets: React.FC = () => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
     })
   }
 
@@ -89,9 +89,7 @@ const Budgets: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-          Budgets
-        </h1>
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Budgets</h1>
         <button
           onClick={() => setShowAddModal(true)}
           className="btn-primary flex items-center space-x-2"
@@ -147,7 +145,7 @@ const Budgets: React.FC = () => {
               <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
                 {formatCurrency(
                   budgets.reduce((sum, budget) => sum + budget.amount, 0) -
-                  budgets.reduce((sum, budget) => sum + budget.spent, 0)
+                    budgets.reduce((sum, budget) => sum + budget.spent, 0),
                 )}
               </p>
             </div>
@@ -173,11 +171,13 @@ const Budgets: React.FC = () => {
                     {budget.category}
                   </p>
                 </div>
-                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                  budget.isActive 
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                    : 'bg-neutral-100 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-200'
-                }`}>
+                <span
+                  className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                    budget.isActive
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : 'bg-neutral-100 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-200'
+                  }`}
+                >
                   {budget.isActive ? 'Active' : 'Inactive'}
                 </span>
               </div>
@@ -200,12 +200,8 @@ const Budgets: React.FC = () => {
                 </div>
 
                 <div className="flex justify-between text-sm text-neutral-600 dark:text-neutral-400">
-                  <span>
-                    {formatCurrency(budget.amount - budget.spent)} remaining
-                  </span>
-                  <span>
-                    {remainingDays} days left
-                  </span>
+                  <span>{formatCurrency(budget.amount - budget.spent)} remaining</span>
+                  <span>{remainingDays} days left</span>
                 </div>
 
                 <div className="flex justify-between text-xs text-neutral-500 dark:text-neutral-400">
@@ -236,10 +232,7 @@ const Budgets: React.FC = () => {
           <p className="text-neutral-600 dark:text-neutral-400 mb-4">
             Create your first budget to start tracking your spending goals.
           </p>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="btn-primary"
-          >
+          <button onClick={() => setShowAddModal(true)} className="btn-primary">
             Create Budget
           </button>
         </div>
@@ -256,16 +249,10 @@ const Budgets: React.FC = () => {
               Budget form coming soon...
             </p>
             <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="btn-outline"
-              >
+              <button onClick={() => setShowAddModal(false)} className="btn-outline">
                 Cancel
               </button>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="btn-primary"
-              >
+              <button onClick={() => setShowAddModal(false)} className="btn-primary">
                 Create
               </button>
             </div>
@@ -276,4 +263,4 @@ const Budgets: React.FC = () => {
   )
 }
 
-export default Budgets 
+export default Budgets

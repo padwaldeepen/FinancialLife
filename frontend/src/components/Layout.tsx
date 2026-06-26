@@ -1,17 +1,7 @@
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { 
-  Home, 
-  CreditCard, 
-  PiggyBank, 
-  LogOut, 
-  Menu, 
-  X, 
-  Sun, 
-  Moon,
-  User
-} from 'lucide-react'
+import { Home, CreditCard, PiggyBank, LogOut, Menu, X, Sun, Moon, User } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface LayoutProps {
@@ -123,7 +113,7 @@ const Layout: React.FC<LayoutProps> = ({ isDarkMode, setIsDarkMode }) => {
                 <Menu size={20} />
               </button>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <button
                 onClick={toggleDarkMode}
@@ -131,7 +121,7 @@ const Layout: React.FC<LayoutProps> = ({ isDarkMode, setIsDarkMode }) => {
               >
                 {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
               </button>
-              
+
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
                   <User size={16} className="text-primary-600 dark:text-primary-300" />
@@ -140,12 +130,10 @@ const Layout: React.FC<LayoutProps> = ({ isDarkMode, setIsDarkMode }) => {
                   <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
                     {user?.full_name || user?.username}
                   </p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                    {user?.email}
-                  </p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{user?.email}</p>
                 </div>
               </div>
-              
+
               <button
                 onClick={handleLogout}
                 className="p-2 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
@@ -166,4 +154,4 @@ const Layout: React.FC<LayoutProps> = ({ isDarkMode, setIsDarkMode }) => {
   )
 }
 
-export default Layout 
+export default Layout

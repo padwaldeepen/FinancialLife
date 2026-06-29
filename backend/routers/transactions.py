@@ -9,10 +9,13 @@ from sqlalchemy.orm import joinedload
 from database.models import Account, Category, Transaction, User
 from database.session import get_db
 from routers.auth import get_current_user
+from services.ai.ai_service import AIService
 from services.merchant_service import extract_merchant_from_description, find_or_create_merchant
 from services.transaction_service import parse_transaction
 
 router = APIRouter()
+
+ai_service = AIService()
 
 
 class TransactionCreate(BaseModel):
@@ -447,6 +450,8 @@ class ParseResponse(BaseModel):
     description: str
     type: str
     category: str | None
+    merchant: str | None = None
+    ai_provider: str | None = None
     raw_text: str
 
 
@@ -456,6 +461,19 @@ class QuickAddRequest(BaseModel):
 
 @router.post("/parse", response_model=ParseResponse)
 async def parse_transaction_text(request: ParseRequest):
+    ai_result = await ai_service.parse(request.text)
+
+    if ai_result is not None:
+        return ParseResponse(
+            amount=ai_result.amount,
+            description=ai_result.description,
+            type=ai_result.transaction_type,
+            category=ai_result.category,
+            merchant=ai_result.merchant,
+            ai_provider="gemini",
+            raw_text=request.text,
+        )
+
     result = parse_transaction(request.text)
     return ParseResponse(
         amount=result["amount"],
@@ -472,26 +490,40 @@ async def quick_add_transaction(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    parsed = parse_transaction(request.text)
+    ai_result = await ai_service.parse(request.text)
+    if ai_result is not None and ai_result.amount is not None:
+        parsed_amount = ai_result.amount
+        parsed_description = ai_result.description
+        parsed_type = ai_result.transaction_type
+        parsed_category = ai_result.category
+        merchant_name = ai_result.merchant
+    else:
+        parsed = parse_transaction(request.text)
 
-    if parsed["amount"] is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Could not parse an amount from the text. Try something like 'spent 15 on groceries'.",
-        )
+        if parsed["amount"] is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not parse an amount from the text. Try something like 'spent 15 on groceries'.",
+            )
+
+        parsed_amount = parsed["amount"]
+        parsed_description = parsed["description"]
+        parsed_type = parsed["type"]
+        parsed_category = parsed["category"]
+        merchant_name = extract_merchant_from_description(parsed_description)
 
     category = None
-    if parsed["category"]:
+    if parsed_category:
         result = await db.execute(
             select(Category).where(
-                Category.name == parsed["category"],
+                Category.name == parsed_category,
                 Category.user_id == current_user.id,
             )
         )
         category = result.scalar_one_or_none()
         if not category:
             category = Category(
-                name=parsed["category"],
+                name=parsed_category,
                 user_id=current_user.id,
             )
             db.add(category)
@@ -513,16 +545,15 @@ async def quick_add_transaction(
             detail="No active account found. Create an account first.",
         )
 
-    merchant_name = extract_merchant_from_description(parsed["description"])
     merchant_id = None
     if merchant_name:
         merchant = await find_or_create_merchant(current_user.id, merchant_name, db)
         merchant_id = merchant.id if merchant else None
 
     transaction = Transaction(
-        amount=parsed["amount"],
-        description=parsed["description"],
-        transaction_type=parsed["type"],
+        amount=parsed_amount,
+        description=parsed_description,
+        transaction_type=parsed_type,
         account_id=default_account.id,
         category_id=category.id if category else None,
         merchant_id=merchant_id,

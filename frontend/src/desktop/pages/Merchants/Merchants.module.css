@@ -26,3 +26,12 @@
   justify-content: center;
   flex-shrink: 0;
 }
+
+.txRow {
+  padding: var(--space-2);
+  border-radius: var(--radius-2);
+}
+
+.txRow:hover {
+  background-color: var(--gray-3);
+}

@@ -6,6 +6,7 @@ from database.session import get_db
 from routers.auth import get_current_user
 from services.merchant_service import (
     backfill_merchants,
+    find_similar_merchants,
     get_merchant_summary,
     get_merchants,
     merge_merchants,
@@ -125,6 +126,14 @@ async def merge_merchants_endpoint(
         transaction_count=len(merchant.transactions),
         total_spent=sum(t.amount for t in merchant.transactions if t.transaction_type == "expense"),
     )
+
+
+@router.get("/similar/")
+async def similar_merchants(
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await find_similar_merchants(user["id"], db)
 
 
 @router.post("/backfill")

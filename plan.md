@@ -220,16 +220,16 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Build the Merchant screens.
 
 **Tasks:**
-- [ ] merchant list screen (Desktop sidebar + Mobile More tab)
+- [x] merchant list screen (Desktop sidebar + Mobile More tab)
   - searchable list sorted by total spent
   - shows: merchant name, total spent, transaction count
   - tap → merchant detail
-- [ ] merchant detail page
+- [x] merchant detail page
   - total spent, transaction count, first/last transaction date
   - spending over time (mini chart)
   - transaction history for this merchant (linked to Activity)
   - category breakdown for this merchant
-- [ ] merge duplicate merchants UI (suggest when similar names detected)
+- [x] merge duplicate merchants UI (suggest when similar names detected)
 
 **Acceptance:** Merchants auto-populate from transactions. Detail shows spending history. Merge works.
 

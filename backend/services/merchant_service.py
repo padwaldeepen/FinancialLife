@@ -196,12 +196,50 @@ async def get_merchant_summary(merchant_id: int, user_id: int, db: AsyncSession)
         return None
 
     txs = merchant.transactions
-    total_spent = sum(t.amount for t in txs if t.transaction_type == "expense")
+    expense_txs = [t for t in txs if t.transaction_type == "expense"]
+    total_spent = sum(t.amount for t in expense_txs)
     total_income = sum(t.amount for t in txs if t.transaction_type == "income")
 
     dates = [t.date for t in txs]
     first_date = min(dates) if dates else None
     last_date = max(dates) if dates else None
+
+    category_breakdown: dict[str, dict] = {}
+    for t in expense_txs:
+        cat_name = t.category.name if t.category else "Uncategorized"
+        cat_color = t.category.color if t.category else "#6B7280"
+        if cat_name not in category_breakdown:
+            category_breakdown[cat_name] = {
+                "category_name": cat_name,
+                "color": cat_color,
+                "total": 0.0,
+                "count": 0,
+            }
+        category_breakdown[cat_name]["total"] += t.amount
+        category_breakdown[cat_name]["count"] += 1
+
+    monthly_spending: dict[str, float] = {}
+    for t in expense_txs:
+        key = t.date.strftime("%Y-%m")
+        monthly_spending[key] = monthly_spending.get(key, 0.0) + t.amount
+
+    monthly_chart = [
+        {"month": k, "amount": round(v, 2)} for k, v in sorted(monthly_spending.items())
+    ]
+
+    txs_sorted = sorted(txs, key=lambda t: t.date, reverse=True)
+    recent_transactions = [
+        {
+            "id": t.id,
+            "amount": t.amount,
+            "description": t.description,
+            "transaction_type": t.transaction_type,
+            "date": t.date.isoformat(),
+            "category_name": t.category.name if t.category else None,
+            "category_color": t.category.color if t.category else None,
+        }
+        for t in txs_sorted[:20]
+    ]
 
     return {
         "id": merchant.id,
@@ -212,4 +250,57 @@ async def get_merchant_summary(merchant_id: int, user_id: int, db: AsyncSession)
         "transaction_count": len(txs),
         "first_transaction_date": first_date.isoformat() if first_date else None,
         "last_transaction_date": last_date.isoformat() if last_date else None,
+        "category_breakdown": list(category_breakdown.values()),
+        "monthly_spending": monthly_chart,
+        "recent_transactions": recent_transactions,
     }
+
+
+async def find_similar_merchants(
+    user_id: int, db: AsyncSession, threshold: float = 0.6
+) -> list[dict]:
+    result = await db.execute(
+        select(Merchant).where(Merchant.user_id == user_id, Merchant.is_hidden.is_(False))
+    )
+    merchants = result.scalars().all()
+
+    pairs = []
+    for i in range(len(merchants)):
+        for j in range(i + 1, len(merchants)):
+            a, b = merchants[i], merchants[j]
+            similarity = _name_similarity(a.normalized_name, b.normalized_name)
+            if similarity >= threshold:
+                pairs.append(
+                    {
+                        "merchant_a": {
+                            "id": a.id,
+                            "name": a.name,
+                            "total_spent": _merchant_total(a),
+                        },
+                        "merchant_b": {
+                            "id": b.id,
+                            "name": b.name,
+                            "total_spent": _merchant_total(b),
+                        },
+                        "similarity": round(similarity, 2),
+                    }
+                )
+
+    pairs.sort(key=lambda p: p["similarity"], reverse=True)
+    return pairs
+
+
+def _name_similarity(a: str, b: str) -> float:
+    if not a or not b:
+        return 0.0
+    a_words = set(a.split())
+    b_words = set(b.split())
+    if not a_words or not b_words:
+        return 0.0
+    intersection = a_words & b_words
+    union = a_words | b_words
+    return len(intersection) / len(union)
+
+
+def _merchant_total(merchant: Merchant) -> float:
+    return sum(t.amount for t in merchant.transactions if t.transaction_type == "expense")

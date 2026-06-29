@@ -6,7 +6,8 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from core.config import settings
 from core.logging import get_logger, log_startup
-from routers import accounts, ai, auth, budgets, transactions
+from database.session import AsyncSessionLocal
+from routers import accounts, ai, auth, budgets, categories, transactions
 
 log = get_logger(__name__)
 
@@ -15,6 +16,14 @@ log = get_logger(__name__)
 async def lifespan(_app: FastAPI):
     log_startup()
     log.info("Database tables managed by Alembic migrations")
+    try:
+        async with AsyncSessionLocal() as db:
+            from services.category_service import seed_system_categories
+
+            await seed_system_categories(db)
+            log.info("System categories seeded")
+    except Exception as e:
+        log.warning("Could not seed system categories: %s", e)
     yield
 
 
@@ -39,6 +48,7 @@ app.include_router(accounts.router, prefix="/api/accounts", tags=["Accounts"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(transactions.router, prefix="/api/transactions", tags=["Transactions"])
 app.include_router(budgets.router, prefix="/api/budgets", tags=["Budgets"])
+app.include_router(categories.router, prefix="/api/categories", tags=["Categories"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI Services"])
 
 

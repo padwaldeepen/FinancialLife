@@ -6,6 +6,7 @@ import { DesktopLayout } from './layouts/DesktopLayout.tsx'
 import { Login } from './pages/Login/Login.tsx'
 import { Register } from './pages/Register/Register.tsx'
 import { Activity } from './pages/Activity/Activity.tsx'
+import { Categories } from './pages/Categories/Categories.tsx'
 import { Home } from './pages/Home/Home.tsx'
 import { Budgets } from './pages/Budgets/Budgets.tsx'
 
@@ -58,7 +59,7 @@ export const DesktopApp = (): JSX.Element => {
           path="/categories"
           element={
             <ProtectedRoute>
-              <PlaceholderPage title="Categories" />
+              <Categories />
             </ProtectedRoute>
           }
         />

@@ -35,9 +35,15 @@ class Category(Base):
     color: Mapped[str] = mapped_column(String, default="#6B7280")
     icon: Mapped[str | None] = mapped_column(String, default=None)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     user: Mapped[User | None] = relationship(back_populates="categories")
+    parent: Mapped["Category | None"] = relationship(
+        back_populates="children", remote_side="Category.id"
+    )
+    children: Mapped[list["Category"]] = relationship(back_populates="parent")
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="category")
     budgets: Mapped[list["Budget"]] = relationship(back_populates="category")
 

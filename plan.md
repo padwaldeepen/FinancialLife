@@ -1,301 +1,783 @@
-# FinanceFlare — Project Plan
+# My Financial Life — Build Plan
 
 ## Overview
 
-FinanceFlare is a **free, open-source personal finance tracker** built to solve what paid apps (YNAB, Monarch, Copilot) get wrong. The core insight: typing `"spent 15 on groceries"` should be all it takes to log a transaction. No subscriptions, no bank-sync headaches, no learning curve — just instant expense tracking on mobile and desktop.
+My Financial Life is a free, open-source personal finance application. It replaces spreadsheets, notes, calculators, and disconnected finance apps with one place to understand and manage every part of your financial life.
+
+**Core insight:** typing `"coffee 4.50"` should be all it takes to log a transaction. No subscriptions, no bank-sync headaches, no learning curve.
 
 ---
 
-## Market Research (June 2026)
+## Status — What's Already Built (Phases 0–9)
 
-### Why Paid Apps Lose Users
-
-| Pain Point | YNAB ($109/yr) | Monarch ($99/yr) | Copilot ($95/yr) |
-|------------|---------------|-----------------|------------------|
-| Bank sync breaks constantly | ✓ #1 complaint | ✓ #1 complaint | ✓ #1 complaint |
-| Learning curve too steep | ✓ 2-4wks to click | ✗ | ✗ |
-| Credit card handling confusing | ✓ massive churn | ✗ | ✗ |
-| No free tier (trial only) | ✓ 34 days | ✓ 30 days | ✓ 7 days |
-| Privacy concerns (Plaid) | ✓ | ✓ | ✓ |
-| EU bank support absent | ✓ no PSD2 | ✓ limited | ✓ no PSD2 |
-| Price increases over time | ✓ 118% since 2015 | ✓ | ✓ |
-| Feature bloat / overwhelming | ✓ | ✓ growing | ✗ |
-
-### What Users Actually Want
-
-Based on analysis of ~2000 user reviews, industry reports (PYMNTS, MX, Decta), and open-source community comparisons:
-
-1. **Zero-friction entry** — the #1 reason people quit budgeting apps is manual entry fatigue
-2. **Privacy they can trust** — 37% of users reject Plaid-based sync on principle; self-hosted is the only real answer
-3. **Free forever** — $109/yr to save money feels ironic; users want a real free tier, not a trial
-4. **Works offline** — budgeting happens everywhere; server-only design fails in practice
-5. **Clear, non-judgmental feedback** — red alerts and shame triggers cause avoidance, not behavior change
-6. **Investment + net worth tracking** — YNAB/Actual don't do it; users pair separate apps
-7. **Recurring transaction detection** — automatic subscription/bill surfacing
-8. **Multi-currency** — a hard blocker for international users
-9. **Better reporting** — Sankey flows, calendar view, spending trends over custom ranges
-10. **CSV import/export** — bank-agnostic data portability; every reviewer asks for it
-
-### Open-Source Landscape (2026)
-
-| Project | Stars | Stack | Best For | Missing |
-|---------|-------|-------|----------|---------|
-| Firefly III | 16k | PHP/Laravel + Postgres | Double-entry bookkeeping | No native mobile app, heavy, no quick-add |
-| Actual Budget | 15k | Node.js + SQLite | Envelope budgeting (YNAB replacement) | No investments, US-centric sync, no quick-add |
-| Securo | 1k | FastAPI + React + Tailwind | Privacy-first, AI agents | Heavy stack (Celery+Redis), Tailwind, Brazilian-first |
-| Ghostfolio | 4k | NestJS + Angular | Investment portfolio only | No budgeting/tracking at all |
-| FinanceFlare | — | FastAPI + React + Radix + CSS Modules | **Quick-add first, mobile-native** | Early stage; needs more features |
-
-**Gap FinanceFlare fills:** No open-source tracker has quick-add as the primary interface. All competitors assume you'll import bank statements or manually enter category/amount/date forms. FinanceFlare's "spent 15 on groceries" flow eliminates the friction that kills adoption.
-
----
-
-## Status — What's Built (Phases 0–9 Complete)
+These phases are **complete and working.** Do not rebuild them. Do not redesign them. They are the foundation.
 
 ### Phase 0 — Tooling & Config
-**Done:** Frontend toolchain (Vite 8, TypeScript 6, Radix Themes, Nivo 0.99, Zustand 5, TanStack Query 5, ESLint flat config), backend toolchain (FastAPI 0.138, SQLAlchemy 2.0.51, Alembic 1.18.4, ruff), Docker Compose, opencode rules
+Frontend toolchain (Vite, TypeScript, Radix Themes, Nivo, Zustand, ESLint flat config), backend toolchain (FastAPI, SQLAlchemy, Alembic, Ruff), Docker Compose, opencode rules.
 
 ### Phase 1 — Theme + Global CSS
-**Done:** `src/theme.tsx` — single ThemeProvider wrapping Radix `<Theme>` with accentColor="orange"
+`src/theme.tsx` — single ThemeProvider wrapping Radix `<Theme>` with accentColor="orange", grayColor="slate". `useAppTheme()` hook for dark mode. CSS Modules only (no Tailwind, no inline styles, no CSS-in-JS).
 
 ### Phase 2 — Radix Themes Integration
-**Done:** `@radix-ui/themes` components used directly (Button, Card, TextField, Dialog, Select, DropdownMenu, etc.), CSS imported before custom styles
+All Radix UI components used directly (Box, Flex, Text, Heading, Button, Card, TextField, Dialog, Select, DropdownMenu, Table, etc.). No custom wrappers. CSS Modules for layout only.
 
 ### Phase 3 — Layouts
-**Done:**
-- **Desktop:** Sidebar + TopBar + DesktopLayout + DesktopApp.tsx
-- **Mobile:** BottomTabBar + FAB + MobileLayout + MobileApp.tsx
-- Device detection via `matchMedia(1024px)` in `main.tsx`
+Desktop: Sidebar + TopBar + DesktopLayout + DesktopApp.tsx. Mobile: BottomTabBar + FAB + MobileLayout + MobileApp.tsx. Device detection via matchMedia(1024px) in main.tsx. Desktop and mobile are completely separate component trees.
 
 ### Phase 4 — Authentication
-**Done:** Login + Register pages (Desktop + Mobile), Zustand authStore, JWT token management, `/api/auth/*` endpoints
+Login + Register pages (Desktop + Mobile). JWT access token (30min) + refresh token (7d httpOnly cookie). Zustand authSlice with login/register/logout/verifyToken actions. AuthContext for consuming auth state. Axios interceptor for Bearer token. 401 refresh rotation with queue.
 
-### Phase 5 — Natural Language Quick-Add ⭐
-**Done:** Single text input → rule-based parser → instant transaction. "spent 15 on groceries" becomes a saved expense in one tap. No AI dependency, zero cost per call. Backend `/api/transactions/parse` and `/api/transactions/quick-add` endpoints
+### Phase 5 — Natural Language Quick-Add
+Single text input → rule-based parser → instant transaction. Backend: POST /api/transactions/parse (rule-based, free, no external API) + POST /api/transactions/quick-add (parse + create in one call). Zero cost per call.
 
 ### Phase 6 — Transaction History
-**Done:** List with search/filter/sort, Desktop table with column sorting, Mobile card list with swipe-to-delete, edit, delete, load-more pagination
+List with search/filter/sort. Desktop table with column sorting. Mobile card list with swipe-to-delete. Edit, delete, load-more pagination. Backend: GET/POST/PUT/DELETE /api/transactions/.
 
 ### Phase 7 — Dashboard
-**Done:** Balance cards (income/expenses/net), Nivo Pie chart (spending by category), Nivo Bar chart (category breakdown), recent transactions, different layouts for mobile vs desktop
+Balance cards (income/expenses/net). Nivo Pie chart (spending by category). Nivo Bar chart (category breakdown). Recent transactions. Different layouts for mobile vs desktop. Backend: GET /api/transactions/summary/dashboard.
 
 ### Phase 8 — Budgets
-**Done:** Create/view/edit budgets, progress bars with spending limits, over-budget warnings (orange/red), per-period spending auto-calculation
+Create/view/edit budgets. Progress bars with spending limits. Over-budget warnings (orange/red). Per-period spending auto-calculation. Backend: GET/POST/PUT/DELETE /api/budgets/.
 
 ### Phase 9 — Receipt Scanning
-**Done:** Camera button (mobile) / file upload (desktop), Tesseract.js OCR runs entirely in browser, extracted data pre-fills transaction form, backend `/api/ai/categorize` uses rule-based parser
+Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely in browser. Extracted data pre-fills transaction form. Backend: POST /api/ai/categorize (rule-based). POST /api/ai/categories (list all categories).
 
 ---
 
-## Backend Architecture
+## Build Phases — Strict Order
 
-### Project Structure
-```
-backend/
-├── core/
-│   ├── config.py           Settings (pydantic-settings)
-│   ├── security.py         Password hash + JWT
-│   └── logging.py          Structured logging (get_logger)
-├── database/
-│   ├── __init__.py
-│   ├── session.py          Engine, Base, get_db
-│   ├── models.py           User, Category, Transaction, Budget
-│   ├── alembic.ini
-│   ├── init.sql
-│   └── alembic/
-├── routers/
-│   ├── __init__.py
-│   ├── auth.py             /register, /login, /me
-│   ├── transactions.py     CRUD + /parse + /quick-add + /summary/dashboard
-│   ├── budgets.py          CRUD
-│   └── ai.py               Rule-based categorization
-├── services/
-│   ├── __init__.py
-│   └── transaction_service.py  NL parser (rule-based)
-├── main.py
-├── requirements.txt
-├── pyproject.toml          Ruff config
-├── .env
-├── Dockerfile
-└── .dockerignore
-```
-
-### N+1 Query Fixes (Applied)
-- `joinedload(Transaction.category)` on all list/single GET endpoints
-- `joinedload(Budget.category)` on all budget GET endpoints
-- Validated category objects reused instead of re-queried in create endpoints
-
-### DateTime Consistency (Applied)
-- All `DateTime(timezone=True)` → `DateTime` (naive)
-- Matches Python-side `datetime.now()` usage
+**CORE RULE: Do not skip phases. Do not change phase order. Each phase must be working before moving to the next.**
 
 ---
 
-## Roadmap — What's Next
+### PHASE 1 — Project Stabilization
 
-### Phase 10 — CSV & OFX Import (High Priority)
-*Users want to bring existing data from their bank or another app. This is the #1 feature gap.*
-- **Backend**: `/api/import/csv`, `/api/import/ofx` endpoints with column mapping, duplicate detection
-- **Frontend**: Desktop drag-and-drop zone + mobile file picker, preview & confirm flow
-- **Models**: `ImportLog` table for tracking imports, rollback support
-- **Why**: Every bank exports CSV/OFX. Bank-sync via Plaid is unreliable (top complaint across all apps) — file import is the reliable fallback that most apps treat as second-class
+**Goal:** Confirm everything works. Clean up unused code. Establish environment consistency.
 
-### Phase 11 — Recurring Transactions (High Priority)
-*Subscriptions, rent, utilities — these make up 60%+ of monthly spending and should not require manual entry.*
-- **Backend**: `RecurringTransaction` model (interval, next_date, end_date), auto-create on a scheduler or on-read
-- **Frontend**: Recurring list page + "make recurring" toggle on any transaction
-- **Detection**: Rule engine auto-detects recurring patterns from existing transactions
-- **Why**: The biggest gap vs Firefly III and Actual Budget
+**Tasks:**
+- [ ] confirm existing FastAPI + React + SQLAlchemy setup runs locally
+- [ ] verify Alembic migrations are working (alembic upgrade head)
+- [ ] clean unused endpoints (budgets, dashboard summary — keep for now but mark deprecated)
+- [ ] define and document all environment variables (.env for backend + frontend)
+- [ ] ensure auth flow works end-to-end (login → register → me → logout)
+- [ ] run linter + formatter on both frontend and backend
+- [ ] verify Docker Compose builds and starts
 
-### Phase 12 — Investment & Net Worth Tracking (High Priority)
-*Users want to see their full financial picture, not just cash flow.*
-- **Backend**: `Account` model (type: checking/savings/credit/investment/loan), `AccountBalance` with date snapshots, `/api/accounts/` CRUD + `/api/accounts/net-worth` time series
-- **Frontend**: Net worth line chart (Nivo Line), account cards with balances, add account modal
-- **Why**: YNAB and Actual Budget both lack this; users pair Ghostfolio or manually calculate. Bringing it in-house eliminates the second app
-
-### Phase 13 — PWA & Offline Support (High Priority)
-*Budgeting happens in the moment — at the store, after a meal, on the go. Server-only fails here.*
-- Service worker with Workbox for caching
-- `uiStore` persists pending transactions to IndexedDB
-- Mobile: installable on home screen, full offline mode
-- Background sync when connection returns
-- **Why**: The #3 complaint about self-hosted tools is mobile UX; a PWA costs nothing and fixes it
-
-### Phase 14 — Transaction Rules Engine (Medium Priority)
-*Auto-categorize based on description patterns — essential for anyone who imports bank data.*
-- **Backend**: `TransactionRule` model (match_pattern, category_id, transaction_type), evaluated on create/import
-- **Frontend**: Rules list page + rule builder UI (pattern field, category picker, test button)
-- **Why**: Firefly III's rule engine is the feature users praise most; manual categorization is the second-biggest friction point after data entry
-
-### Phase 15 — Sankey & Advanced Reporting (Medium Priority)
-*"Where does my money actually go?" — Sankey diagrams answer this at a glance.*
-- Nivo Sankey chart showing money flow from accounts → categories
-- Custom date ranges, year-over-year comparison
-- Export to PDF/CSV
-- **Why**: Nivo already has the Sankey component; the data model supports it. No other OSS tool has a good Sankey
-
-### Phase 16 — Savings Goals (Medium Priority)
-*Track towards specific targets (vacation, emergency fund, down payment).*
-- **Backend**: `Goal` model (target_amount, current_amount, target_date, category_id)
-- **Frontend**: Goal cards with progress rings, contribution tracking, "auto-save" suggestions
-- **Why**: The most-requested feature after budgeting itself across all user surveys
-
-### Phase 17 — Multi-Currency (Medium Priority)
-*International users are locked out of YNAB/Actual without manual conversion.*
-- Add `currency` column to Transaction and Account models
-- Live exchange rates via free API (exchangerate.host or similar)
-- Per-account currency setting, auto-conversion in reports
-- **Why**: 60% of the open-source community asks about multi-currency before trying a new tool
-
-### Phase 18 — Calendar View (Low Priority)
-*Visualize bills, paydays, and spending on a calendar — powerful for cash-flow planning.*
-- **Backend**: Calendar aggregation endpoint
-- **Frontend**: Monthly calendar grid with transaction dots, bill due markers, income highlights
-- **Why**: Premium feature in YNAB; surprisingly few OSS tools offer it
-
-### Phase 19 — Debt Payoff Planner (Low Priority)
-*Avalanche vs snowball comparison, per-debt progress, payoff date projection.*
-- **Backend**: `Debt` model (balance, rate, min_payment), payoff simulation
-- **Frontend**: Comparison view, payoff calendar, "what if extra payment" slider
-- **Why**: Unique selling point — no OSS tool has a good debt payoff calculator built in
-
-### Phase 20 — Collaborative Budgets (Low Priority)
-*Shared household budgets with partner/roommate — the #1 feature request from partnered users.*
-- **Backend**: Household/group model, shared budgets with permissions
-- **Frontend**: Partner invite flow, shared category view, role separation
-- **Why**: Complex but high-impact for the target audience; only Monarch does this well
+**Acceptance:** App starts. User can register, login, see empty state. Lint passes.
 
 ---
 
-## Key Differentiators vs Competition
+### PHASE 2 — Core Navigation Refactor
 
-| Differentiator | FinanceFlare | YNAB | Actual Budget | Firefly III |
-|----------------|-------------|------|---------------|-------------|
-| **NL quick-add** | ⭐ Core UX — 1 tap | Manual form | Manual form | Manual form |
-| **Price** | $0 (AGPL) | $109/yr | $0 (self-host) + $1.50/mo sync | $0 |
-| **Bank sync** | Manual import (reliable) | Plaid (breaks constantly) | SimpleFIN ($1.50/mo) | GoCardless (EU only) |
-| **Privacy** | Self-hosted, no Plaid | Third-party Plaid | Self-hosted w/ E2EE | Self-hosted |
-| **Mobile UX** | Native-feel mobile app | Good mobile app | PWA only | No native mobile |
-| **Investment tracking** | ✓ Planned | ✗ | ✗ | ✓ Basic |
-| **Sankey diagrams** | ✓ Planned | ✗ | ✗ | ✗ |
-| **Debt payoff planner** | ✓ Planned | ✗ | ✗ | ✗ |
-| **Receipt scanning** | ✓ Built (Tesseract.js) | ✗ | ✗ | ✗ |
-| **Offline support** | ✓ Planned (PWA) | ✓ Partial | ✓ Local-first | ✗ |
-| **Learning curve** | Minimal — type to track | 2-4 weeks | 1-2 weeks | Moderate |
-| **Rule engine** | ✓ Planned | ✗ | ✗ | ✓ Built-in |
+**Goal:** Restructure navigation to match the new information architecture. No backend changes.
 
----
+**Tasks:**
+- [ ] replace Dashboard route (`/`) → Home route (`/`)
+- [ ] replace Transactions route (`/transactions`) → Activity route (`/activity`)
+- [ ] remove AddTransaction page routing (no more `/add` route)
+- [ ] introduce modal-based Add flow (FAB opens modal/sheet instead of navigating)
+- [ ] implement mobile bottom tabs: Home | Activity | + (FAB) | Bills | More
+- [ ] implement desktop sidebar: Home | Activity | Bills | Merchants | Categories | Goals | Reports | Settings
+- [ ] update all internal navigation links
+- [ ] add redirects from old routes to new routes
 
-## Build Priority Summary
-
-| Phase | Feature | Effort | Impact | When |
-|-------|---------|--------|--------|------|
-| 10 | CSV/OFX Import | Medium | 🔥 High | Now |
-| 11 | Recurring Transactions | Medium | 🔥 High | Next |
-| 12 | Investment & Net Worth | Medium | 🔥 High | Next |
-| 13 | PWA & Offline | Medium | 🔥 High | Next |
-| 14 | Transaction Rules | Medium | ⚡ Medium | Soon |
-| 15 | Sankey & Reports | Low | ⚡ Medium | Soon |
-| 16 | Savings Goals | Low | ⚡ Medium | Soon |
-| 17 | Multi-Currency | Medium | 🌍 Medium | Later |
-| 18 | Calendar View | Low | 📅 Low | Later |
-| 19 | Debt Payoff Planner | Medium | 💳 Low | Later |
-| 20 | Collaborative Budgets | High | 👨‍👩‍👧‍👧 Low | Later |
+**Acceptance:** Navigation matches the new structure. FAB opens modal. Old URLs redirect.
 
 ---
 
-## Backend Conventions
+### PHASE 3 — Account Model (CRITICAL)
 
-- **Routers are thin** — validate input with Pydantic, call service, return response
-- **Services contain business logic** — password hashing, token creation, NL parsing
-- **Models in database/models.py** — SQLAlchemy 2.x declarative style
-- **Every schema change requires an Alembic migration**
-- No raw SQL — always use SQLAlchemy ORM
-- **N+1 prevention** — use `joinedload()` on all list queries
-- **Format before commit** — `ruff check . && ruff format .` in `backend/`
+**Goal:** Create the Account entity. This is the foundation for everything that follows.
 
----
+**Tasks:**
+- [ ] create Account table (SQLAlchemy model)
+  - id, user_id (FK), name, type (checking/savings/credit/cash/investment), balance, currency, is_active, sort_order, created_at, updated_at
+- [ ] define relationship: Account belongs to User (1:N)
+- [ ] add account_id column to Transaction model (required FK)
+- [ ] create default account on user signup (name: "Cash", type: "checking")
+- [ ] migration: backfill existing transactions to default account
+- [ ] compute account balance from linked transactions (service layer)
+- [ ] create Account router: GET /api/accounts/, POST /api/accounts/, PUT /api/accounts/{id}, DELETE /api/accounts/{id}
+- [ ] create Account service with balance calculation
+- [ ] add Alembic migration
 
-## opencode Configuration
-
-### opencode.json
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "instructions": [
-    "AGENTS.md",
-    "rules/frontend.md",
-    "rules/backend.md",
-    "rules/database.md",
-    "rules/ui-ux.md",
-    "rules/git.md"
-  ],
-  "mcp": {
-    "chrome-devtools": {
-      "type": "local",
-      "command": ["npx", "-y", "chrome-devtools-mcp@latest"],
-      "enabled": true
-    },
-    "playwright": {
-      "type": "local",
-      "command": ["npx", "-y", "@playwright/mcp@latest"],
-      "enabled": true
-    }
-  }
-}
-```
-
-### Rule Files
-| File | What it enforces |
-|------|-----------------|
-| `rules/frontend.md` | React 19 + TypeScript + CSS Modules + Radix UI + Nivo + Zustand + TanStack Query |
-| `rules/backend.md` | FastAPI thin routers + services layer, Pydantic v2, JWT auth, ruff formatting |
-| `rules/database.md` | SQLAlchemy 2.x ORM, Alembic for every schema change, migration naming |
-| `rules/ui-ux.md` | CSS Modules only, no Tailwind/inline, mobile-first, desktop vs mobile separation |
-| `rules/git.md` | Feature branches, conventional commits, small focused commits |
+**Acceptance:** New users get default account. Existing users get backfilled. Balances compute correctly. API returns accounts.
 
 ---
 
-## License
+### PHASE 4 — Transaction Model Upgrade
 
-AGPL-3.0 — keeps the project free for everyone.
+**Goal:** Add missing fields to Transaction model to support linking to other entities.
+
+**Tasks:**
+- [ ] add merchant_id (nullable FK → Merchant — table not built yet, add FK later)
+- [ ] add bill_id (nullable FK → Bill — table not built yet, add FK later)
+- [ ] add goal_id (nullable FK → Goal — table not built yet, add FK later)
+- [ ] add is_pending (boolean, default false)
+- [ ] add is_recurring (boolean, default false)
+- [ ] update TransactionCreate schema to include new optional fields
+- [ ] update TransactionUpdate schema
+- [ ] update TransactionResponse schema
+- [ ] update all CRUD endpoints to handle new fields
+- [ ] add Alembic migration
+
+**Acceptance:** Transaction model has all new columns. API accepts and returns them. Existing data unaffected.
+
+---
+
+### PHASE 5 — Activity Screen
+
+**Goal:** Build the transaction list UI (replaces old Transactions page).
+
+**Tasks:**
+- [ ] build Activity component (Desktop + Mobile)
+- [ ] add search bar at top (text search across description, merchant, amount)
+- [ ] add filters: date range, category, merchant, transaction type
+- [ ] infinite scroll pagination (load more as user scrolls)
+- [ ] tap transaction → transaction detail view (modal or slide-over)
+- [ ] transaction detail: full description, amount, date, merchant, category, account, notes, edit/delete actions
+- [ ] swipe-to-delete (mobile) with undo toast
+- [ ] group by date (Today, Yesterday, This Week, Earlier)
+
+**Acceptance:** User can view, search, filter, scroll, and interact with transactions. Detail view works.
+
+---
+
+### PHASE 6 — Home Screen
+
+**Goal:** Build the Home screen (replaces old Dashboard).
+
+**Tasks:**
+- [ ] total balance display (sum of all account balances)
+- [ ] account cards: show each account with name, type icon, balance
+- [ ] recent transactions (last 5, linked from Activity)
+- [ ] upcoming bills placeholder section (hidden until Phase 14)
+- [ ] mobile-first layout optimization (cards stack vertically, touch targets 44px+)
+- [ ] pull-to-refresh on mobile
+- [ ] desktop: multi-column layout (accounts left, recent activity right)
+
+**Acceptance:** Home shows real balances. Account cards are tappable. Recent transactions link to Activity.
+
+---
+
+### PHASE 7 — Category System Upgrade
+
+**Goal:** Add hierarchy to categories. Pre-populate system categories.
+
+**Tasks:**
+- [ ] add parent_id column to Category model (nullable FK, self-referential)
+- [ ] add is_system column (boolean, true for base categories)
+- [ ] make user_id nullable on Category (null = system category)
+- [ ] seed system categories:
+  - Housing (Rent, Mortgage, Insurance, Repairs)
+  - Food & Dining (Groceries, Dining Out, Coffee Shops)
+  - Transportation (Gas, Parking, Public Transit, Rideshare)
+  - Shopping (Clothing, Electronics, Home Goods, Online)
+  - Entertainment (Streaming, Games, Movies, Events)
+  - Health & Fitness (Pharmacy, Doctor, Gym, Insurance)
+  - Utilities (Electric, Water, Internet, Phone)
+  - Income (Salary, Freelance, Gift, Refund)
+  - Uncategorized
+- [ ] build category tree logic (get all children of a parent)
+- [ ] support subcategory assignment in transaction create/update
+- [ ] add Alembic migration
+
+**Acceptance:** Categories are hierarchical. System categories are seeded. API returns tree structure.
+
+---
+
+### PHASE 8 — Merchant Model Creation
+
+**Goal:** Create the Merchant entity. Auto-generate from transaction descriptions.
+
+**Tasks:**
+- [ ] create Merchant table (SQLAlchemy model)
+  - id, user_id (FK), name, normalized_name, aliases (JSONB), is_hidden, created_at
+- [ ] normalize merchant names on creation (lowercase, trim, remove special chars)
+- [ ] auto-generate merchant from transaction description on create
+- [ ] add alias system: maintain mapping of common variations
+  - AMZN → Amazon, SBUX → Starbucks, TGT → Target, WMT → Walmart
+- [ ] link transaction to merchant (update merchant_id FK from Phase 4)
+- [ ] create Merchant router:
+  - GET /api/merchants/ (list with totals)
+  - GET /api/merchants/{id} (detail with history)
+  - POST /api/merchants/merge (merge duplicates)
+  - PUT /api/merchants/{id} (rename, hide)
+- [ ] backfill merchants from existing transaction descriptions
+- [ ] add Alembic migration
+
+**Acceptance:** New transactions auto-create or match merchants. Existing data is backfilled. API returns merchant list.
+
+---
+
+### PHASE 9 — Merchant UI
+
+**Goal:** Build the Merchant screens.
+
+**Tasks:**
+- [ ] merchant list screen (Desktop sidebar + Mobile More tab)
+  - searchable list sorted by total spent
+  - shows: merchant name, total spent, transaction count
+  - tap → merchant detail
+- [ ] merchant detail page
+  - total spent, transaction count, first/last transaction date
+  - spending over time (mini chart)
+  - transaction history for this merchant (linked to Activity)
+  - category breakdown for this merchant
+- [ ] merge duplicate merchants UI (suggest when similar names detected)
+
+**Acceptance:** Merchants auto-populate from transactions. Detail shows spending history. Merge works.
+
+---
+
+### PHASE 10 — AI Provider Setup (FREE ONLY)
+
+**Goal:** Integrate free AI APIs for text parsing and OCR. AI must be optional — system works without it.
+
+**Tasks:**
+- [ ] integrate Groq API (free tier, fast LLM inference)
+  - sign up, get API key
+  - create Groq service module
+  - prompt engineering for transaction parsing
+- [ ] integrate Gemini API (free tier, vision capabilities)
+  - sign up, get API key
+  - create Gemini service module
+  - prompt engineering for receipt extraction
+- [ ] define AI abstraction layer
+  - BaseAIService interface
+  - GroqParser, GeminiParser implementations
+  - fallback chain: Groq → Gemini → rule-based
+- [ ] ensure AI is OPTIONAL
+  - feature flag: USE_AI=true/false
+  - rule-based parser works as fallback
+  - app functions identically without any API keys
+- [ ] add AI configuration to settings
+- [ ] document how to get free API keys
+
+**Acceptance:** AI parsing works with API keys. App works without them. Fallback to rule-based is seamless.
+
+---
+
+### PHASE 11 — Transaction AI Parsing
+
+**Goal:** Use AI to parse natural language into structured transactions.
+
+**Tasks:**
+- [ ] parse "coffee 4.50" → structured result
+  - merchant: "Coffee Shop" (extracted or inferred)
+  - amount: 4.50
+  - category: "Food & Dining" (inferred)
+  - type: expense
+- [ ] support variations:
+  - "salary 3200" → Income, $3,200
+  - "walmart 84.23" → Walmart, $84.23, Shopping
+  - "netflix" → Netflix, (ask for amount), Entertainment
+  - "amazon headphones 60" → Amazon, $60.00, Shopping
+- [ ] return structured transaction preview (client shows before save)
+- [ ] client-side parsing preferred (AI call only when needed)
+- [ ] fallback to rule-based parser if AI is unavailable
+
+**Acceptance:** Typing natural text shows instant structured preview. Save creates correct transaction.
+
+---
+
+### PHASE 12 — Receipt Upload System (NEW)
+
+**Goal:** Upload receipt images, extract transaction data using OCR.
+
+**Tasks:**
+- [ ] add image upload endpoint (POST /api/upload/receipt)
+  - accept JPEG, PNG, HEIC
+  - validate file size (< 10MB)
+  - store in uploads/ directory
+- [ ] mobile camera capture support
+  - native camera integration
+  - crop/rotate before upload
+- [ ] desktop drag & drop upload
+  - drag zone component
+  - file picker fallback
+- [ ] OCR pipeline:
+  - Tesseract.js (fallback, runs in browser)
+  - Gemini Vision (primary, sends image to API)
+  - extract: merchant, total, date, line items
+- [ ] map extracted data to transaction fields
+- [ ] show preview before saving
+
+**Acceptance:** User can upload receipt photo. OCR extracts data. Preview shows before save.
+
+---
+
+### PHASE 13 — Bills Model
+
+**Goal:** Create the Bill entity for recurring payments.
+
+**Tasks:**
+- [ ] create Bill table (SQLAlchemy model)
+  - id, user_id (FK), name, amount, amount_estimated, frequency (weekly/biweekly/monthly/quarterly/yearly), due_day, category_id (FK), merchant_id (FK), account_id (FK), is_active, is_variable, notes, created_at, updated_at
+- [ ] link Bill → User (N:1)
+- [ ] link Bill → Account (N:1)
+- [ ] link Bill → Category (N:1)
+- [ ] link Bill → Merchant (N:1, nullable)
+- [ ] create Bill router
+  - GET /api/bills/ (all bills with next due date)
+  - POST /api/bills/ (create)
+  - PUT /api/bills/{id} (update)
+  - DELETE /api/bills/{id} (soft delete)
+  - GET /api/bills/upcoming?days=7 (bills due soon)
+- [ ] upcoming bills calculation (next due date based on frequency + due_day)
+- [ ] add Alembic migration
+
+**Acceptance:** Bill CRUD works. Upcoming bills API returns correct dates.
+
+---
+
+### PHASE 14 — Bills UI
+
+**Goal:** Build the Bills screens.
+
+**Tasks:**
+- [ ] upcoming bills section on Home screen (next 7 days)
+  - bill name, amount, due date, days until due
+  - tappable → Bills detail
+- [ ] bills screen (Mobile bottom tab + Desktop sidebar)
+  - "Upcoming This Week" section
+  - all bills list with next due date
+  - add bill form (name, amount/frequency/due day/category/account)
+  - edit bill
+  - delete bill
+- [ ] bill detail view
+  - bill info (name, amount, frequency, due day, category, merchant)
+  - payment history (linked transactions)
+  - chart for variable bills (electric, water — shows amount over time)
+- [ ] variable bill support
+  - show estimated amount range
+  - chart of historical amounts
+  - manual entry for each period
+
+**Acceptance:** Bills screen shows all bills with due dates. Home shows upcoming. Variable bills display history.
+
+---
+
+### PHASE 15 — Bill Transaction Linking
+
+**Goal:** Automatically detect when a transaction matches a bill.
+
+**Tasks:**
+- [ ] detect bill payments automatically
+  - match by: merchant_id + approximate amount + date proximity to due_day
+  - match by: description containing bill name
+- [ ] suggest linking transactions to bills
+  - "Is this your Rent payment?" toast/question
+  - yes/no prompt, not intrusive
+- [ ] allow manual linking (edit transaction → link to bill)
+- [ ] create TransactionBillLink table
+  - id, transaction_id (FK), bill_id (FK), period_start, period_end, is_auto_linked
+- [ ] update Home upcoming bills to show linked payments as "Paid ✓"
+- [ ] update Bill detail to show linked transaction history
+- [ ] add Alembic migration
+
+**Acceptance:** System detects bill payments. User can confirm linking. Bill history shows linked transactions.
+
+---
+
+### PHASE 16 — Goals System
+
+**Goal:** Create the Goal entity. Replace budgets entirely.
+
+**Tasks:**
+- [ ] create Goal table (SQLAlchemy model)
+  - id, user_id (FK), name, target_amount, current_amount, monthly_contribution, type (save_up/pay_down/monthly_envelope), category_id (FK, nullable), deadline, icon, color, is_active, sort_order, created_at, updated_at
+- [ ] support three goal types:
+  - save_up: accumulate money over time (vacation, emergency fund)
+  - pay_down: debt payoff (credit card, loan)
+  - monthly_envelope: monthly spending limit (replaces budgets)
+- [ ] create Goal router
+  - GET /api/goals/ (all goals with progress)
+  - POST /api/goals/ (create)
+  - PUT /api/goals/{id} (update)
+  - DELETE /api/goals/{id} (deactivate)
+  - POST /api/goals/{id}/contribute (add contribution)
+- [ ] mark old Budget model as deprecated
+- [ ] add Alembic migration
+
+**Acceptance:** Goals CRUD works. Three types behave correctly. Old budgets untouched (deprecated).
+
+---
+
+### PHASE 17 — Goals UI
+
+**Goal:** Build the Goals screens.
+
+**Tasks:**
+- [ ] goals list screen (Desktop sidebar + Mobile More tab)
+  - progress cards: icon, name, progress bar, current/target amounts
+  - show projected completion date based on monthly contribution
+  - color-coded progress (green = on track, yellow = behind, red = off track)
+- [ ] goal detail view
+  - target amount, saved amount, remaining
+  - progress over time (chart)
+  - contribution history (list)
+  - edit goal
+- [ ] contribution tracking
+  - manual: "Add $X to goal"
+  - from transaction: when recording, user can link to goal
+  - "Save this amount to Vacation Fund?" prompt
+- [ ] create goal form
+  - name, target amount, deadline (optional), icon, color, type
+  - for envelopes: monthly limit + category
+  - for pay_down: debt amount + interest rate (optional)
+- [ ] remove Budgets from navigation (keep data for migration reference)
+
+**Acceptance:** Goals list shows progress. Contributions work. Link from transactions works. Budgets replaced.
+
+---
+
+### PHASE 18 — Categories UI (Analytics)
+
+**Goal:** Build category analytics with Nivo charts.
+
+**Tasks:**
+- [ ] Nivo Pie chart: spending distribution by category
+- [ ] Nivo Bar chart: category comparison by month
+- [ ] category breakdown by month (sidebar/selector)
+- [ ] drill-down category view
+  - parent category → subcategories
+  - top merchants in this category
+- [ ] toggle: current month / last month / custom date range
+- [ ] percentage labels + actual amounts
+
+**Acceptance:** Category charts render correctly. Drill-down works. Date range selector works.
+
+---
+
+### PHASE 19 — Reports System
+
+**Goal:** Create report generation APIs.
+
+**Tasks:**
+- [ ] monthly report API
+  - total income, total expenses, net savings
+  - category breakdown with percentages
+  - top 5 merchants by spending
+  - comparison to previous month (percent change)
+- [ ] yearly report API
+  - same as monthly but aggregated by year
+  - monthly trend data (income/expense per month)
+- [ ] income vs expense calculation
+- [ ] comparison vs previous period (month over month, year over year)
+- [ ] export data preparation (CSV-ready format)
+
+**Acceptance:** Report APIs return correct aggregated data. Comparisons work.
+
+---
+
+### PHASE 20 — Reports UI
+
+**Goal:** Build the Reports screen.
+
+**Tasks:**
+- [ ] summary cards: Income, Expenses, Savings (with +/- change indicator)
+- [ ] category breakdown (horizontal bar chart or list with percentages)
+- [ ] top merchants list with totals
+- [ ] period selector: Month / Year / Custom range
+- [ ] comparison display: "vs last month: +$120 (4% increase)"
+- [ ] export CSV button (calls export API, downloads file)
+- [ ] responsive: desktop shows more detail, mobile shows condensed view
+
+**Acceptance:** Reports screen shows accurate data. Period switching works. CSV downloads.
+
+---
+
+### PHASE 21 — Search System
+
+**Goal:** Global search across all transactions.
+
+**Tasks:**
+- [ ] global search bar (accessible from Activity screen, top of every screen on desktop)
+- [ ] search transactions by:
+  - merchant name (fuzzy match)
+  - category name
+  - description text
+  - amount (exact or range)
+  - notes
+- [ ] highlight matched text in results
+- [ ] search-as-you-type with debounce (300ms)
+- [ ] keyboard shortcut: Cmd+K (desktop) to focus search
+- [ ] recent searches display
+- [ ] clear search button
+
+**Acceptance:** Search returns relevant results. Matches are highlighted. Cmd+K works.
+
+---
+
+### PHASE 22 — Performance Optimization
+
+**Goal:** Ensure the app is fast at any scale.
+
+**Tasks:**
+- [ ] API pagination tuning (default 50 per page, max 100)
+- [ ] caching for summary endpoints (accounts, bills upcoming, dashboard — cache 60s)
+- [ ] debounce search input (300ms, implemented in Phase 21)
+- [ ] optimize transaction queries
+  - add database indexes: (user_id, date), (user_id, merchant_id), (user_id, category_id)
+  - use selectinload for relationships instead of joinedload where appropriate
+- [ ] lazy load chart components (Nivo loaded only on Categories/Reports screens)
+- [ ] React.memo on list items
+- [ ] virtual scrolling for large transaction lists (if >500 transactions)
+
+**Acceptance:** Home loads <3s with 1000+ transactions. Search returns <1s. Smooth scrolling.
+
+---
+
+### PHASE 23 — Mobile UX Optimization
+
+**Goal:** Make mobile the best experience.
+
+**Tasks:**
+- [ ] bottom sheet add flow (slides up from bottom, full keyboard support)
+- [ ] one-tap transaction entry (FAB → type → save, no extra steps)
+- [ ] gesture-based navigation (swipe back, swipe to delete, pull to refresh)
+- [ ] reduce UI clutter (hide non-essential info, progressive disclosure)
+- [ ] touch targets minimum 44x44px
+- [ ] no horizontal scroll anywhere
+- [ ] bottom tab bar always visible (no hidden tabs)
+- [ ] safe area insets for notched devices
+
+**Acceptance:** Adding a transaction takes <5 seconds on mobile. No horizontal scroll. All touch targets accessible.
+
+---
+
+### PHASE 24 — Desktop UX Optimization
+
+**Goal:** Make desktop powerful for deep work.
+
+**Tasks:**
+- [ ] multi-panel layouts (sidebar + main + detail panel)
+- [ ] persistent sidebar with all navigation items visible
+- [ ] detailed chart views (larger, more interactive)
+- [ ] keyboard shortcuts:
+  - Cmd+K: search
+  - Cmd+N: new transaction
+  - Escape: close modal
+  - 1-4: switch tabs
+- [ ] hover states on all interactive elements
+- [ ] resizable panels where appropriate
+- [ ] command palette (Ctrl+K) for power users
+
+**Acceptance:** Desktop feels like a native app. Keyboard shortcuts work. Multi-panel navigation is fluid.
+
+---
+
+### PHASE 25 — State Management (Zustand)
+
+**Goal:** Create all necessary Zustand slices for the new architecture.
+
+**Tasks:**
+- [ ] accountsSlice
+  - state: accounts[], activeAccountId, loading
+  - actions: fetchAccounts, createAccount, updateAccount, deleteAccount
+- [ ] activitySlice
+  - state: transactions[], filters, searchQuery, pagination, loading
+  - actions: fetchActivity, search, filter, setPage, deleteTransaction
+- [ ] billsSlice
+  - state: bills[], upcomingBills[], loading
+  - actions: fetchBills, createBill, updateBill, deleteBill
+- [ ] merchantsSlice
+  - state: merchants[], activeMerchant, loading
+  - actions: fetchMerchants, fetchMerchantDetail, mergeMerchants
+- [ ] goalsSlice
+  - state: goals[], loading
+  - actions: fetchGoals, createGoal, contributeToGoal
+- [ ] uiSlice
+  - state: sidebarOpen, activeModal, theme, searchOpen
+  - actions: toggleSidebar, openModal, closeModal, toggleTheme
+
+**Acceptance:** All slices exist. State is reactive. Actions trigger API calls and update state.
+
+---
+
+### PHASE 26 — Data Integrity Layer
+
+**Goal:** Prevent data corruption. Enforce consistency.
+
+**Tasks:**
+- [ ] enforce account_id required on all transactions (database NOT NULL)
+- [ ] validate merchant linking (merchant_id must reference existing merchant)
+- [ ] validate bill linking (bill_id must reference existing bill)
+- [ ] validate goal linking (goal_id must reference existing goal)
+- [ ] prevent orphan transactions (cascade delete or nullify on account deletion)
+- [ ] ensure consistent balances (transaction sum always equals account balance)
+- [ ] add database-level constraints where appropriate
+- [ ] add service-layer validation for all write operations
+- [ ] return clear error messages for constraint violations
+
+**Acceptance:** No orphan transactions. All foreign keys valid. Balances consistent. Errors are clear.
+
+---
+
+### PHASE 27 — Security Hardening
+
+**Goal:** Secure the application against common vulnerabilities.
+
+**Tasks:**
+- [ ] JWT refresh rotation (single-use refresh tokens, rotate on each refresh)
+- [ ] API rate limiting (100 req/min per user for general endpoints, 10 req/min for auth)
+- [ ] input validation (Pydantic schemas on all endpoints, sanitize text fields)
+- [ ] file upload security (receipt images)
+  - validate file type (only JPEG, PNG, HEIC allowed)
+  - validate file size (<10MB)
+  - scan for malware (basic check)
+  - store outside web root
+  - random filename generation (no user-supplied names)
+- [ ] CORS configuration (only allow known origins)
+- [ ] HTTP headers: CSP, X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security
+- [ ] SQL injection prevention (already covered by SQLAlchemy ORM — verify)
+- [ ] dependency audit (npm audit, pip audit)
+
+**Acceptance:** Security scan passes. Rate limiting works. File uploads are safe. No vulnerabilities.
+
+---
+
+### PHASE 28 — Offline + Sync Preparation
+
+**Goal:** Prepare for offline usage and background sync.
+
+**Tasks:**
+- [ ] local caching strategy
+  - cache accounts, recent transactions, upcoming bills in localStorage/IndexedDB
+  - show cached data immediately, refresh in background
+- [ ] optimistic UI updates
+  - on transaction create: show immediately in UI before API response
+  - on failure: show error toast, revert optimistic update
+- [ ] queue transactions offline
+  - store pending transactions in IndexedDB
+  - show "pending" badge on queued items
+- [ ] sync on reconnect
+  - detect online/offline status
+  - flush queue when connection returns
+  - handle conflicts (server is source of truth)
+- [ ] service worker registration (basic, expand later)
+
+**Acceptance:** App works offline (read cached data). Transactions queued offline sync when online. No data loss.
+
+---
+
+### PHASE 29 — Export System
+
+**Goal:** Allow users to export their data.
+
+**Tasks:**
+- [ ] CSV export endpoint: GET /api/export/csv?date_from=&date_to=
+  - all transaction fields
+  - merchant name (denormalized)
+  - category name (denormalized)
+  - account name (denormalized)
+- [ ] optional JSON export: GET /api/export/json
+  - full data dump (transactions, accounts, categories, merchants, bills, goals)
+- [ ] date range filtering for export
+- [ ] frontend export button on Reports screen
+- [ ] download file with proper filename (my-finances-2026-06.csv)
+
+**Acceptance:** CSV and JSON exports download correctly. Data matches what's in the app.
+
+---
+
+### PHASE 30 — Final System Integration
+
+**Goal:** Verify everything works together. Ship.
+
+**Tasks:**
+- [ ] full end-to-end testing
+  - register → login → add transaction → view on Home
+  - create bill → view upcoming on Home → pay bill → link
+  - create goal → contribute → see progress
+  - search → filter → export
+- [ ] mobile + desktop parity check
+  - every feature works on both
+  - no missing functionality on either platform
+- [ ] performance verification:
+  - add transaction: <5 seconds (from tap to saved)
+  - search: <1 second (results appear)
+  - home loads: <3 seconds (with 1000+ transactions)
+- [ ] security verification:
+  - unauthenticated users cannot access protected routes
+  - API returns 401 for invalid tokens
+  - file uploads are restricted
+- [ ] production deployment readiness
+  - Docker Compose tested end-to-end
+  - environment variables documented
+  - database migrations run automatically on startup
+  - health check endpoint returns OK
+
+**Acceptance:** All 30 phases complete. App is production-ready.
+
+---
+
+## Final Rules (DO NOT BREAK)
+
+1. **No new features outside this plan.** If it's not in phases 1-30, it doesn't get built.
+2. **No redesign mid-phase.** Each phase has a defined scope. Do not expand it.
+3. **No skipping phases.** Phase 3 must be complete before Phase 4 starts.
+4. **Every phase must be working before moving to the next.** No half-finished phases.
+5. **No renaming concepts during a phase.** Names are defined in the plan. Use them.
+6. **No changing phase order.** The order is deliberate. Each phase builds on previous ones.
+
+## Browser Testing Rule (MANDATORY)
+
+Every phase must be verified using browser-based testing tools before it is marked complete. Do not rely on code review alone.
+
+**Testing tools available:**
+- Chrome DevTools MCP (`chrome-devtools`) — console, network, screenshots, Lighthouse
+- Playwright MCP (`playwright`) — browser automation, form filling, navigation, snapshots
+
+**Testing checklist for every phase:**
+- [ ] Open the app in the browser (Chrome DevTools)
+- [ ] Verify the changes render correctly (visual + console)
+- [ ] Verify API requests/responses are correct (DevTools Network tab)
+- [ ] Verify no console errors or warnings
+- [ ] Run a Lighthouse audit (accessibility, best practices)
+- [ ] Test on both mobile and desktop viewports
+- [ ] If the phase adds new UI: take a screenshot and verify layout
+- [ ] If the phase adds new API: verify request/response bodies
+- [ ] Run frontend lint + typecheck (`npm run lint:fix && npm run typecheck`)
+- [ ] Run backend lint + format (`ruff check . && ruff format .`)
+
+**Do not skip browser testing.** A phase that passes lint but breaks in the browser is not complete.
+
+## AI Usage Rule (STRICT)
+
+**Use only FREE APIs:**
+- Groq (fast text parsing) — free tier
+- Gemini (vision OCR) — free tier
+- HuggingFace (fallback) — free tier
+- Tesseract.js (browser OCR) — completely free, no API key needed
+
+**AI is ONLY for:**
+- parsing natural language text into transactions
+- receipt extraction (OCR)
+- merchant name normalization
+
+**AI is NOT for:**
+- calculations (balances, totals, reports)
+- report generation
+- budget/goal recommendations
+- any numerical computation
+
+**AI must always be OPTIONAL.** The app must function fully without any AI API keys.
+
+---
+
+## Result
+
+After Phase 30, you will have:
+
+- a full personal finance system
+- mobile + desktop web application
+- AI-assisted transaction entry (optional)
+- receipt scanning system
+- merchant intelligence (auto-generated, searchable)
+- goals instead of budgets (motivation > restriction)
+- full reporting engine
+- export capability
+- offline preparation
+- production-ready deployment

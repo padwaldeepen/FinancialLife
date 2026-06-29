@@ -290,7 +290,12 @@ async def delete_transaction(
     return {"message": "Transaction deleted successfully"}
 
 
-@router.get("/summary/dashboard", response_model=DashboardSummary)
+@router.get(
+    "/summary/dashboard",
+    response_model=DashboardSummary,
+    deprecated=True,
+    description="DEPRECATED — will be replaced by account-based endpoints in Phase 6 (Home screen).",
+)
 async def get_dashboard_summary(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

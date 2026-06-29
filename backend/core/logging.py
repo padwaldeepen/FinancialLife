@@ -33,7 +33,7 @@ def get_logger(name: str) -> logging.Logger:
 def log_startup() -> None:
     log = get_logger("startup")
     log.info("─" * 50)
-    log.info("FinanceFlareAI — %s", settings.VERSION)
+    log.info("My Financial Life — %s", settings.VERSION)
     log.info("─" * 50)
     log.info("DEBUG ............ %s", settings.DEBUG)
     log.info("Database URL ..... %s", _mask_db_url(settings.DATABASE_URL))

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    APP_NAME: str = "FinanceFlareAI"
+    APP_NAME: str = "My Financial Life"
     VERSION: str = "1.0.0"
     DEBUG: bool = False
 

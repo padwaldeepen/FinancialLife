@@ -9,6 +9,6 @@ export const useBoundStore = create<StoreState>()(
     immer((...a) => ({
       ...(createAuthSlice(...a) as unknown as StoreState),
     })),
-    { name: 'FinanceFlare' },
+    { name: 'My Financial Life' },
   ),
 )

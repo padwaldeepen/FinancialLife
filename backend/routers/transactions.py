@@ -20,6 +20,11 @@ class TransactionCreate(BaseModel):
     transaction_type: str
     account_id: int
     category_id: int | None = None
+    merchant_id: int | None = None
+    bill_id: int | None = None
+    goal_id: int | None = None
+    is_pending: bool = False
+    is_recurring: bool = False
     date: datetime
     notes: str | None = None
 
@@ -30,6 +35,11 @@ class TransactionUpdate(BaseModel):
     transaction_type: str | None = None
     account_id: int | None = None
     category_id: int | None = None
+    merchant_id: int | None = None
+    bill_id: int | None = None
+    goal_id: int | None = None
+    is_pending: bool | None = None
+    is_recurring: bool | None = None
     date: datetime | None = None
     notes: str | None = None
 
@@ -43,6 +53,11 @@ class TransactionResponse(BaseModel):
     category_id: int | None
     category_name: str | None
     category_color: str | None
+    merchant_id: int | None = None
+    bill_id: int | None = None
+    goal_id: int | None = None
+    is_pending: bool = False
+    is_recurring: bool = False
     date: datetime
     notes: str | None
     ai_categorized: bool
@@ -92,6 +107,11 @@ async def create_transaction(
         transaction_type=transaction_data.transaction_type,
         account_id=transaction_data.account_id,
         category_id=transaction_data.category_id,
+        merchant_id=transaction_data.merchant_id,
+        bill_id=transaction_data.bill_id,
+        goal_id=transaction_data.goal_id,
+        is_pending=transaction_data.is_pending,
+        is_recurring=transaction_data.is_recurring,
         user_id=current_user.id,
         date=transaction_data.date,
         notes=transaction_data.notes,
@@ -112,6 +132,8 @@ async def create_transaction(
         category_color=category.color if category else None,
         date=db_transaction.date,
         notes=db_transaction.notes,
+        is_pending=db_transaction.is_pending,
+        is_recurring=db_transaction.is_recurring,
         ai_categorized=db_transaction.ai_categorized,
         created_at=db_transaction.created_at,
     )
@@ -214,6 +236,11 @@ async def get_transaction(
         category_color=category.color if category else None,
         date=transaction.date,
         notes=transaction.notes,
+        merchant_id=transaction.merchant_id,
+        bill_id=transaction.bill_id,
+        goal_id=transaction.goal_id,
+        is_pending=transaction.is_pending,
+        is_recurring=transaction.is_recurring,
         ai_categorized=transaction.ai_categorized,
         created_at=transaction.created_at,
     )
@@ -271,6 +298,11 @@ async def update_transaction(
         category_color=category.color if category else None,
         date=transaction.date,
         notes=transaction.notes,
+        merchant_id=transaction.merchant_id,
+        bill_id=transaction.bill_id,
+        goal_id=transaction.goal_id,
+        is_pending=transaction.is_pending,
+        is_recurring=transaction.is_recurring,
         ai_categorized=transaction.ai_categorized,
         created_at=transaction.created_at,
     )
@@ -499,6 +531,11 @@ async def quick_add_transaction(
         category_color=category.color if category else None,
         date=transaction.date,
         notes=transaction.notes,
+        merchant_id=transaction.merchant_id,
+        bill_id=transaction.bill_id,
+        goal_id=transaction.goal_id,
+        is_pending=transaction.is_pending,
+        is_recurring=transaction.is_recurring,
         ai_categorized=transaction.ai_categorized,
         created_at=transaction.created_at,
     )

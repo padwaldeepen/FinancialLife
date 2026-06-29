@@ -110,16 +110,16 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Add missing fields to Transaction model to support linking to other entities.
 
 **Tasks:**
-- [ ] add merchant_id (nullable FK → Merchant — table not built yet, add FK later)
-- [ ] add bill_id (nullable FK → Bill — table not built yet, add FK later)
-- [ ] add goal_id (nullable FK → Goal — table not built yet, add FK later)
-- [ ] add is_pending (boolean, default false)
-- [ ] add is_recurring (boolean, default false)
-- [ ] update TransactionCreate schema to include new optional fields
-- [ ] update TransactionUpdate schema
-- [ ] update TransactionResponse schema
-- [ ] update all CRUD endpoints to handle new fields
-- [ ] add Alembic migration
+- [x] add merchant_id (nullable FK → Merchant — table not built yet, add FK later)
+- [x] add bill_id (nullable FK → Bill — table not built yet, add FK later)
+- [x] add goal_id (nullable FK → Goal — table not built yet, add FK later)
+- [x] add is_pending (boolean, default false)
+- [x] add is_recurring (boolean, default false)
+- [x] update TransactionCreate schema to include new optional fields
+- [x] update TransactionUpdate schema
+- [x] update TransactionResponse schema
+- [x] update all CRUD endpoints to handle new fields
+- [x] add Alembic migration
 
 **Acceptance:** Transaction model has all new columns. API accepts and returns them. Existing data unaffected.
 

@@ -1,19 +1,20 @@
-# FinanceFlare
+# My Financial Life
 
-Free, open-source personal finance tracker.
+Free, open-source personal finance application.
 
 ## Tech Stack
 
 - **Frontend**: React 19, TypeScript, Vite, CSS Modules, Radix UI, Nivo charts
 - **State**: Zustand (all state — client + API data via slice actions)
 - **Backend**: FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL, JWT auth
-- **AI**: Rule-based NL parsing (no paid API)
+- **AI**: Rule-based + optional Groq/Gemini (free APIs only)
 
 ## Project Structure
 
 - `backend/` — FastAPI app (database, routers, services, alembic)
 - `frontend/` — React app (shared, desktop, mobile as separate apps)
 - `rules/` — opencode instruction files
+- `docs/` — planning documents
 
 ## Key Conventions
 

@@ -6,8 +6,6 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from core.config import settings
 from core.logging import get_logger, log_startup
-from database.models import Base
-from database.session import engine
 from routers import ai, auth, budgets, transactions
 
 log = get_logger(__name__)
@@ -16,16 +14,13 @@ log = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     log_startup()
-    log.info("Creating database tables…")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    log.info("Ready")
+    log.info("Database tables managed by Alembic migrations")
     yield
 
 
 app = FastAPI(
-    title="FinanceFlareAI API",
-    description="AI-powered personal budget tracker API",
+    title="My Financial Life API",
+    description="Personal finance management API",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -48,7 +43,7 @@ app.include_router(ai.router, prefix="/api/ai", tags=["AI Services"])
 
 @app.get("/")
 async def root():
-    return {"message": "FinanceFlareAI API is running!"}
+    return {"message": "My Financial Life API is running!"}
 
 
 @app.get("/health")

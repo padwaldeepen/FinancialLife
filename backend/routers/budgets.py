@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from warnings import warn
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -6,11 +7,19 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from core.logging import get_logger
 from database.models import Budget, Category, Transaction, User
 from database.session import get_db
 from routers.auth import get_current_user
 
-router = APIRouter()
+log = get_logger(__name__)
+
+DEPRECATION_NOTE = "DEPRECATED — will be removed in Phase 16. Replaced by Goals."
+
+router = APIRouter(deprecated=True)
+
+# Emit deprecation warning on import
+warn(f"Budgets router is deprecated. {DEPRECATION_NOTE}", DeprecationWarning, stacklevel=2)
 
 PERIOD_START_OVERRIDE: dict[str, int] = {}
 
@@ -83,6 +92,7 @@ async def get_budgets(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    log.warning("Deprecated endpoint called: GET /api/budgets/")
     result = await db.execute(
         select(Budget).options(joinedload(Budget.category)).where(Budget.user_id == current_user.id)
     )

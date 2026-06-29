@@ -16,7 +16,7 @@ export const Sidebar = (): JSX.Element => {
     <aside className={styles.sidebar}>
       <Box p="4" className={styles.logo}>
         <Text size="4" weight="bold">
-          FinanceFlare
+          My Financial Life
         </Text>
       </Box>
 

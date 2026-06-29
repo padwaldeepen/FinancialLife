@@ -1,0 +1,32 @@
+.page {
+  min-height: 100dvh;
+  padding: var(--space-4);
+}
+.searchInput {
+  width: 100%;
+}
+.description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.groupHeader {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--font-size-1);
+  padding: var(--space-1) 0;
+}
+.row {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--gray-5);
+  transition: transform 0.2s ease;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.row:active {
+  background-color: var(--gray-2);
+}
+.swiped {
+  transform: translateX(-48px);
+}

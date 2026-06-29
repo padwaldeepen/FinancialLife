@@ -1,17 +1,22 @@
 .page {
   max-width: 800px;
 }
-
 .searchInput {
   width: 100%;
 }
-
+.groupHeader {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--font-size-1);
+  padding: var(--space-2) 0;
+}
 .row {
   padding: var(--space-3) var(--space-2);
   border-bottom: 1px solid var(--gray-5);
   transition: background-color 0.15s;
+  cursor: pointer;
+  border-radius: var(--radius-2);
 }
-
 .row:hover {
   background-color: var(--gray-2);
 }

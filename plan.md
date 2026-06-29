@@ -47,6 +47,7 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 ## Build Phases — Strict Order
 
 **CORE RULE: Do not skip phases. Do not change phase order. Each phase must be working before moving to the next.**
+**COMMIT RULE: `git add -A && git commit -m "phase N: description"` after every completed phase. Run lint + format checks before committing.**
 
 ---
 

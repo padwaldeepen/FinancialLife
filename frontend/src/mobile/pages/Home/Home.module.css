@@ -1,0 +1,60 @@
+.page {
+  min-height: 100dvh;
+  padding: var(--space-4);
+}
+
+.balanceCard {
+  text-align: center;
+  padding: var(--space-5);
+}
+
+.balanceAmount {
+  margin: var(--space-2) 0;
+}
+
+.accountCard {
+  cursor: pointer;
+  min-height: 56px;
+}
+
+.accountIcon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray-3);
+  border-radius: var(--radius-3);
+  flex-shrink: 0;
+}
+
+.accountBalance {
+  white-space: nowrap;
+}
+
+.seeAll {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.transactionRow {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--gray-5);
+  min-height: 48px;
+}
+
+.transactionRow:last-child {
+  border-bottom: none;
+}
+
+.description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.placeholderCard {
+  border: 1px dashed var(--gray-6);
+}

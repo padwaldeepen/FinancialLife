@@ -12,7 +12,7 @@ import {
 } from '@radix-ui/themes'
 import { Search, Trash2, ArrowDown, ArrowUp } from 'lucide-react'
 import toast from 'react-hot-toast'
-import api from '../../../utils/api.ts'
+import api from '../../../auth/api.ts'
 import styles from './Transactions.module.css'
 
 interface Transaction {

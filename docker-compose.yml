@@ -2,13 +2,9 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: financeflareai-postgres
-    environment:
-      POSTGRES_DB: financeflareai
-      POSTGRES_USER: financeflareai_user
-      POSTGRES_PASSWORD: financeflareai_password
+    env_file: ./backend/.env
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
     healthcheck:
@@ -25,8 +21,6 @@ services:
       dockerfile: Dockerfile
     container_name: financeflareai-backend
     env_file: ./backend/.env
-    environment:
-      - DATABASE_URL=postgresql://financeflareai_user:financeflareai_password@postgres:5432/financeflareai
     ports:
       - "8080:8080"
     depends_on:
@@ -49,9 +43,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: financeflareai-frontend
-    environment:
-      - VITE_API_URL=http://localhost:8080
-      - VITE_APP_NAME=FinanceFlareAI
+    env_file: ./frontend/.env
     ports:
       - "3000:3000"
     depends_on:

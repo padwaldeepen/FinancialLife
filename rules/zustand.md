@@ -1,85 +1,94 @@
 # Zustand Rules
 
 ## Store Architecture
-- Use the **slices pattern**: each domain has its own slice file in `store/slices/`
-- Combine all slices into a **single bound store** in `store/index.ts`
-- Never use separate standalone stores — always go through the bound store
 
-```
-store/
-├── index.ts              # create bound store from all slices
-├── slices/
-│   ├── authSlice.ts      # Auth state + actions (login, register, logout, verifyToken)
-│   ├── transactionSlice.ts  # Transaction CRUD + list state
-│   ├── budgetSlice.ts    # Budget state + actions
-│   └── uiSlice.ts        # UI preferences (sidebar, theme, etc.)
-└── types.ts              # Shared store types
-```
+- Single bound store at `store/useBoundStore.ts` combining all slices
+- Each domain gets a slice file in `store/slices/` (e.g. `authSlice.ts`)
+- `useBoundStore` is the only store import — never import slices directly
 
-## Slices Pattern (TypeScript)
+## Creating a Slice
 
-### Slice signature
+Use `namespaceSlice` helper from `store/namespaceSlice.ts`. It auto-namespaces state fields under a key while keeping action functions flat.
+
 ```ts
-import { type StateCreator } from 'zustand'
-import type { StoreState } from '../types.ts'
+// store/slices/authSlice.ts
+import { namespaceSlice } from '../namespaceSlice.ts'
+import api from '../../auth/api.ts'
 
-export interface AuthSlice {
-  user: User | null
-  token: string | null
-  loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, name?: string) => Promise<void>
-  logout: () => void
-  verifyToken: () => Promise<void>
-}
+export type AuthSlice = {
+  auth: AuthState
+} & AuthActions
 
-export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set, get) => ({
-  user: null,
-  token: localStorage.getItem('token'),
-  loading: false,
-  // actions...
-})
-```
+export const createAuthSlice = namespaceSlice('auth', (set, get) => ({
+  // State — goes under s.auth.*
+  user: null as User | null,
+  token: null as string | null,
+  loading: true,
 
-### Bound store (combine slices)
-```ts
-import { create } from 'zustand'
-import { createAuthSlice } from './slices/authSlice.ts'
-import { createUiSlice } from './slices/uiSlice.ts'
-import type { StoreState } from './types.ts'
+  // Actions — stay flat at top level
+  login: async (email: string, password: string) => {
+    const res = await api.post('/api/auth/login', { email, password })
+    set({ token: res.data.access_token, user: res.data.user })
+  },
 
-export const useBoundStore = create<StoreState>()((...a) => ({
-  ...createAuthSlice(...a),
-  ...createUiSlice(...a),
+  logout: async () => {
+    await api.post('/api/auth/logout').catch(() => {})
+    set({ token: null, user: null })
+  },
 }))
 ```
 
-### Types file
-```ts
-import type { AuthSlice } from './slices/authSlice.ts'
-import type { UiSlice } from './slices/uiSlice.ts'
+## Combining Slices
 
-export type StoreState = AuthSlice & UiSlice
+Add each slice to `useBoundStore.ts` with `immer` middleware:
+
+```ts
+// store/useBoundStore.ts
+import { create } from 'zustand'
+import { devtools } from 'zustand/middleware'
+import { immer } from 'zustand/middleware/immer'
+import { createAuthSlice } from './slices/authSlice.ts'
+import type { StoreState } from './types.ts'
+
+export const useBoundStore = create<StoreState>()(
+  devtools(
+    immer((...a) => ({
+      ...(createAuthSlice(...a) as unknown as StoreState),
+    })),
+    { name: 'FinanceFlare' },
+  ),
+)
 ```
 
-## Naming Conventions
-- Slice files: `camelCaseSlice.ts` (`authSlice.ts`, `transactionSlice.ts`)
-- Slice interfaces: `PascalCaseSlice` (`AuthSlice`, `TransactionSlice`)
-- Bound store hook: `useBoundStore` (always default export from `store/index.ts`)
-- Selectors in components: inline lambdas only — `useBoundStore((s) => s.user)`
-- Actions: verbs in present tense (`login`, `fetchTransactions`, `deleteBudget`)
+## Adding a New Slice
 
-## State vs Actions
-- State is plain data: `user`, `token`, `transactions`, `loading`
-- Actions are functions that modify state: `login`, `logout`, `setTransactions`
-- Keep state and actions in the same slice file (co-located by domain)
-- API calls go inside action functions using `api` from `utils/api.ts`
-- Never use `react-query` or TanStack Query — all data fetching via Zustand actions + axios
+1. Create `store/slices/yourSlice.ts` using `namespaceSlice`
+2. Export a `YourSlice` type and `createYourSlice` creator
+3. Combine in `store/types.ts`: `export type StoreState = AuthSlice & YourSlice`
+4. Add to `store/useBoundStore.ts`: `...(createYourSlice(...a) as unknown as StoreState),`
 
-## Rules
-- Every store update goes through `set()` — no external mutations
-- Async actions use `async/await` with try/catch
-- Always call services (`services/`) or `api` directly from slice actions
-- Never import a slice file directly in a component — always use `useBoundStore`
-- Only the slice creator function and the bound store should know about slices
-- Middleware (persist, devtools) only in the bound store, never in individual slices
+## Selectors
+
+- Prefer individual selectors for single values: `useBoundStore((s) => s.auth.user)`
+- Use `useShallow` for multi-value object selectors:
+  ```ts
+  const { user, token } = useBoundStore(
+    useShallow((s) => ({ user: s.auth.user, token: s.auth.token })),
+  )
+  ```
+
+## Outside React (Interceptors, Helpers)
+
+Use `useBoundStore.getState()` and `useBoundStore.setState()` for read/write outside React:
+
+```ts
+const { token } = useBoundStore.getState().auth
+useBoundStore.setState((s) => ({ auth: { ...s.auth, token: newToken } }))
+```
+
+## What Not To Do
+
+- Do NOT use TanStack Query / React Query — Zustand handles all data fetching
+- Do NOT use React Context for global state (AuthContext is the one exception and it wraps Zustand)
+- Do NOT import slices directly from components — always go through `useBoundStore`
+- Do NOT put API calls in components — all data fetching goes in slice actions

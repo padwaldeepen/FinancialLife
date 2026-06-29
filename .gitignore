@@ -190,6 +190,10 @@ backend/dist/
 # Ruff cache
 .ruff_cache/
 
+# Screenshots & debug snapshots
+/screenshot*.png
+/*-snapshot*.txt
+
 # Playwright test artifacts
 frontend/test-results/
 
@@ -207,4 +211,4 @@ dump.rdb
 *.key
 *.crt 
 test-results/
-
+.playwright-mcp/

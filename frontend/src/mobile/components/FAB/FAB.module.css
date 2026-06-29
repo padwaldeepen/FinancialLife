@@ -6,7 +6,7 @@
   height: 56px;
   border-radius: var(--radius-full);
   background-color: var(--accent-9);
-  color: white;
+  color: var(--accent-contrast);
   display: flex;
   align-items: center;
   justify-content: center;

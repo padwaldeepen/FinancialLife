@@ -13,7 +13,7 @@ import {
 } from '@radix-ui/themes'
 import { ArrowLeft, Sparkles, Check, Camera } from 'lucide-react'
 import toast from 'react-hot-toast'
-import api from '../../../utils/api.ts'
+import api from '../../../auth/api.ts'
 import { extractTextFromImage, cleanOcrText } from '../../../utils/ocr.ts'
 import styles from './AddTransaction.module.css'
 

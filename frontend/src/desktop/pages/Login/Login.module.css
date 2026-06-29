@@ -24,7 +24,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--accent-contrast);
   font-weight: 700;
   font-size: 18px;
   line-height: 1;
@@ -32,6 +32,18 @@
 
 .input {
   width: 100%;
+}
+
+.forgotLink {
+  color: var(--accent-9);
+  font-size: var(--font-size-1);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.forgotLink:hover {
+  color: var(--accent-10);
+  text-decoration: underline;
 }
 
 .footerLink {

@@ -68,6 +68,11 @@ export default [
   },
   {
     files: ['vite.config.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
     rules: {
       'no-restricted-exports': 'off',
     },

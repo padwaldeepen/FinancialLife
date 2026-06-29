@@ -36,11 +36,30 @@
   font-weight: var(--font-weight-medium);
 }
 
-.addTab {
-  color: var(--accent-9);
-  margin-top: -12px;
-}
-
 .label {
   line-height: 1;
+}
+
+.addButton {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background-color: var(--accent-9);
+  color: var(--accent-contrast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-5);
+  border: none;
+  cursor: pointer;
+  margin-top: -12px;
+  transition:
+    transform 0.15s,
+    background-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.addButton:active {
+  transform: scale(0.95);
+  background-color: var(--accent-10);
 }

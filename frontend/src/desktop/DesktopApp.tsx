@@ -5,7 +5,6 @@ import { ProtectedRoute } from '../shared/components/ProtectedRoute/ProtectedRou
 import { DesktopLayout } from './layouts/DesktopLayout.tsx'
 import { Login } from './pages/Login/Login.tsx'
 import { Register } from './pages/Register/Register.tsx'
-import { AddTransaction } from './pages/AddTransaction/AddTransaction.tsx'
 import { Transactions } from './pages/Transactions/Transactions.tsx'
 import { Dashboard } from './pages/Dashboard/Dashboard.tsx'
 import { Budgets } from './pages/Budgets/Budgets.tsx'
@@ -32,15 +31,7 @@ export const DesktopApp = (): JSX.Element => {
           }
         />
         <Route
-          path="/add"
-          element={
-            <ProtectedRoute>
-              <AddTransaction />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/transactions"
+          path="/activity"
           element={
             <ProtectedRoute>
               <Transactions />
@@ -48,10 +39,42 @@ export const DesktopApp = (): JSX.Element => {
           }
         />
         <Route
-          path="/budgets"
+          path="/bills"
           element={
             <ProtectedRoute>
-              <Budgets />
+              <PlaceholderPage title="Bills" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/merchants"
+          element={
+            <ProtectedRoute>
+              <PlaceholderPage title="Merchants" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/categories"
+          element={
+            <ProtectedRoute>
+              <PlaceholderPage title="Categories" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/goals"
+          element={
+            <ProtectedRoute>
+              <PlaceholderPage title="Goals" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <PlaceholderPage title="Reports" />
             </ProtectedRoute>
           }
         />
@@ -63,6 +86,16 @@ export const DesktopApp = (): JSX.Element => {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/budgets"
+          element={
+            <ProtectedRoute>
+              <Budgets />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/transactions" element={<Navigate to="/activity" replace />} />
+        <Route path="/add" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Route>
     </Routes>

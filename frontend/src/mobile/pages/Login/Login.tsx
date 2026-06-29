@@ -1,13 +1,15 @@
 import { useState, type JSX } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Box, Flex, Heading, Text, Button, TextField } from '@radix-ui/themes'
 import toast from 'react-hot-toast'
-import { useBoundStore } from '../../../store/index.ts'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Login.module.css'
 
 export const Login = (): JSX.Element => {
   const login = useBoundStore((s) => s.login)
   const navigate = useNavigate()
+  const location = useLocation()
+  const from = (location.state as { from?: string })?.from || '/'
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -29,8 +31,7 @@ export const Login = (): JSX.Element => {
     setLoading(true)
     try {
       await login(email, password)
-      toast.success('Logged in')
-      navigate('/')
+      navigate(from)
     } catch (error: any) {
       const detail = error.response?.data?.detail
       const msg = Array.isArray(detail)
@@ -85,9 +86,14 @@ export const Login = (): JSX.Element => {
               </Flex>
 
               <Flex direction="column" gap="1">
-                <Text size="2" weight="medium">
-                  Password
-                </Text>
+                <Flex justify="between" align="center">
+                  <Text size="2" weight="medium">
+                    Password
+                  </Text>
+                  <Link to="/forgot-password" className={styles.forgotLink}>
+                    Forgot?
+                  </Link>
+                </Flex>
                 <TextField.Root
                   color={errors.password ? 'red' : undefined}
                   id="mob-password"

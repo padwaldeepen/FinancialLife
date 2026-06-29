@@ -6,3 +6,37 @@
   top: 0;
   z-index: 10;
 }
+
+.trigger {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+  transition: opacity 0.15s;
+}
+
+.trigger:hover {
+  opacity: 0.8;
+}
+
+.popoverContent {
+  min-width: 200px;
+}
+
+.themeRow {
+  cursor: pointer;
+  border-radius: var(--radius-2);
+  transition: background-color 0.15s;
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+}
+
+.themeRow:hover {
+  background-color: var(--gray-3);
+}
+
+.logoutButton {
+  width: 100%;
+  justify-content: flex-start;
+}

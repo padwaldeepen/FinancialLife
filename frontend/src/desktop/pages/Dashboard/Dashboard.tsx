@@ -4,7 +4,7 @@ import { ResponsivePie } from '@nivo/pie'
 import { ResponsiveBar } from '@nivo/bar'
 import { TrendingUp, TrendingDown, Wallet } from 'lucide-react'
 import toast from 'react-hot-toast'
-import api from '../../../utils/api.ts'
+import api from '../../../auth/api.ts'
 import styles from './Dashboard.module.css'
 
 interface CategorySummary {

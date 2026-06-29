@@ -2,8 +2,9 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from database.models import Budget, Category, Transaction, User
 from database.session import get_db
@@ -65,35 +66,35 @@ def get_period_range(period: str) -> tuple[datetime, datetime]:
     return start, end
 
 
+async def _get_spent(user_id: int, start: datetime, end: datetime, db: AsyncSession) -> float:
+    result = await db.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.transaction_type == "expense",
+            Transaction.date >= start,
+            Transaction.date < end,
+        )
+    )
+    return float(result.scalar())
+
+
 @router.get("/", response_model=list[BudgetResponse])
 async def get_budgets(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    budgets = (
-        db.query(Budget)
-        .options(joinedload(Budget.category))
-        .filter(Budget.user_id == current_user.id)
-        .all()
+    result = await db.execute(
+        select(Budget).options(joinedload(Budget.category)).where(Budget.user_id == current_user.id)
     )
+    budgets = result.unique().scalars().all()
 
-    result = []
+    response_list = []
     for budget in budgets:
         start, end = get_period_range(budget.period)
-        spent = (
-            db.query(func.coalesce(func.sum(Transaction.amount), 0))
-            .filter(
-                Transaction.user_id == current_user.id,
-                Transaction.transaction_type == "expense",
-                Transaction.date >= start,
-                Transaction.date < end,
-            )
-            .scalar()
-        )
-
+        spent = await _get_spent(current_user.id, start, end, db)
         category = budget.category
 
-        result.append(
+        response_list.append(
             BudgetResponse(
                 id=budget.id,
                 name=budget.name,
@@ -102,31 +103,30 @@ async def get_budgets(
                 category_id=budget.category_id,
                 category_name=category.name if category else None,
                 category_color=category.color if category else None,
-                spent=float(spent),
+                spent=spent,
                 is_active=budget.is_active,
                 created_at=budget.created_at,
             )
         )
 
-    return result
+    return response_list
 
 
 @router.post("/", response_model=BudgetResponse, status_code=status.HTTP_201_CREATED)
 async def create_budget(
     budget_data: BudgetCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     category = None
     if budget_data.category_id is not None:
-        category = (
-            db.query(Category)
-            .filter(
+        result = await db.execute(
+            select(Category).where(
                 Category.id == budget_data.category_id,
                 Category.user_id == current_user.id,
             )
-            .first()
         )
+        category = result.scalar_one_or_none()
         if not category:
             raise HTTPException(status_code=404, detail="Category not found")
 
@@ -140,20 +140,11 @@ async def create_budget(
         is_active=True,
     )
     db.add(db_budget)
-    db.commit()
-    db.refresh(db_budget)
+    await db.commit()
+    await db.refresh(db_budget)
 
     start, end = get_period_range(db_budget.period)
-    spent = (
-        db.query(func.coalesce(func.sum(Transaction.amount), 0))
-        .filter(
-            Transaction.user_id == current_user.id,
-            Transaction.transaction_type == "expense",
-            Transaction.date >= start,
-            Transaction.date < end,
-        )
-        .scalar()
-    )
+    spent = await _get_spent(current_user.id, start, end, db)
 
     return BudgetResponse(
         id=db_budget.id,
@@ -163,7 +154,7 @@ async def create_budget(
         category_id=db_budget.category_id,
         category_name=category.name if category else None,
         category_color=category.color if category else None,
-        spent=float(spent),
+        spent=spent,
         is_active=db_budget.is_active,
         created_at=db_budget.created_at,
     )
@@ -174,29 +165,28 @@ async def update_budget(
     budget_id: int,
     budget_data: BudgetUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    budget = (
-        db.query(Budget)
+    result = await db.execute(
+        select(Budget)
         .options(joinedload(Budget.category))
-        .filter(
+        .where(
             Budget.id == budget_id,
             Budget.user_id == current_user.id,
         )
-        .first()
     )
+    budget = result.scalar_one_or_none()
     if not budget:
         raise HTTPException(status_code=404, detail="Budget not found")
 
     if budget_data.category_id is not None:
-        category = (
-            db.query(Category)
-            .filter(
+        result = await db.execute(
+            select(Category).where(
                 Category.id == budget_data.category_id,
                 Category.user_id == current_user.id,
             )
-            .first()
         )
+        category = result.scalar_one_or_none()
         if not category:
             raise HTTPException(status_code=404, detail="Category not found")
 
@@ -204,24 +194,16 @@ async def update_budget(
     for field, value in update_data.items():
         setattr(budget, field, value)
 
-    db.commit()
-    db.refresh(budget)
+    await db.commit()
+    await db.refresh(budget)
 
     start, end = get_period_range(budget.period)
-    spent = (
-        db.query(func.coalesce(func.sum(Transaction.amount), 0))
-        .filter(
-            Transaction.user_id == current_user.id,
-            Transaction.transaction_type == "expense",
-            Transaction.date >= start,
-            Transaction.date < end,
-        )
-        .scalar()
-    )
+    spent = await _get_spent(current_user.id, start, end, db)
 
     category = None
     if budget.category_id is not None:
-        category = db.query(Category).filter(Category.id == budget.category_id).first()
+        result = await db.execute(select(Category).where(Category.id == budget.category_id))
+        category = result.scalar_one_or_none()
 
     return BudgetResponse(
         id=budget.id,
@@ -231,7 +213,7 @@ async def update_budget(
         category_id=budget.category_id,
         category_name=category.name if category else None,
         category_color=category.color if category else None,
-        spent=float(spent),
+        spent=spent,
         is_active=budget.is_active,
         created_at=budget.created_at,
     )
@@ -241,52 +223,42 @@ async def update_budget(
 async def delete_budget(
     budget_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    budget = (
-        db.query(Budget)
-        .filter(
+    result = await db.execute(
+        select(Budget).where(
             Budget.id == budget_id,
             Budget.user_id == current_user.id,
         )
-        .first()
     )
+    budget = result.scalar_one_or_none()
     if not budget:
         raise HTTPException(status_code=404, detail="Budget not found")
 
-    db.delete(budget)
-    db.commit()
+    await db.delete(budget)
+    await db.commit()
 
 
 @router.get("/{budget_id}", response_model=BudgetResponse)
 async def get_budget(
     budget_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    budget = (
-        db.query(Budget)
+    result = await db.execute(
+        select(Budget)
         .options(joinedload(Budget.category))
-        .filter(
+        .where(
             Budget.id == budget_id,
             Budget.user_id == current_user.id,
         )
-        .first()
     )
+    budget = result.scalar_one_or_none()
     if not budget:
         raise HTTPException(status_code=404, detail="Budget not found")
 
     start, end = get_period_range(budget.period)
-    spent = (
-        db.query(func.coalesce(func.sum(Transaction.amount), 0))
-        .filter(
-            Transaction.user_id == current_user.id,
-            Transaction.transaction_type == "expense",
-            Transaction.date >= start,
-            Transaction.date < end,
-        )
-        .scalar()
-    )
+    spent = await _get_spent(current_user.id, start, end, db)
 
     category = budget.category
 
@@ -298,7 +270,7 @@ async def get_budget(
         category_id=budget.category_id,
         category_name=category.name if category else None,
         category_color=category.color if category else None,
-        spent=float(spent),
+        spent=spent,
         is_active=budget.is_active,
         created_at=budget.created_at,
     )

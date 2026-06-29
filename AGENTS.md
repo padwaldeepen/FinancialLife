@@ -5,7 +5,7 @@ Free, open-source personal finance tracker.
 ## Tech Stack
 
 - **Frontend**: React 19, TypeScript, Vite, CSS Modules, Radix UI, Nivo charts
-- **State**: Zustand (client), TanStack Query (server)
+- **State**: Zustand (all state — client + API data via slice actions)
 - **Backend**: FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL, JWT auth
 - **AI**: Rule-based NL parsing (no paid API)
 

@@ -1,33 +1,20 @@
-import { type StateCreator } from 'zustand'
-import type { StoreState } from '../types.ts'
-import api from '../../utils/api.ts'
+import { namespaceSlice } from '../namespaceSlice.ts'
+import api from '../../auth/api.ts'
+import type { User, AuthState, AuthActions } from '../../auth/types.ts'
 
-export interface User {
-  id: number
-  email: string
-  name?: string
-}
+export type AuthSlice = {
+  auth: AuthState
+} & AuthActions
 
-export interface AuthSlice {
-  user: User | null
-  token: string | null
-  loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, name?: string) => Promise<void>
-  logout: () => void
-  verifyToken: () => Promise<void>
-}
-
-export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set, get) => ({
-  user: null,
-  token: localStorage.getItem('token'),
-  loading: false,
+export const createAuthSlice = namespaceSlice('auth', (set, _get) => ({
+  user: null as User | null,
+  token: null as string | null,
+  loading: true,
 
   login: async (email: string, password: string) => {
     const response = await api.post('/api/auth/login', { email, password })
-    const { access_token, user_id, email: userEmail } = response.data
-    localStorage.setItem('token', access_token)
-    set({ token: access_token, user: { id: user_id, email: userEmail } })
+    const { access_token, user_id, email: userEmail, is_admin } = response.data
+    set({ token: access_token, user: { id: user_id, email: userEmail, is_admin } })
   },
 
   register: async (email: string, password: string, name?: string) => {
@@ -38,29 +25,27 @@ export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set
       password,
       full_name: name,
     })
-    const { access_token, user_id, email: userEmail } = response.data
-    localStorage.setItem('token', access_token)
-    set({
-      token: access_token,
-      user: { id: user_id, email: userEmail, name },
-    })
+    const { access_token, user_id, email: userEmail, is_admin } = response.data
+    set({ token: access_token, user: { id: user_id, email: userEmail, is_admin, name } })
   },
 
-  logout: () => {
-    localStorage.removeItem('token')
+  logout: async () => {
+    try {
+      await api.post('/api/auth/logout')
+    } catch {
+      // ignore
+    }
     set({ token: null, user: null })
   },
 
   verifyToken: async () => {
-    const token = get().token
-    if (!token) return
     set({ loading: true })
     try {
-      const response = await api.get('/api/auth/me')
-      set({ user: response.data, loading: false })
+      const response = await api.post('/api/auth/refresh')
+      const { access_token, user_id, email, is_admin } = response.data
+      set({ token: access_token, user: { id: user_id, email, is_admin }, loading: false })
     } catch {
-      localStorage.removeItem('token')
       set({ token: null, user: null, loading: false })
     }
   },
-})
+}))

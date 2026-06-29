@@ -69,7 +69,7 @@ Use `color` prop (`"red"`, etc.) on `TextField.Root` for error/invalid states.
   - Backgrounds: `var(--gray-1)`, `var(--gray-2)`, `var(--color-panel)`, `var(--color-panel-solid)`
   - Borders: `var(--gray-4)`, `var(--gray-5)`, `var(--gray-6)`
   - Text: `var(--gray-12)` (primary), `var(--gray-11)` (secondary), `var(--gray-10)` (tertiary)
-  - Accent: `var(--accent-9)`, `var(--accent-10)`, `var(--accent-11)`
+  - Accent: `var(--accent-9)`, `var(--accent-10)`, `var(--accent-11)`, `var(--accent-contrast)`
   - Semantic: `var(--red-9)` (error), `var(--green-9)` (success), `var(--orange-9)` (warning)
   - Spacing: `var(--space-1)` through `var(--space-9)`
   - Radius: `var(--radius-1)` through `var(--radius-4)`
@@ -83,14 +83,65 @@ Use `color` prop (`"red"`, etc.) on `TextField.Root` for error/invalid states.
 - Media queries: mobile-first, breakpoints at 640/768/1024/1280px
 - No `@apply`, no Tailwind directives, no CSS-in-JS, no inline styles
 - Always use Radix spacing tokens: `padding: var(--space-4)` not `padding: 16px`
-
+- Exception: third-party components that render outside the theme tree (e.g. react-hot-toast `Toaster`) may use inline styles since CSS variables are out of scope
 
 ## State Management
-- Zustand (bound store pattern) for ALL state — client state AND API data
-- Slices pattern in `store/slices/`, combined in `store/index.ts` as `useBoundStore`
-- All API calls go inside Zustand slice actions, using `api` from `utils/api.ts`
+- Zustand (bound store pattern) for ALL global state — auth, transactions, budgets, UI
+- `useState` for LOCAL form state only: email, password, loading flags, error messages
+- All API calls go inside Zustand slice actions, using `api` from `auth/api.ts`
 - No TanStack Query / React Query — use Zustand actions with axios instead
-- No React Context for data fetching or state
+- No React Context for data fetching or global state
+- AuthContext is the one exception — it provides `useAuth()` for consuming auth state, but the actual data lives in Zustand
+
+### useState vs Zustand — Decision Guide
+
+| Scenario | Tool | Example |
+|----------|------|---------|
+| Form inputs (email, password) | `useState` | `const [email, setEmail] = useState('')` |
+| Form validation errors | `useState` | `const [errors, setErrors] = useState({})` |
+| Form submission loading | `useState` | `const [loading, setLoading] = useState(false)` |
+| Auth user, token | Zustand | `s.auth.user`, `s.auth.token` |
+| Transaction list, budget data | Zustand | `s.transactions`, `s.budgets` |
+| UI state (sidebar open, modal) | Zustand | `s.ui.sidebarOpen` |
+
+### useShallow — When to Use
+Import from `zustand/react/shallow`. Use when selecting an object with **multiple values** from the store to prevent unnecessary re-renders:
+```tsx
+// CORRECT — useShallow for multi-value selectors
+const { user, token } = useBoundStore(
+  useShallow((s) => ({ user: s.auth.user, token: s.auth.token })),
+)
+
+// NOT NEEDED — single primitive selector
+const loading = useBoundStore((s) => s.auth.loading)
+
+// NOT NEEDED — single action selector
+const logout = useBoundStore((s) => s.logout)
+```
+
+### immer Middleware
+The store uses `immer` middleware for immutable updates with mutable syntax. All state mutations in slice actions can use direct assignment:
+```ts
+set({ user: null, token: null, loading: false })  // fine
+// Instead of: set((s) => ({ auth: { ...s.auth, user: null } }))
+```
+
+### namespaceSlice Pattern
+Each slice uses the `namespaceSlice` helper from `store/namespaceSlice.ts` to auto-namespace state under a key while keeping actions flat:
+```ts
+export const createAuthSlice = namespaceSlice('auth', (set, get) => ({
+  // state fields — go under s.auth.*
+  user: null as User | null,
+  token: null as string | null,
+
+  // action fields — stay flat at top level
+  login: async (email: string, password: string) => {
+    const res = await api.post('/api/auth/login', { email, password })
+    set({ token: res.data.access_token, user: res.data.user })
+  },
+}))
+```
+Consumers access state as `s.auth.user` and actions as `s.login()`.
 
 ## Nivo Charts
 - Use `@nivo/pie` for spending by category

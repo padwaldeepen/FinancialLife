@@ -2,7 +2,7 @@ import { useState, type JSX } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Box, Flex, Heading, Text, Button, TextField } from '@radix-ui/themes'
 import toast from 'react-hot-toast'
-import { useBoundStore } from '../../../store/index.ts'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Register.module.css'
 
 export const Register = (): JSX.Element => {
@@ -32,7 +32,6 @@ export const Register = (): JSX.Element => {
     setLoading(true)
     try {
       await register(email, password, fullName)
-      toast.success('Account created')
       navigate('/')
     } catch (error: any) {
       const detail = error.response?.data?.detail

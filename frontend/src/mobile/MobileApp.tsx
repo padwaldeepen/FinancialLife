@@ -1,6 +1,7 @@
 import { type JSX } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Heading, Text, Flex } from '@radix-ui/themes'
+import { ProtectedRoute } from '../shared/components/ProtectedRoute/ProtectedRoute.tsx'
 import { MobileLayout } from './layouts/MobileLayout.tsx'
 import { Login } from './pages/Login/Login.tsx'
 import { Register } from './pages/Register/Register.tsx'
@@ -22,12 +23,47 @@ export const MobileApp = (): JSX.Element => {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route element={<MobileLayout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/transactions" element={<Transactions />} />
-        <Route path="/add" element={<AddTransaction />} />
-        <Route path="/budgets" element={<Budgets />} />
-        <Route path="/profile" element={<PlaceholderPage title="Profile" />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/transactions"
+          element={
+            <ProtectedRoute>
+              <Transactions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add"
+          element={
+            <ProtectedRoute>
+              <AddTransaction />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/budgets"
+          element={
+            <ProtectedRoute>
+              <Budgets />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <PlaceholderPage title="Profile" />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Route>
     </Routes>
   )

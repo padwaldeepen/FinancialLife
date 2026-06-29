@@ -13,7 +13,7 @@ import {
 } from '@radix-ui/themes'
 import { Plus, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import api from '../../../utils/api.ts'
+import api from '../../../auth/api.ts'
 import styles from './Budgets.module.css'
 
 interface Budget {

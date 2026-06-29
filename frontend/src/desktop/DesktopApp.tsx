@@ -1,6 +1,7 @@
 import { type JSX } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Heading, Text, Flex } from '@radix-ui/themes'
+import { ProtectedRoute } from '../shared/components/ProtectedRoute/ProtectedRoute.tsx'
 import { DesktopLayout } from './layouts/DesktopLayout.tsx'
 import { Login } from './pages/Login/Login.tsx'
 import { Register } from './pages/Register/Register.tsx'
@@ -22,12 +23,47 @@ export const DesktopApp = (): JSX.Element => {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route element={<DesktopLayout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/add" element={<AddTransaction />} />
-        <Route path="/transactions" element={<Transactions />} />
-        <Route path="/budgets" element={<Budgets />} />
-        <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add"
+          element={
+            <ProtectedRoute>
+              <AddTransaction />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/transactions"
+          element={
+            <ProtectedRoute>
+              <Transactions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/budgets"
+          element={
+            <ProtectedRoute>
+              <Budgets />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <PlaceholderPage title="Settings" />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Route>
     </Routes>
   )

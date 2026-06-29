@@ -17,7 +17,8 @@ log = get_logger(__name__)
 async def lifespan(_app: FastAPI):
     log_startup()
     log.info("Creating database tables…")
-    Base.metadata.create_all(bind=engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     log.info("Ready")
     yield
 

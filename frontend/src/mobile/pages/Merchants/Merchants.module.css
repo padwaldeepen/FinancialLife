@@ -1,0 +1,27 @@
+.page {
+  padding: var(--space-4);
+}
+
+.search {
+  width: 100%;
+}
+
+.card {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.card:hover {
+  background-color: var(--gray-3);
+}
+
+.icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-2);
+  background: var(--gray-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}

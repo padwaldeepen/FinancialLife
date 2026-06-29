@@ -1,9 +1,25 @@
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.session import Base
+
+
+class Merchant(Base):
+    __tablename__ = "merchants"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String)
+    normalized_name: Mapped[str] = mapped_column(String, index=True)
+    aliases: Mapped[list[str] | None] = mapped_column(JSONB, default=None)
+    is_hidden: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="merchants")
+    transactions: Mapped[list["Transaction"]] = relationship(back_populates="merchant")
 
 
 class User(Base):
@@ -25,6 +41,7 @@ class User(Base):
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="user")
     budgets: Mapped[list["Budget"]] = relationship(back_populates="user")
     categories: Mapped[list["Category"]] = relationship(back_populates="user")
+    merchants: Mapped[list["Merchant"]] = relationship(back_populates="user")
 
 
 class Category(Base):
@@ -75,7 +92,7 @@ class Transaction(Base):
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    merchant_id: Mapped[int | None] = mapped_column(Integer, default=None)
+    merchant_id: Mapped[int | None] = mapped_column(ForeignKey("merchants.id"), default=None)
     bill_id: Mapped[int | None] = mapped_column(Integer, default=None)
     goal_id: Mapped[int | None] = mapped_column(Integer, default=None)
     is_pending: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -89,6 +106,7 @@ class Transaction(Base):
     user: Mapped[User] = relationship(back_populates="transactions")
     account: Mapped[Account] = relationship(back_populates="transactions")
     category: Mapped[Category | None] = relationship(back_populates="transactions")
+    merchant: Mapped["Merchant | None"] = relationship(back_populates="transactions")
 
 
 class Budget(Base):

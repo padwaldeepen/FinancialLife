@@ -102,9 +102,8 @@ async def get_categories_for_user(user_id: int, db: AsyncSession) -> list[Catego
     result = await db.execute(
         select(Category)
         .options(selectinload(Category.children))
-        .where(
-            (Category.user_id == user_id) | (Category.is_system.is_(True))
-        ).order_by(Category.name)
+        .where((Category.user_id == user_id) | (Category.is_system.is_(True)))
+        .order_by(Category.name)
     )
     return result.scalars().all()
 
@@ -160,6 +159,7 @@ async def get_system_categories(db: AsyncSession) -> list[Category]:
     result = await db.execute(
         select(Category)
         .options(selectinload(Category.children))
-        .where(Category.is_system.is_(True)).order_by(Category.name)
+        .where(Category.is_system.is_(True))
+        .order_by(Category.name)
     )
     return result.scalars().all()

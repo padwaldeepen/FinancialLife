@@ -196,20 +196,20 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Create the Merchant entity. Auto-generate from transaction descriptions.
 
 **Tasks:**
-- [ ] create Merchant table (SQLAlchemy model)
+- [x] create Merchant table (SQLAlchemy model)
   - id, user_id (FK), name, normalized_name, aliases (JSONB), is_hidden, created_at
-- [ ] normalize merchant names on creation (lowercase, trim, remove special chars)
-- [ ] auto-generate merchant from transaction description on create
-- [ ] add alias system: maintain mapping of common variations
+- [x] normalize merchant names on creation (lowercase, trim, remove special chars)
+- [x] auto-generate merchant from transaction description on create
+- [x] add alias system: maintain mapping of common variations
   - AMZN → Amazon, SBUX → Starbucks, TGT → Target, WMT → Walmart
-- [ ] link transaction to merchant (update merchant_id FK from Phase 4)
-- [ ] create Merchant router:
+- [x] link transaction to merchant (update merchant_id FK from Phase 4)
+- [x] create Merchant router:
   - GET /api/merchants/ (list with totals)
   - GET /api/merchants/{id} (detail with history)
   - POST /api/merchants/merge (merge duplicates)
   - PUT /api/merchants/{id} (rename, hide)
-- [ ] backfill merchants from existing transaction descriptions
-- [ ] add Alembic migration
+- [x] backfill merchants from existing transaction descriptions
+- [x] add Alembic migration
 
 **Acceptance:** New transactions auto-create or match merchants. Existing data is backfilled. API returns merchant list.
 

@@ -5,7 +5,6 @@ import { ProtectedRoute } from '../shared/components/ProtectedRoute/ProtectedRou
 import { MobileLayout } from './layouts/MobileLayout.tsx'
 import { Login } from './pages/Login/Login.tsx'
 import { Register } from './pages/Register/Register.tsx'
-import { AddTransaction } from './pages/AddTransaction/AddTransaction.tsx'
 import { Transactions } from './pages/Transactions/Transactions.tsx'
 import { Dashboard } from './pages/Dashboard/Dashboard.tsx'
 import { Budgets } from './pages/Budgets/Budgets.tsx'
@@ -32,7 +31,7 @@ export const MobileApp = (): JSX.Element => {
           }
         />
         <Route
-          path="/transactions"
+          path="/activity"
           element={
             <ProtectedRoute>
               <Transactions />
@@ -40,10 +39,18 @@ export const MobileApp = (): JSX.Element => {
           }
         />
         <Route
-          path="/add"
+          path="/bills"
           element={
             <ProtectedRoute>
-              <AddTransaction />
+              <PlaceholderPage title="Bills" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/more"
+          element={
+            <ProtectedRoute>
+              <PlaceholderPage title="More" />
             </ProtectedRoute>
           }
         />
@@ -63,6 +70,8 @@ export const MobileApp = (): JSX.Element => {
             </ProtectedRoute>
           }
         />
+        <Route path="/transactions" element={<Navigate to="/activity" replace />} />
+        <Route path="/add" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Route>
     </Routes>

@@ -1,0 +1,16 @@
+.content {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 85dvh;
+  border-radius: var(--radius-4) var(--radius-4) 0 0;
+  padding: var(--space-4);
+  background-color: var(--color-panel);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-5);
+  font-weight: var(--font-weight-bold);
+}

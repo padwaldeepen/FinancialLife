@@ -90,16 +90,16 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Create the Account entity. This is the foundation for everything that follows.
 
 **Tasks:**
-- [ ] create Account table (SQLAlchemy model)
+- [x] create Account table (SQLAlchemy model)
   - id, user_id (FK), name, type (checking/savings/credit/cash/investment), balance, currency, is_active, sort_order, created_at, updated_at
-- [ ] define relationship: Account belongs to User (1:N)
-- [ ] add account_id column to Transaction model (required FK)
-- [ ] create default account on user signup (name: "Cash", type: "checking")
-- [ ] migration: backfill existing transactions to default account
-- [ ] compute account balance from linked transactions (service layer)
-- [ ] create Account router: GET /api/accounts/, POST /api/accounts/, PUT /api/accounts/{id}, DELETE /api/accounts/{id}
-- [ ] create Account service with balance calculation
-- [ ] add Alembic migration
+- [x] define relationship: Account belongs to User (1:N)
+- [x] add account_id column to Transaction model (required FK)
+- [x] create default account on user signup (name: "Cash", type: "checking")
+- [x] migration: backfill existing transactions to default account
+- [x] compute account balance from linked transactions (service layer)
+- [x] create Account router: GET /api/accounts/, POST /api/accounts/, PUT /api/accounts/{id}, DELETE /api/accounts/{id}
+- [x] create Account service with balance calculation
+- [x] add Alembic migration
 
 **Acceptance:** New users get default account. Existing users get backfilled. Balances compute correctly. API returns accounts.
 
@@ -682,7 +682,50 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 
 ---
 
-### PHASE 30 — Final System Integration
+### PHASE 30 — Statement Import
+
+**Goal:** Import transactions from bank/credit card statements (Excel, PDF, CSV).
+
+**Tasks:**
+
+Backend — Parsing:
+- [ ] install `openpyxl` (Excel), `pdfplumber` (PDF), `dateparser` (date detection)
+- [ ] create `services/statement_service.py` with:
+  - `parse_excel(file)` — read .xlsx rows, detect columns by header keywords (Date, Description, Amount, etc.)
+  - `parse_pdf(file)` — extract tables via pdfplumber, detect columns, handle multi-page
+  - `parse_csv(file)` — detect delimiter, headers, date formats
+  - `detect_format(rows)` — fuzzy-match column headers to known bank formats (Chase, BofA, Citi, etc.)
+- [ ] auto-detect bank format from column headers + date format patterns
+- [ ] extract per-row: date, description, amount (debit/credit), optional merchant
+- [ ] AI fallback: pass unstructured/layout-unknown PDFs to Groq/Gemini for structured extraction
+
+Backend — Transaction Linking:
+- [ ] after extraction, run through merchant matching (Phase 8): fuzzy-match description to known merchants
+- [ ] run through category auto-assignment (Phase 7): map merchant → category
+- [ ] create transaction objects linked to selected account (Phase 3)
+- [ ] deduplication: check existing transactions (date + amount + description) to avoid duplicates
+- [ ] return preview payload: `{ rows_parsed, rows_duplicate, transactions, unknown_merchants[] }`
+
+API:
+- [ ] `POST /api/import/preview` — upload file, return parsed preview (no save)
+- [ ] `POST /api/import/confirm` — confirm import, save all transactions
+- [ ] `GET /api/import/templates` — list supported bank formats
+- [ ] file validation: only .xlsx, .pdf, .csv; max 20MB
+
+Frontend:
+- [ ] Import screen (`/import`) accessible from Settings and /more
+- [ ] drag-and-drop file upload zone (desktop) + file picker (mobile)
+- [ ] preview table: date | description | amount | merchant → category | status (new/duplicate)
+- [ ] highlight unmatched merchants for user to assign or skip
+- [ ] bulk account selector (which account to import into)
+- [ ] confirm button → POST /api/import/confirm → success toast + redirect to Activity
+- [ ] import history list (recent imports, row count, date range)
+
+**Acceptance:** User can upload a Chase or generic bank statement. System parses transactions, matches merchants/categories, shows preview. User confirms. Transactions appear in Activity.
+
+---
+
+### PHASE 31 — Final System Integration
 
 **Goal:** Verify everything works together. Ship.
 
@@ -709,7 +752,7 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
   - database migrations run automatically on startup
   - health check endpoint returns OK
 
-**Acceptance:** All 30 phases complete. App is production-ready.
+**Acceptance:** All 31 phases complete. App is production-ready.
 
 ---
 

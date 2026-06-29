@@ -17,6 +17,7 @@ from core.security import (
 )
 from database.models import User
 from database.session import get_db
+from services.account_service import create_default_account
 
 log = get_logger(__name__)
 
@@ -154,6 +155,9 @@ async def register(
         full_name=user_data.full_name,
     )
     db.add(db_user)
+    await db.flush()
+
+    await create_default_account(db_user, db)
     await db.commit()
     await db.refresh(db_user)
 

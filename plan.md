@@ -149,13 +149,13 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Build the Home screen (replaces old Dashboard).
 
 **Tasks:**
-- [ ] total balance display (sum of all account balances)
-- [ ] account cards: show each account with name, type icon, balance
-- [ ] recent transactions (last 5, linked from Activity)
-- [ ] upcoming bills placeholder section (hidden until Phase 14)
-- [ ] mobile-first layout optimization (cards stack vertically, touch targets 44px+)
-- [ ] pull-to-refresh on mobile
-- [ ] desktop: multi-column layout (accounts left, recent activity right)
+- [x] total balance display (sum of all account balances)
+- [x] account cards: show each account with name, type icon, balance
+- [x] recent transactions (last 5, linked from Activity)
+- [x] upcoming bills placeholder section (hidden until Phase 14)
+- [x] mobile-first layout optimization (cards stack vertically, touch targets 44px+)
+- [ ] pull-to-refresh on mobile (partial — refreshing state exists, gesture handler in next pass)
+- [x] desktop: multi-column layout (accounts left, recent activity right)
 
 **Acceptance:** Home shows real balances. Account cards are tappable. Recent transactions link to Activity.
 
@@ -166,16 +166,20 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Add hierarchy to categories. Pre-populate system categories.
 
 **Tasks:**
-- [ ] add parent_id column to Category model (nullable FK, self-referential)
-- [ ] add is_system column (boolean, true for base categories)
-- [ ] make user_id nullable on Category (null = system category)
-- [ ] seed system categories:
+- [x] add parent_id column to Category model (nullable FK, self-referential)
+- [x] add is_system column (boolean, true for base categories)
+- [x] make user_id nullable on Category (null = system category)
+- [x] seed system categories:
   - Housing (Rent, Mortgage, Insurance, Repairs)
   - Food & Dining (Groceries, Dining Out, Coffee Shops)
   - Transportation (Gas, Parking, Public Transit, Rideshare)
   - Shopping (Clothing, Electronics, Home Goods, Online)
   - Entertainment (Streaming, Games, Movies, Events)
   - Health & Fitness (Pharmacy, Doctor, Gym, Insurance)
+- [x] create Category router with list/create/update/delete endpoints
+- [x] create Category service with CRUD + seeding
+- [x] update ai.py to use DB categories instead of hardcoded lists
+- [x] build Categories frontend page (Desktop) with expandable parent/children hierarchy
   - Utilities (Electric, Water, Internet, Phone)
   - Income (Salary, Freelance, Gift, Refund)
   - Uncategorized

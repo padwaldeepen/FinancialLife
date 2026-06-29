@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from database.models import Category, Transaction, User
+from database.models import Account, Category, Transaction, User
 from database.session import get_db
 from routers.auth import get_current_user
 from services.transaction_service import parse_transaction
@@ -18,6 +18,7 @@ class TransactionCreate(BaseModel):
     amount: float
     description: str
     transaction_type: str
+    account_id: int
     category_id: int | None = None
     date: datetime
     notes: str | None = None
@@ -27,6 +28,7 @@ class TransactionUpdate(BaseModel):
     amount: float | None = None
     description: str | None = None
     transaction_type: str | None = None
+    account_id: int | None = None
     category_id: int | None = None
     date: datetime | None = None
     notes: str | None = None
@@ -37,6 +39,7 @@ class TransactionResponse(BaseModel):
     amount: float
     description: str
     transaction_type: str
+    account_id: int
     category_id: int | None
     category_name: str | None
     category_color: str | None
@@ -87,6 +90,7 @@ async def create_transaction(
         amount=transaction_data.amount,
         description=transaction_data.description,
         transaction_type=transaction_data.transaction_type,
+        account_id=transaction_data.account_id,
         category_id=transaction_data.category_id,
         user_id=current_user.id,
         date=transaction_data.date,
@@ -102,6 +106,7 @@ async def create_transaction(
         amount=db_transaction.amount,
         description=db_transaction.description,
         transaction_type=db_transaction.transaction_type,
+        account_id=db_transaction.account_id,
         category_id=db_transaction.category_id,
         category_name=category.name if category else None,
         category_color=category.color if category else None,
@@ -166,6 +171,7 @@ async def get_transactions(
                 amount=transaction.amount,
                 description=transaction.description,
                 transaction_type=transaction.transaction_type,
+                account_id=transaction.account_id,
                 category_id=transaction.category_id,
                 category_name=category.name if category else None,
                 category_color=category.color if category else None,
@@ -202,6 +208,7 @@ async def get_transaction(
         amount=transaction.amount,
         description=transaction.description,
         transaction_type=transaction.transaction_type,
+        account_id=transaction.account_id,
         category_id=transaction.category_id,
         category_name=category.name if category else None,
         category_color=category.color if category else None,
@@ -258,6 +265,7 @@ async def update_transaction(
         amount=transaction.amount,
         description=transaction.description,
         transaction_type=transaction.transaction_type,
+        account_id=transaction.account_id,
         category_id=transaction.category_id,
         category_name=category.name if category else None,
         category_color=category.color if category else None,
@@ -370,6 +378,7 @@ async def get_dashboard_summary(
                 amount=transaction.amount,
                 description=transaction.description,
                 transaction_type=transaction.transaction_type,
+                account_id=transaction.account_id,
                 category_id=transaction.category_id,
                 category_name=category.name if category else None,
                 category_color=category.color if category else None,
@@ -448,10 +457,27 @@ async def quick_add_transaction(
             db.add(category)
             await db.flush()
 
+    account_result = await db.execute(
+        select(Account)
+        .where(
+            Account.user_id == current_user.id,
+            Account.is_active,
+        )
+        .order_by(Account.sort_order)
+        .limit(1)
+    )
+    default_account = account_result.scalar_one_or_none()
+    if not default_account:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active account found. Create an account first.",
+        )
+
     transaction = Transaction(
         amount=parsed["amount"],
         description=parsed["description"],
         transaction_type=parsed["type"],
+        account_id=default_account.id,
         category_id=category.id if category else None,
         user_id=current_user.id,
         date=datetime.now(),
@@ -467,6 +493,7 @@ async def quick_add_transaction(
         amount=transaction.amount,
         description=transaction.description,
         transaction_type=transaction.transaction_type,
+        account_id=transaction.account_id,
         category_id=transaction.category_id,
         category_name=category.name if category else None,
         category_color=category.color if category else None,

@@ -6,7 +6,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from core.config import settings
 from core.logging import get_logger, log_startup
-from routers import ai, auth, budgets, transactions
+from routers import accounts, ai, auth, budgets, transactions
 
 log = get_logger(__name__)
 
@@ -35,6 +35,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(accounts.router, prefix="/api/accounts", tags=["Accounts"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(transactions.router, prefix="/api/transactions", tags=["Transactions"])
 app.include_router(budgets.router, prefix="/api/budgets", tags=["Budgets"])

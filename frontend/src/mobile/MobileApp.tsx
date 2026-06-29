@@ -5,8 +5,8 @@ import { ProtectedRoute } from '../shared/components/ProtectedRoute/ProtectedRou
 import { MobileLayout } from './layouts/MobileLayout.tsx'
 import { Login } from './pages/Login/Login.tsx'
 import { Register } from './pages/Register/Register.tsx'
-import { Transactions } from './pages/Transactions/Transactions.tsx'
-import { Dashboard } from './pages/Dashboard/Dashboard.tsx'
+import { Activity } from './pages/Activity/Activity.tsx'
+import { Home } from './pages/Home/Home.tsx'
 import { Budgets } from './pages/Budgets/Budgets.tsx'
 
 const PlaceholderPage = ({ title }: { title: string }) => (
@@ -26,7 +26,7 @@ export const MobileApp = (): JSX.Element => {
           path="/"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <Home />
             </ProtectedRoute>
           }
         />
@@ -34,7 +34,7 @@ export const MobileApp = (): JSX.Element => {
           path="/activity"
           element={
             <ProtectedRoute>
-              <Transactions />
+              <Activity />
             </ProtectedRoute>
           }
         />

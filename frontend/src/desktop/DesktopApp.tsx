@@ -9,6 +9,7 @@ import { Activity } from './pages/Activity/Activity.tsx'
 import { Categories } from './pages/Categories/Categories.tsx'
 import { Home } from './pages/Home/Home.tsx'
 import { Budgets } from './pages/Budgets/Budgets.tsx'
+import { Merchants } from './pages/Merchants/Merchants.tsx'
 
 const PlaceholderPage = ({ title }: { title: string }) => (
   <Flex direction="column" gap="4">
@@ -51,7 +52,7 @@ export const DesktopApp = (): JSX.Element => {
           path="/merchants"
           element={
             <ProtectedRoute>
-              <PlaceholderPage title="Merchants" />
+              <Merchants />
             </ProtectedRoute>
           }
         />

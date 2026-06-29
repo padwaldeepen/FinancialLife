@@ -9,6 +9,7 @@ from sqlalchemy.orm import joinedload
 from database.models import Account, Category, Transaction, User
 from database.session import get_db
 from routers.auth import get_current_user
+from services.merchant_service import extract_merchant_from_description, find_or_create_merchant
 from services.transaction_service import parse_transaction
 
 router = APIRouter()
@@ -101,13 +102,20 @@ async def create_transaction(
         if not category:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
+    merchant_id = transaction_data.merchant_id
+    if merchant_id is None:
+        merchant_name = extract_merchant_from_description(transaction_data.description)
+        if merchant_name:
+            merchant = await find_or_create_merchant(current_user.id, merchant_name, db)
+            merchant_id = merchant.id if merchant else None
+
     db_transaction = Transaction(
         amount=transaction_data.amount,
         description=transaction_data.description,
         transaction_type=transaction_data.transaction_type,
         account_id=transaction_data.account_id,
         category_id=transaction_data.category_id,
-        merchant_id=transaction_data.merchant_id,
+        merchant_id=merchant_id,
         bill_id=transaction_data.bill_id,
         goal_id=transaction_data.goal_id,
         is_pending=transaction_data.is_pending,
@@ -505,12 +513,19 @@ async def quick_add_transaction(
             detail="No active account found. Create an account first.",
         )
 
+    merchant_name = extract_merchant_from_description(parsed["description"])
+    merchant_id = None
+    if merchant_name:
+        merchant = await find_or_create_merchant(current_user.id, merchant_name, db)
+        merchant_id = merchant.id if merchant else None
+
     transaction = Transaction(
         amount=parsed["amount"],
         description=parsed["description"],
         transaction_type=parsed["type"],
         account_id=default_account.id,
         category_id=category.id if category else None,
+        merchant_id=merchant_id,
         user_id=current_user.id,
         date=datetime.now(),
         ai_categorized=True,

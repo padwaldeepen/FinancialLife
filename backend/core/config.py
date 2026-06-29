@@ -30,5 +30,9 @@ class Settings(BaseSettings):
         ".vercel.app",
     ]
 
+    USE_AI: bool = False
+    GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+
 
 settings = Settings()

@@ -240,23 +240,23 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Integrate free AI APIs for text parsing and OCR. AI must be optional — system works without it.
 
 **Tasks:**
-- [ ] integrate Groq API (free tier, fast LLM inference)
+- [x] integrate Groq API (free tier, fast LLM inference)
   - sign up, get API key
   - create Groq service module
   - prompt engineering for transaction parsing
-- [ ] integrate Gemini API (free tier, vision capabilities)
+- [x] integrate Gemini API (free tier, vision capabilities)
   - sign up, get API key
   - create Gemini service module
   - prompt engineering for receipt extraction
-- [ ] define AI abstraction layer
+- [x] define AI abstraction layer
   - BaseAIService interface
   - GroqParser, GeminiParser implementations
   - fallback chain: Groq → Gemini → rule-based
-- [ ] ensure AI is OPTIONAL
+- [x] ensure AI is OPTIONAL
   - feature flag: USE_AI=true/false
   - rule-based parser works as fallback
   - app functions identically without any API keys
-- [ ] add AI configuration to settings
+- [x] add AI configuration to settings
 - [ ] document how to get free API keys
 
 **Acceptance:** AI parsing works with API keys. App works without them. Fallback to rule-based is seamless.

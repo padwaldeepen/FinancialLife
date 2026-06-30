@@ -16,106 +16,74 @@ import {
 import { Store, Search, X, Merge, BarChart3 } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
 import toast from 'react-hot-toast'
-import api from '../../../auth/api.ts'
+import { useShallow } from 'zustand/react/shallow'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Merchants.module.css'
 
-interface Merchant {
-  id: number
-  name: string
-  normalized_name: string
-  aliases: string[] | null
-  is_hidden: boolean
-  transaction_count: number
-  total_spent: number
-}
-
-interface DetailData {
-  id: number
-  name: string
-  is_hidden: boolean
-  total_spent: number
-  total_income: number
-  transaction_count: number
-  first_transaction_date: string | null
-  last_transaction_date: string | null
-  category_breakdown: { category_name: string; color: string; total: number; count: number }[]
-  monthly_spending: { month: string; amount: number }[]
-  recent_transactions: {
-    id: number
-    amount: number
-    description: string
-    transaction_type: string
-    date: string
-    category_name: string | null
-    category_color: string | null
-  }[]
-}
-
-interface SimilarPair {
-  merchant_a: { id: number; name: string; total_spent: number }
-  merchant_b: { id: number; name: string; total_spent: number }
-  similarity: number
-}
-
 export const Merchants = (): JSX.Element => {
-  const [merchants, setMerchants] = useState<Merchant[]>([])
-  const [loading, setLoading] = useState(true)
+  const {
+    merchants,
+    loading,
+    detail,
+    fetchMerchants,
+    fetchMerchantDetail,
+    toggleHidden,
+    fetchSimilar,
+    similarPairs,
+    doMerge,
+  } = useBoundStore(
+    useShallow((s) => ({
+      merchants: s.merchants.items,
+      loading: s.merchants.loading,
+      detail: s.merchants.detail,
+      similarPairs: s.merchants.similarPairs,
+      fetchMerchants: s.fetchMerchants,
+      fetchMerchantDetail: s.fetchMerchantDetail,
+      toggleHidden: s.toggleHidden,
+      fetchSimilar: s.fetchSimilar,
+      doMerge: s.doMerge,
+    })),
+  )
   const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<Merchant | null>(null)
-  const [detail, setDetail] = useState<DetailData | null>(null)
-  const [similarPairs, setSimilarPairs] = useState<SimilarPair[]>([])
+  const [selected, setSelected] = useState<number | null>(null)
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false)
-
-  const fetchMerchants = async () => {
-    try {
-      const res = await api.get('/api/merchants/')
-      setMerchants(res.data)
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to load merchants')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   useEffect(() => {
     fetchMerchants()
-  }, [])
+  }, [fetchMerchants])
 
-  const openDetail = async (merchant: Merchant) => {
-    setSelected(merchant)
-    try {
-      const res = await api.get(`/api/merchants/${merchant.id}`)
-      setDetail(res.data)
-    } catch {
-      toast.error('Failed to load merchant detail')
+  useEffect(() => {
+    if (selected !== null) {
+      fetchMerchantDetail(selected)
     }
+  }, [selected, fetchMerchantDetail])
+
+  const openDetail = (id: number) => {
+    setSelected(id)
   }
 
-  const toggleHidden = async (merchant: Merchant) => {
+  const handleToggleHidden = async (id: number, current: boolean) => {
     try {
-      await api.put(`/api/merchants/${merchant.id}`, { is_hidden: !merchant.is_hidden })
-      toast.success(merchant.is_hidden ? 'Merchant unhidden' : 'Merchant hidden')
-      fetchMerchants()
+      await toggleHidden(id, current)
+      toast.success(current ? 'Merchant unhidden' : 'Merchant hidden')
     } catch {
       toast.error('Failed to update merchant')
     }
   }
 
-  const fetchSimilar = async () => {
+  const handleFetchSimilar = async () => {
     try {
-      const res = await api.get('/api/merchants/similar/')
-      setSimilarPairs(res.data)
+      await fetchSimilar()
       setMergeDialogOpen(true)
     } catch {
       toast.error('Failed to find similar merchants')
     }
   }
 
-  const doMerge = async (targetId: number, sourceId: number) => {
+  const handleMerge = async (targetId: number, sourceId: number) => {
     try {
-      await api.post('/api/merchants/merge', { target_id: targetId, source_ids: [sourceId] })
+      await doMerge(targetId, sourceId)
       toast.success('Merchants merged')
-      fetchMerchants()
       setMergeDialogOpen(false)
     } catch {
       toast.error('Failed to merge merchants')
@@ -139,7 +107,7 @@ export const Merchants = (): JSX.Element => {
     <Box className={styles.page}>
       <Flex justify="between" align="center" mb="3">
         <Heading size="5">Merchants</Heading>
-        <IconButton variant="soft" size="2" onClick={fetchSimilar}>
+        <IconButton variant="soft" size="2" onClick={handleFetchSimilar}>
           <Merge size={16} />
         </IconButton>
       </Flex>
@@ -164,7 +132,7 @@ export const Merchants = (): JSX.Element => {
 
       <Flex direction="column" gap="2" mt="3">
         {sorted.map((merchant) => (
-          <Card key={merchant.id} className={styles.card} onClick={() => openDetail(merchant)}>
+          <Card key={merchant.id} className={styles.card} onClick={() => openDetail(merchant.id)}>
             <Flex align="center" gap="3">
               <Box className={styles.icon}>
                 <Store size={18} />
@@ -198,7 +166,10 @@ export const Merchants = (): JSX.Element => {
         )}
       </Flex>
 
-      <Dialog.Root open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+      <Dialog.Root
+        open={!!selected && !!detail}
+        onOpenChange={(open) => !open && setSelected(null)}
+      >
         <Dialog.Content style={{ maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto' }}>
           {selected && detail && (
             <>
@@ -350,10 +321,10 @@ export const Merchants = (): JSX.Element => {
               <Flex gap="3" justify="end">
                 <Button
                   variant="soft"
-                  color={selected.is_hidden ? 'green' : 'gray'}
-                  onClick={() => toggleHidden(selected)}
+                  color={detail.is_hidden ? 'green' : 'gray'}
+                  onClick={() => handleToggleHidden(detail.id, detail.is_hidden)}
                 >
-                  {selected.is_hidden ? 'Unhide' : 'Hide'}
+                  {detail.is_hidden ? 'Unhide' : 'Hide'}
                 </Button>
               </Flex>
             </>
@@ -387,7 +358,7 @@ export const Merchants = (): JSX.Element => {
                         size="1"
                         variant="soft"
                         style={{ flex: 1 }}
-                        onClick={() => doMerge(pair.merchant_a.id, pair.merchant_b.id)}
+                        onClick={() => handleMerge(pair.merchant_a.id, pair.merchant_b.id)}
                       >
                         Keep {pair.merchant_a.name}
                       </Button>
@@ -395,7 +366,7 @@ export const Merchants = (): JSX.Element => {
                         size="1"
                         variant="soft"
                         style={{ flex: 1 }}
-                        onClick={() => doMerge(pair.merchant_b.id, pair.merchant_a.id)}
+                        onClick={() => handleMerge(pair.merchant_b.id, pair.merchant_a.id)}
                       >
                         Keep {pair.merchant_b.name}
                       </Button>

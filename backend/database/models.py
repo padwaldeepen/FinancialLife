@@ -42,6 +42,7 @@ class User(Base):
     budgets: Mapped[list["Budget"]] = relationship(back_populates="user")
     categories: Mapped[list["Category"]] = relationship(back_populates="user")
     merchants: Mapped[list["Merchant"]] = relationship(back_populates="user")
+    bills: Mapped[list["Bill"]] = relationship(back_populates="user")
 
 
 class Category(Base):
@@ -126,3 +127,28 @@ class Budget(Base):
 
     user: Mapped[User] = relationship(back_populates="budgets")
     category: Mapped[Category | None] = relationship(back_populates="budgets")
+
+
+class Bill(Base):
+    __tablename__ = "bills"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String)
+    amount: Mapped[float] = mapped_column(Float)
+    amount_estimated: Mapped[float | None] = mapped_column(Float, default=None)
+    frequency: Mapped[str] = mapped_column(String)
+    due_day: Mapped[int] = mapped_column(Integer)
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
+    merchant_id: Mapped[int | None] = mapped_column(ForeignKey("merchants.id"))
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_variable: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
+
+    user: Mapped[User] = relationship(back_populates="bills")
+    category: Mapped[Category | None] = relationship()
+    merchant: Mapped["Merchant | None"] = relationship()
+    account: Mapped["Account"] = relationship()

@@ -8,6 +8,7 @@ import { Register } from './pages/Register/Register.tsx'
 import { Activity } from './pages/Activity/Activity.tsx'
 import { Home } from './pages/Home/Home.tsx'
 import { Budgets } from './pages/Budgets/Budgets.tsx'
+import { Bills } from './pages/Bills/Bills.tsx'
 
 const PlaceholderPage = ({ title }: { title: string }) => (
   <Flex direction="column" gap="4" pt="4">
@@ -42,7 +43,7 @@ export const MobileApp = (): JSX.Element => {
           path="/bills"
           element={
             <ProtectedRoute>
-              <PlaceholderPage title="Bills" />
+              <Bills />
             </ProtectedRoute>
           }
         />

@@ -1,0 +1,56 @@
+import { namespaceSlice } from '../namespaceSlice.ts'
+import api from '../../auth/api.ts'
+
+interface CategoryNode {
+  id: number
+  name: string
+  color: string
+  icon: string | null
+  is_system: boolean
+  parent_id: number | null
+  children: CategoryNode[]
+}
+
+interface FlatCategory {
+  id: number
+  name: string
+  color: string
+  depth: number
+}
+
+const flattenCategories = (cats: CategoryNode[], depth = 0): FlatCategory[] => {
+  const result: FlatCategory[] = []
+  for (const cat of cats) {
+    result.push({ id: cat.id, name: cat.name, color: cat.color, depth })
+    if (cat.children.length > 0) {
+      result.push(...flattenCategories(cat.children, depth + 1))
+    }
+  }
+  return result
+}
+
+export type CategoriesSlice = {
+  categories: {
+    tree: CategoryNode[]
+    flat: FlatCategory[]
+    loading: boolean
+  }
+  fetchCategories: () => Promise<void>
+}
+
+export const createCategoriesSlice = namespaceSlice('categories', (set) => ({
+  tree: [] as CategoryNode[],
+  flat: [] as FlatCategory[],
+  loading: true,
+
+  fetchCategories: async () => {
+    set({ loading: true, tree: [], flat: [] })
+    try {
+      const res = await api.get('/api/categories/')
+      const tree = res.data as CategoryNode[]
+      set({ tree, flat: flattenCategories(tree) })
+    } finally {
+      set({ loading: false })
+    }
+  },
+}))

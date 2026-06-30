@@ -1,4 +1,4 @@
-import { useState, useRef, type JSX } from 'react'
+import { useState, useRef, useEffect, type JSX } from 'react'
 import {
   Flex,
   Text,
@@ -9,6 +9,8 @@ import {
   IconButton,
   Dialog,
   ScrollArea,
+  Box,
+  Popover,
 } from '@radix-ui/themes'
 import { Sparkles, Check, Camera, X } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -26,10 +28,12 @@ interface ParsedResult {
 }
 
 export const AddTransactionModal = (): JSX.Element => {
-  const { addModalOpen, closeAddModal } = useBoundStore(
+  const { addModalOpen, closeAddModal, categories, fetchCategories } = useBoundStore(
     useShallow((s) => ({
       addModalOpen: s.ui.addModalOpen,
       closeAddModal: s.closeAddModal,
+      categories: s.categories.flat,
+      fetchCategories: s.fetchCategories,
     })),
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -38,6 +42,13 @@ export const AddTransactionModal = (): JSX.Element => {
   const [parsed, setParsed] = useState<ParsedResult | null>(null)
   const [saving, setSaving] = useState(false)
   const [scanning, setScanning] = useState(false)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (addModalOpen) {
+      fetchCategories()
+    }
+  }, [addModalOpen, fetchCategories])
 
   const reset = () => {
     setInput('')
@@ -45,6 +56,7 @@ export const AddTransactionModal = (): JSX.Element => {
     setLoading(false)
     setSaving(false)
     setScanning(false)
+    setSelectedCategoryId(null)
   }
 
   const handleParse = async () => {
@@ -64,7 +76,10 @@ export const AddTransactionModal = (): JSX.Element => {
     if (!parsed) return
     setSaving(true)
     try {
-      await api.post('/api/transactions/quick-add', { text: input })
+      await api.post('/api/transactions/quick-add', {
+        text: input,
+        category_id: selectedCategoryId ?? undefined,
+      })
       toast.success('Transaction added!')
       reset()
       closeAddModal()
@@ -96,6 +111,10 @@ export const AddTransactionModal = (): JSX.Element => {
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
+
+  const selectedCategory = selectedCategoryId
+    ? categories.find((c) => c.id === selectedCategoryId)
+    : null
 
   return (
     <Dialog.Root
@@ -184,11 +203,50 @@ export const AddTransactionModal = (): JSX.Element => {
                     </Text>
                   </Flex>
 
-                  <Flex gap="2">
+                  <Flex gap="2" align="center" wrap="wrap">
                     <Badge color={parsed.type === 'income' ? 'green' : 'orange'}>
                       {parsed.type}
                     </Badge>
-                    {parsed.category && <Badge color="gray">{parsed.category}</Badge>}
+                    <Popover.Root>
+                      <Popover.Trigger>
+                        <Box>
+                          {selectedCategory ? (
+                            <Badge color="gray" className={styles.categoryBadge}>
+                              {selectedCategory.name}
+                            </Badge>
+                          ) : parsed.category ? (
+                            <Badge color="gray" className={styles.categoryBadge}>
+                              {parsed.category}
+                            </Badge>
+                          ) : null}
+                        </Box>
+                      </Popover.Trigger>
+                      <Popover.Content size="1">
+                        <ScrollArea style={{ maxHeight: 240 }}>
+                          <Flex direction="column" gap="1">
+                            {categories.map((cat) => (
+                              <Box
+                                key={cat.id}
+                                className={styles.categoryItem}
+                                style={{
+                                  paddingLeft: `calc(var(--space-2) * ${cat.depth + 1})`,
+                                  borderLeft: `3px solid ${cat.color}`,
+                                  background:
+                                    selectedCategoryId === cat.id
+                                      ? 'var(--accent-3)'
+                                      : 'transparent',
+                                }}
+                                onClick={() => {
+                                  setSelectedCategoryId(cat.id)
+                                }}
+                              >
+                                <Text size="2">{cat.name}</Text>
+                              </Box>
+                            ))}
+                          </Flex>
+                        </ScrollArea>
+                      </Popover.Content>
+                    </Popover.Root>
                   </Flex>
 
                   <Button onClick={handleSave} loading={saving} size="3">

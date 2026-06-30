@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type JSX } from 'react'
+import { useState, useEffect, useRef, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -13,7 +13,8 @@ import {
 import { Search, Trash2, Pencil, X, Calendar } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
 import toast from 'react-hot-toast'
-import api from '../../../auth/api.ts'
+import { useShallow } from 'zustand/react/shallow'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Activity.module.css'
 
 type Transaction = {
@@ -38,8 +39,6 @@ type Transaction = {
   created_at: string
 }
 
-type FilterOption = { id: number; name: string }
-
 type DateGroup = 'today' | 'yesterday' | 'thisWeek' | 'earlier'
 
 const groupLabel: Record<DateGroup, string> = {
@@ -58,112 +57,94 @@ function getDateGroup(dateStr: string): DateGroup {
 }
 
 export const Activity = (): JSX.Element => {
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
+  const {
+    items: transactions,
+    loading,
+    loadingMore,
+    hasMore,
+    categories,
+    merchants,
+    fetchTransactions,
+    fetchTxFilters,
+    deleteTransaction: deleteTx,
+    updateNotes: updateTxNotes,
+  } = useBoundStore(
+    useShallow((s) => ({
+      items: s.transactions.items,
+      loading: s.transactions.loading,
+      loadingMore: s.transactions.loadingMore,
+      hasMore: s.transactions.hasMore,
+      categories: s.transactions.categories,
+      merchants: s.transactions.merchants,
+      fetchTransactions: s.fetchTransactions,
+      fetchTxFilters: s.fetchTxFilters,
+      deleteTransaction: s.deleteTransaction,
+      updateNotes: s.updateNotes,
+    })),
+  )
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [merchantFilter, setMerchantFilter] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [categories, setCategories] = useState<FilterOption[]>([])
-  const [merchants, setMerchants] = useState<FilterOption[]>([])
   const [selected, setSelected] = useState<Transaction | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editNotes, setEditNotes] = useState('')
-  const offsetRef = useRef(0)
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const limit = 50
-
-  const fetchOptions = useCallback(async () => {
-    try {
-      const [catRes, merRes] = await Promise.all([
-        api.get('/api/categories/'),
-        api.get('/api/merchants/'),
-      ])
-      setCategories((catRes.data as FilterOption[]) || [])
-      setMerchants((merRes.data as FilterOption[]) || [])
-    } catch {
-      // options are non-critical
-    }
-  }, [])
 
   useEffect(() => {
-    fetchOptions()
-  }, [fetchOptions])
-
-  const fetchTransactions = useCallback(
-    async (reset = false) => {
-      if (reset) {
-        setLoading(true)
-        offsetRef.current = 0
-        setHasMore(true)
-      } else {
-        setLoadingMore(true)
-      }
-      try {
-        const offset = reset ? 0 : offsetRef.current
-        const params: Record<string, string | number> = {
-          skip: offset,
-          limit,
-          sort_by: 'date',
-          sort_order: 'desc',
-        }
-        if (search) params.search = search
-        if (typeFilter) params.transaction_type = typeFilter
-        if (categoryFilter) params.category_id = Number(categoryFilter)
-        if (merchantFilter) params.merchant_id = Number(merchantFilter)
-        if (startDate) params.start_date = startDate
-        if (endDate) params.end_date = endDate
-        const response = await api.get('/api/transactions/', { params })
-        const data = response.data as Transaction[]
-        if (reset) {
-          setTransactions(data)
-        } else {
-          setTransactions((prev) => [...prev, ...data])
-        }
-        offsetRef.current = offset + data.length
-        if (data.length < limit) setHasMore(false)
-      } catch (error: any) {
-        toast.error(error.response?.data?.detail || 'Failed to load transactions')
-      } finally {
-        setLoading(false)
-        setLoadingMore(false)
-      }
-    },
-    [search, typeFilter, categoryFilter, merchantFilter, startDate, endDate],
-  )
+    fetchTxFilters()
+  }, [fetchTxFilters])
 
   useEffect(() => {
-    offsetRef.current = 0
-    setHasMore(true)
-    fetchTransactions(true)
-  }, [fetchTransactions])
+    fetchTransactions({
+      reset: true,
+      search,
+      typeFilter,
+      categoryFilter,
+      merchantFilter,
+      startDate,
+      endDate,
+    })
+  }, [fetchTransactions, search, typeFilter, categoryFilter, merchantFilter, startDate, endDate])
 
   useEffect(() => {
     if (!sentinelRef.current || !hasMore || loading || loadingMore) return
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && hasMore && !loadingMore) {
-          fetchTransactions()
+          fetchTransactions({
+            search,
+            typeFilter,
+            categoryFilter,
+            merchantFilter,
+            startDate,
+            endDate,
+          })
         }
       },
       { threshold: 0.1 },
     )
     observer.observe(sentinelRef.current)
     return () => observer.disconnect()
-  }, [hasMore, loading, loadingMore, fetchTransactions])
+  }, [
+    hasMore,
+    loading,
+    loadingMore,
+    fetchTransactions,
+    search,
+    typeFilter,
+    categoryFilter,
+    merchantFilter,
+    startDate,
+    endDate,
+  ])
 
   const handleDelete = async (id: number) => {
-    try {
-      await api.delete(`/api/transactions/${id}`)
-      setTransactions((prev) => prev.filter((t) => t.id !== id))
-      toast.success('Transaction deleted')
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to delete')
-    }
+    deleteTx(id)
+    toast.success('Transaction deleted', { id: `del-${id}` })
+    // revert on failure is handled inside the store action
   }
 
   const openDetail = (t: Transaction) => {
@@ -174,20 +155,14 @@ export const Activity = (): JSX.Element => {
 
   const handleUpdateNotes = async () => {
     if (!selected) return
-    try {
-      await api.put(`/api/transactions/${selected.id}`, { notes: editNotes })
-      setTransactions((prev) =>
-        prev.map((t) => (t.id === selected.id ? { ...t, notes: editNotes } : t)),
-      )
-      toast.success('Notes updated')
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to update')
-    }
+    updateTxNotes(selected.id, editNotes)
+    toast.success('Notes updated')
   }
 
   const handleDeleteFromDetail = async () => {
     if (!selected) return
-    await handleDelete(selected.id)
+    deleteTx(selected.id)
+    toast.success('Transaction deleted')
     setDialogOpen(false)
     setSelected(null)
   }

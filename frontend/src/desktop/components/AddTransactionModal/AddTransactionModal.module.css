@@ -1,1 +1,14 @@
-/* Layout only — Radix handles all visuals */
+.categoryBadge {
+  cursor: pointer;
+}
+
+.categoryItem {
+  cursor: pointer;
+  border-radius: var(--radius-2);
+  padding: var(--space-1) var(--space-2);
+  transition: background 0.1s;
+}
+
+.categoryItem:hover {
+  background: var(--accent-3);
+}

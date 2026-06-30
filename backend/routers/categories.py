@@ -160,6 +160,16 @@ async def update_category(
     )
 
 
+@router.get("/{category_id}/descendants")
+async def get_category_descendants(
+    category_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    ids = await category_service.get_category_descendants(category_id, current_user.id, db)
+    return {"ids": ids}
+
+
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_category(
     category_id: int,

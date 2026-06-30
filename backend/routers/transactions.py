@@ -511,6 +511,7 @@ class ParseResponse(BaseModel):
 
 class QuickAddRequest(BaseModel):
     text: str
+    category_id: int | None = None
 
 
 @router.post("/parse", response_model=ParseResponse)
@@ -567,11 +568,19 @@ async def quick_add_transaction(
         merchant_name = extract_merchant_from_description(parsed_description)
 
     category = None
-    if parsed_category:
+    if request.category_id is not None:
+        result = await db.execute(
+            select(Category).where(
+                Category.id == request.category_id,
+                (Category.user_id == current_user.id) | (Category.is_system.is_(True)),
+            )
+        )
+        category = result.scalar_one_or_none()
+    elif parsed_category:
         result = await db.execute(
             select(Category).where(
                 Category.name == parsed_category,
-                Category.user_id == current_user.id,
+                (Category.user_id == current_user.id) | (Category.is_system.is_(True)),
             )
         )
         category = result.scalar_one_or_none()

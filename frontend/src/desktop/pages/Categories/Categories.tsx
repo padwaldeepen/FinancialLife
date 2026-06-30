@@ -1,38 +1,23 @@
 import { useState, useEffect, type JSX } from 'react'
 import { Box, Flex, Heading, Text, Card, Badge } from '@radix-ui/themes'
 import { Tags, ChevronRight } from 'lucide-react'
-import toast from 'react-hot-toast'
-import api from '../../../auth/api.ts'
+import { useShallow } from 'zustand/react/shallow'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Categories.module.css'
 
-interface Category {
-  id: number
-  name: string
-  color: string
-  icon: string | null
-  is_system: boolean
-  parent_id: number | null
-  children: Category[]
-}
-
 export const Categories = (): JSX.Element => {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading] = useState(true)
+  const { tree, loading, fetchCategories } = useBoundStore(
+    useShallow((s) => ({
+      tree: s.categories.tree,
+      loading: s.categories.loading,
+      fetchCategories: s.fetchCategories,
+    })),
+  )
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await api.get('/api/categories/')
-        setCategories(response.data)
-      } catch (error: any) {
-        toast.error(error.response?.data?.detail || 'Failed to load categories')
-      } finally {
-        setLoading(false)
-      }
-    }
     fetchCategories()
-  }, [])
+  }, [fetchCategories])
 
   const toggleExpand = (id: number) => {
     setExpanded((prev) => {
@@ -43,8 +28,8 @@ export const Categories = (): JSX.Element => {
     })
   }
 
-  const parents = categories.filter((c) => !c.parent_id)
-  const getChildren = (parentId: number) => categories.filter((c) => c.parent_id === parentId)
+  const parents = tree.filter((c) => !c.parent_id)
+  const getChildren = (parentId: number) => tree.filter((c) => c.parent_id === parentId)
 
   if (loading) {
     return <Text color="gray">Loading...</Text>

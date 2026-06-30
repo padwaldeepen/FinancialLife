@@ -36,6 +36,21 @@ export type GoalsSlice = {
     icon?: string | null
     color?: string | null
   }) => Promise<void>
+  updateGoal: (
+    id: number,
+    data: {
+      name?: string
+      target_amount?: number
+      current_amount?: number
+      monthly_contribution?: number | null
+      type?: string
+      category_id?: number | null
+      deadline?: string | null
+      icon?: string | null
+      color?: string | null
+      is_active?: boolean
+    },
+  ) => Promise<void>
   contributeToGoal: (goalId: number, amount: number) => Promise<void>
   deleteGoal: (id: number) => Promise<void>
 }
@@ -66,6 +81,26 @@ export const createGoalsSlice = namespaceSlice('goals', (set, get) => ({
     color?: string | null
   }) => {
     await api.post('/api/goals/', data)
+    const res = await api.get('/api/goals/')
+    set({ items: res.data })
+  },
+
+  updateGoal: async (
+    id: number,
+    data: {
+      name?: string
+      target_amount?: number
+      current_amount?: number
+      monthly_contribution?: number | null
+      type?: string
+      category_id?: number | null
+      deadline?: string | null
+      icon?: string | null
+      color?: string | null
+      is_active?: boolean
+    },
+  ) => {
+    await api.put(`/api/goals/${id}`, data)
     const res = await api.get('/api/goals/')
     set({ items: res.data })
   },

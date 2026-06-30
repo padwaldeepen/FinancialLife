@@ -12,7 +12,7 @@ import {
   IconButton,
   Badge,
 } from '@radix-ui/themes'
-import { Plus, Trash2, Target, PiggyBank, TrendingDown } from 'lucide-react'
+import { Plus, Trash2, Target, PiggyBank, TrendingDown, Pencil } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -31,16 +31,18 @@ const goalLabels: Record<string, string> = {
 }
 
 export const Goals = (): JSX.Element => {
-  const { goals, loading, fetchGoals, createGoal, contributeToGoal, deleteGoal } = useBoundStore(
-    useShallow((s) => ({
-      goals: s.goals.items,
-      loading: s.goals.loading,
-      fetchGoals: s.fetchGoals,
-      createGoal: s.createGoal,
-      contributeToGoal: s.contributeToGoal,
-      deleteGoal: s.deleteGoal,
-    })),
-  )
+  const { goals, loading, fetchGoals, createGoal, updateGoal, contributeToGoal, deleteGoal } =
+    useBoundStore(
+      useShallow((s) => ({
+        goals: s.goals.items,
+        loading: s.goals.loading,
+        fetchGoals: s.fetchGoals,
+        createGoal: s.createGoal,
+        updateGoal: s.updateGoal,
+        contributeToGoal: s.contributeToGoal,
+        deleteGoal: s.deleteGoal,
+      })),
+    )
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [goalAmount, setGoalAmount] = useState('')
@@ -52,6 +54,14 @@ export const Goals = (): JSX.Element => {
   const [contributeOpen, setContributeOpen] = useState(false)
   const [contributeAmount, setContributeAmount] = useState('')
   const [contributing, setContributing] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editTarget, setEditTarget] = useState('')
+  const [editCurrent, setEditCurrent] = useState('')
+  const [editMonthly, setEditMonthly] = useState('')
+  const [editDeadline, setEditDeadline] = useState('')
+  const [editType, setEditType] = useState('save_up')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   useEffect(() => {
     fetchGoals()
@@ -101,6 +111,39 @@ export const Goals = (): JSX.Element => {
       toast.error(error.response?.data?.detail || 'Failed to contribute')
     } finally {
       setContributing(false)
+    }
+  }
+
+  const openEdit = () => {
+    if (!detailGoal) return
+    setEditName(detailGoal.name)
+    setEditTarget(String(detailGoal.target_amount))
+    setEditCurrent(String(detailGoal.current_amount))
+    setEditMonthly(detailGoal.monthly_contribution ? String(detailGoal.monthly_contribution) : '')
+    setEditDeadline(detailGoal.deadline || '')
+    setEditType(detailGoal.type)
+    setEditOpen(true)
+  }
+
+  const handleUpdate = async () => {
+    if (!detailGoal || !editName.trim() || !editTarget) return
+    setSavingEdit(true)
+    try {
+      await updateGoal(detailGoal.id, {
+        name: editName.trim(),
+        target_amount: parseFloat(editTarget),
+        current_amount: parseFloat(editCurrent) || 0,
+        monthly_contribution: editMonthly ? parseFloat(editMonthly) : null,
+        type: editType,
+        deadline: editDeadline || null,
+      })
+      toast.success('Goal updated')
+      setEditOpen(false)
+      setDetailGoal(null)
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to update goal')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -317,12 +360,21 @@ export const Goals = (): JSX.Element => {
                           )}
                         </Flex>
 
+                        <Flex gap="2" mt="3">
+                          <Button size="2" variant="soft" style={{ flex: 1 }} onClick={openEdit}>
+                            <Pencil size={14} /> Edit
+                          </Button>
+                          <Button
+                            size="2"
+                            style={{ flex: 1 }}
+                            onClick={() => setContributeOpen(true)}
+                          >
+                            <Plus size={14} /> Contribute
+                          </Button>
+                        </Flex>
+
+                        {/* Contribute Dialog */}
                         <Dialog.Root open={contributeOpen} onOpenChange={setContributeOpen}>
-                          <Dialog.Trigger>
-                            <Button size="2" style={{ width: '100%' }}>
-                              <Plus size={16} /> Add Contribution
-                            </Button>
-                          </Dialog.Trigger>
                           <Dialog.Content maxWidth="360px">
                             <Dialog.Title>Add Contribution</Dialog.Title>
                             <Flex direction="column" gap="3" mt="3">
@@ -347,6 +399,105 @@ export const Goals = (): JSX.Element => {
                               >
                                 Add
                               </Button>
+                            </Flex>
+                          </Dialog.Content>
+                        </Dialog.Root>
+
+                        {/* Edit Goal Dialog */}
+                        <Dialog.Root open={editOpen} onOpenChange={setEditOpen}>
+                          <Dialog.Content maxWidth="380px">
+                            <Dialog.Title>Edit Goal</Dialog.Title>
+                            <Flex direction="column" gap="3" mt="3">
+                              <Flex direction="column" gap="1">
+                                <Text size="2" weight="medium">
+                                  Name
+                                </Text>
+                                <TextField.Root
+                                  placeholder="Goal name"
+                                  value={editName}
+                                  onChange={(e) => setEditName(e.target.value)}
+                                />
+                              </Flex>
+                              <Flex direction="column" gap="1">
+                                <Text size="2" weight="medium">
+                                  Type
+                                </Text>
+                                <Select.Root value={editType} onValueChange={setEditType}>
+                                  <Select.Trigger />
+                                  <Select.Content>
+                                    <Select.Item value="save_up">Save Up</Select.Item>
+                                    <Select.Item value="pay_down">Pay Down</Select.Item>
+                                    <Select.Item value="monthly_envelope">
+                                      Monthly Envelope
+                                    </Select.Item>
+                                  </Select.Content>
+                                </Select.Root>
+                              </Flex>
+                              <Flex direction="column" gap="1">
+                                <Text size="2" weight="medium">
+                                  Target Amount
+                                </Text>
+                                <TextField.Root
+                                  type="number"
+                                  placeholder="10000"
+                                  value={editTarget}
+                                  onChange={(e) => setEditTarget(e.target.value)}
+                                >
+                                  <TextField.Slot side="left">$</TextField.Slot>
+                                </TextField.Root>
+                              </Flex>
+                              <Flex direction="column" gap="1">
+                                <Text size="2" weight="medium">
+                                  Current Amount
+                                </Text>
+                                <TextField.Root
+                                  type="number"
+                                  placeholder="0"
+                                  value={editCurrent}
+                                  onChange={(e) => setEditCurrent(e.target.value)}
+                                >
+                                  <TextField.Slot side="left">$</TextField.Slot>
+                                </TextField.Root>
+                              </Flex>
+                              <Flex direction="column" gap="1">
+                                <Text size="2" weight="medium">
+                                  Monthly Contribution
+                                </Text>
+                                <TextField.Root
+                                  type="number"
+                                  placeholder="100"
+                                  value={editMonthly}
+                                  onChange={(e) => setEditMonthly(e.target.value)}
+                                >
+                                  <TextField.Slot side="left">$</TextField.Slot>
+                                </TextField.Root>
+                              </Flex>
+                              <Flex direction="column" gap="1">
+                                <Text size="2" weight="medium">
+                                  Deadline
+                                </Text>
+                                <TextField.Root
+                                  type="date"
+                                  value={editDeadline}
+                                  onChange={(e) => setEditDeadline(e.target.value)}
+                                />
+                              </Flex>
+                              <Flex gap="3" mt="2" justify="end">
+                                <Button
+                                  variant="soft"
+                                  color="gray"
+                                  onClick={() => setEditOpen(false)}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  onClick={handleUpdate}
+                                  loading={savingEdit}
+                                  disabled={!editName.trim() || !editTarget}
+                                >
+                                  Save Changes
+                                </Button>
+                              </Flex>
                             </Flex>
                           </Dialog.Content>
                         </Dialog.Root>

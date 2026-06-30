@@ -116,6 +116,9 @@ class Transaction(Base):
     account: Mapped[Account] = relationship(back_populates="transactions")
     category: Mapped[Category | None] = relationship(back_populates="transactions")
     merchant: Mapped["Merchant | None"] = relationship(back_populates="transactions")
+    bill_links: Mapped[list["TransactionBillLink"]] = relationship(
+        back_populates="transaction", cascade="all, delete-orphan"
+    )
 
 
 class Budget(Base):
@@ -160,3 +163,21 @@ class Bill(Base):
     category: Mapped[Category | None] = relationship()
     merchant: Mapped["Merchant | None"] = relationship()
     account: Mapped["Account"] = relationship()
+    transaction_links: Mapped[list["TransactionBillLink"]] = relationship(
+        back_populates="bill", cascade="all, delete-orphan"
+    )
+
+
+class TransactionBillLink(Base):
+    __tablename__ = "transaction_bill_links"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    transaction_id: Mapped[int] = mapped_column(ForeignKey("transactions.id"), index=True)
+    bill_id: Mapped[int] = mapped_column(ForeignKey("bills.id"), index=True)
+    period_start: Mapped[datetime] = mapped_column(DateTime)
+    period_end: Mapped[datetime] = mapped_column(DateTime)
+    is_auto_linked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    transaction: Mapped["Transaction"] = relationship()
+    bill: Mapped["Bill"] = relationship(back_populates="transaction_links")

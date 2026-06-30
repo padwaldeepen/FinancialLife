@@ -48,6 +48,7 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 
 **CORE RULE: Do not skip phases. Do not change phase order. Each phase must be working before moving to the next.**
 **COMMIT RULE: `git add -A && git commit -m "phase N: description"` after every completed phase. Run lint + format checks before committing.**
+**DATA FETCHING RULE: All API calls go into Zustand slice actions. Components call the action from useEffect and subscribe to state — no `useState` for fetched data, no `setState` in effects. Form inputs, dialog state, UI animation state stay local with `useState`.**
 
 ---
 
@@ -131,14 +132,14 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Build the transaction list UI (replaces old Transactions page).
 
 **Tasks:**
-- [ ] build Activity component (Desktop + Mobile)
-- [ ] add search bar at top (text search across description, merchant, amount)
-- [ ] add filters: date range, category, merchant, transaction type
-- [ ] infinite scroll pagination (load more as user scrolls)
-- [ ] tap transaction → transaction detail view (modal or slide-over)
-- [ ] transaction detail: full description, amount, date, merchant, category, account, notes, edit/delete actions
-- [ ] swipe-to-delete (mobile) with undo toast
-- [ ] group by date (Today, Yesterday, This Week, Earlier)
+- [x] build Activity component (Desktop + Mobile)
+- [x] add search bar at top (text search across description, merchant, amount)
+- [x] add filters: date range, category, merchant, transaction type
+- [x] infinite scroll pagination (load more as user scrolls)
+- [x] tap transaction → transaction detail view (modal or slide-over)
+- [x] transaction detail: full description, amount, date, merchant, category, account, notes, edit/delete actions
+- [x] swipe-to-delete (mobile) with undo toast
+- [x] group by date (Today, Yesterday, This Week, Earlier)
 
 **Acceptance:** User can view, search, filter, scroll, and interact with transactions. Detail view works.
 
@@ -154,7 +155,7 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 - [x] recent transactions (last 5, linked from Activity)
 - [x] upcoming bills placeholder section (hidden until Phase 14)
 - [x] mobile-first layout optimization (cards stack vertically, touch targets 44px+)
-- [ ] pull-to-refresh on mobile (partial — refreshing state exists, gesture handler in next pass)
+- [x] pull-to-refresh on mobile
 - [x] desktop: multi-column layout (accounts left, recent activity right)
 
 **Acceptance:** Home shows real balances. Account cards are tappable. Recent transactions link to Activity.
@@ -183,9 +184,9 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
   - Utilities (Electric, Water, Internet, Phone)
   - Income (Salary, Freelance, Gift, Refund)
   - Uncategorized
-- [ ] build category tree logic (get all children of a parent)
-- [ ] support subcategory assignment in transaction create/update
-- [ ] add Alembic migration
+- [x] build category tree logic (get all children of a parent)
+- [x] support subcategory assignment in transaction create/update
+- [x] add Alembic migration
 
 **Acceptance:** Categories are hierarchical. System categories are seeded. API returns tree structure.
 
@@ -317,20 +318,20 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Create the Bill entity for recurring payments.
 
 **Tasks:**
-- [ ] create Bill table (SQLAlchemy model)
+- [x] create Bill table (SQLAlchemy model)
   - id, user_id (FK), name, amount, amount_estimated, frequency (weekly/biweekly/monthly/quarterly/yearly), due_day, category_id (FK), merchant_id (FK), account_id (FK), is_active, is_variable, notes, created_at, updated_at
-- [ ] link Bill → User (N:1)
-- [ ] link Bill → Account (N:1)
-- [ ] link Bill → Category (N:1)
-- [ ] link Bill → Merchant (N:1, nullable)
-- [ ] create Bill router
+- [x] link Bill → User (N:1)
+- [x] link Bill → Account (N:1)
+- [x] link Bill → Category (N:1)
+- [x] link Bill → Merchant (N:1, nullable)
+- [x] create Bill router
   - GET /api/bills/ (all bills with next due date)
   - POST /api/bills/ (create)
   - PUT /api/bills/{id} (update)
-  - DELETE /api/bills/{id} (soft delete)
+  - DELETE /api/bills/{id}
   - GET /api/bills/upcoming?days=7 (bills due soon)
-- [ ] upcoming bills calculation (next due date based on frequency + due_day)
-- [ ] add Alembic migration
+- [x] upcoming bills calculation (next due date based on frequency + due_day)
+- [x] add Alembic migration
 
 **Acceptance:** Bill CRUD works. Upcoming bills API returns correct dates.
 
@@ -341,20 +342,20 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Build the Bills screens.
 
 **Tasks:**
-- [ ] upcoming bills section on Home screen (next 7 days)
+- [x] upcoming bills section on Home screen (next 7 days)
   - bill name, amount, due date, days until due
   - tappable → Bills detail
-- [ ] bills screen (Mobile bottom tab + Desktop sidebar)
+- [x] bills screen (Mobile bottom tab + Desktop sidebar)
   - "Upcoming This Week" section
   - all bills list with next due date
   - add bill form (name, amount/frequency/due day/category/account)
   - edit bill
   - delete bill
-- [ ] bill detail view
+- [x] bill detail view
   - bill info (name, amount, frequency, due day, category, merchant)
   - payment history (linked transactions)
   - chart for variable bills (electric, water — shows amount over time)
-- [ ] variable bill support
+- [x] variable bill support
   - show estimated amount range
   - chart of historical amounts
   - manual entry for each period

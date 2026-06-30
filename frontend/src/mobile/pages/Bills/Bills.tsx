@@ -16,6 +16,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { BillDetail } from './BillDetail/BillDetail.tsx'
 import styles from './Bills.module.css'
 
 export const Bills = (): JSX.Element => {
@@ -40,6 +41,7 @@ export const Bills = (): JSX.Element => {
   const [accountId, setAccountId] = useState('')
   const [isVariable, setIsVariable] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [selectedBill, setSelectedBill] = useState<any | null>(null)
 
   useEffect(() => {
     fetchBills()
@@ -216,44 +218,61 @@ export const Bills = (): JSX.Element => {
           </Text>
         </Flex>
       ) : (
-        <Flex direction="column" gap="3">
-          {bills.map((bill: any) => (
-            <Card key={bill.id} size="2">
-              <Flex direction="column" gap="2">
-                <Flex align="center" justify="between">
-                  <Flex align="center" gap="2">
-                    <Text size="3" weight="bold">
-                      {bill.name}
-                    </Text>
-                    {bill.is_variable && (
-                      <Text size="1" color="gray">
-                        (est.)
+        <Box>
+          <Flex direction="column" gap="3">
+            {bills.map((bill: any) => (
+              <Card
+                key={bill.id}
+                size="2"
+                onClick={() => setSelectedBill(bill)}
+                style={{ cursor: 'pointer' }}
+              >
+                <Flex direction="column" gap="2">
+                  <Flex align="center" justify="between">
+                    <Flex align="center" gap="2">
+                      <Text size="3" weight="bold">
+                        {bill.name}
                       </Text>
-                    )}
+                      {bill.is_variable && (
+                        <Text size="1" color="gray">
+                          (est.)
+                        </Text>
+                      )}
+                    </Flex>
+                    <IconButton
+                      variant="ghost"
+                      size="1"
+                      color="red"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(bill.id)
+                      }}
+                      aria-label="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </IconButton>
                   </Flex>
-                  <IconButton
-                    variant="ghost"
-                    size="1"
-                    color="red"
-                    onClick={() => handleDelete(bill.id)}
-                    aria-label="Delete"
-                  >
-                    <Trash2 size={14} />
-                  </IconButton>
+                  <Flex align="center" justify="between">
+                    <Text size="1" color="gray">
+                      {frequencyLabel(bill.frequency)} — Day {bill.due_day}
+                      {bill.category_name && ` — ${bill.category_name}`}
+                    </Text>
+                    <Text size="3" weight="bold">
+                      ${bill.amount.toFixed(2)}
+                    </Text>
+                  </Flex>
                 </Flex>
-                <Flex align="center" justify="between">
-                  <Text size="1" color="gray">
-                    {frequencyLabel(bill.frequency)} — Day {bill.due_day}
-                    {bill.category_name && ` — ${bill.category_name}`}
-                  </Text>
-                  <Text size="3" weight="bold">
-                    ${bill.amount.toFixed(2)}
-                  </Text>
-                </Flex>
-              </Flex>
-            </Card>
-          ))}
-        </Flex>
+              </Card>
+            ))}
+          </Flex>
+
+          <Dialog.Root open={!!selectedBill} onOpenChange={(o) => !o && setSelectedBill(null)}>
+            <Dialog.Content maxWidth="400px">
+              <Dialog.Title>Bill Details</Dialog.Title>
+              {selectedBill && <BillDetail bill={selectedBill} />}
+            </Dialog.Content>
+          </Dialog.Root>
+        </Box>
       )}
     </Box>
   )

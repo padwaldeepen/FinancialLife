@@ -12,10 +12,11 @@ import {
   IconButton,
   Checkbox,
 } from '@radix-ui/themes'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { BillDetail } from './BillDetail/BillDetail.tsx'
 import styles from './Bills.module.css'
 
 export const Bills = (): JSX.Element => {
@@ -42,6 +43,7 @@ export const Bills = (): JSX.Element => {
   const [accountId, setAccountId] = useState('')
   const [isVariable, setIsVariable] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [selectedBill, setSelectedBill] = useState<any | null>(null)
 
   useEffect(() => {
     fetchBills()
@@ -252,7 +254,13 @@ export const Bills = (): JSX.Element => {
           </Heading>
           <Flex direction="column" gap="3">
             {bills.map((bill: any) => (
-              <Card key={bill.id} size="2">
+              <Card
+                key={bill.id}
+                size="2"
+                className={styles.billCard}
+                onClick={() => setSelectedBill(bill)}
+                style={{ cursor: 'pointer' }}
+              >
                 <Flex align="center" justify="between">
                   <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
                     <Flex align="center" gap="2">
@@ -277,8 +285,23 @@ export const Bills = (): JSX.Element => {
                     <IconButton
                       variant="ghost"
                       size="1"
+                      color="gray"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedBill(bill)
+                      }}
+                      aria-label="View details"
+                    >
+                      <Eye size={14} />
+                    </IconButton>
+                    <IconButton
+                      variant="ghost"
+                      size="1"
                       color="red"
-                      onClick={() => handleDelete(bill.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(bill.id)
+                      }}
                       aria-label="Delete"
                     >
                       <Trash2 size={14} />
@@ -288,6 +311,13 @@ export const Bills = (): JSX.Element => {
               </Card>
             ))}
           </Flex>
+
+          <Dialog.Root open={!!selectedBill} onOpenChange={(o) => !o && setSelectedBill(null)}>
+            <Dialog.Content maxWidth="520px">
+              <Dialog.Title>Bill Details</Dialog.Title>
+              {selectedBill && <BillDetail bill={selectedBill} />}
+            </Dialog.Content>
+          </Dialog.Root>
         </>
       )}
     </Box>

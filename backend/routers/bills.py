@@ -207,3 +207,25 @@ async def delete_bill(
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bill not found")
     await db.commit()
+
+
+class TransactionHistory(BaseModel):
+    id: int
+    amount: float
+    description: str
+    date: str
+    category_name: str | None
+
+
+class BillHistoryResponse(BaseModel):
+    transactions: list[TransactionHistory]
+    monthly_spending: list[dict]
+
+
+@router.get("/{bill_id}/history", response_model=BillHistoryResponse)
+async def bill_history(
+    bill_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await bill_service.get_bill_history(bill_id, current_user.id, db)

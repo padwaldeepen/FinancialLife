@@ -41,8 +41,14 @@ export type BillsSlice = {
     upcoming: UpcomingBill[]
     loading: boolean
   }
+  billHistory: {
+    transactions: any[]
+    monthly_spending: any[]
+    loading: boolean
+  }
   fetchBills: () => Promise<void>
   fetchUpcomingBills: (days?: number) => Promise<void>
+  fetchBillHistory: (billId: number) => Promise<void>
   createBill: (data: {
     name: string
     amount: number
@@ -60,6 +66,7 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
   items: [] as Bill[],
   upcoming: [] as UpcomingBill[],
   loading: true,
+  billHistory: { transactions: [], monthly_spending: [], loading: false },
 
   fetchBills: async () => {
     set({ loading: true })
@@ -80,7 +87,32 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
     }
   },
 
-  createBill: async (data: { name: string; amount: number; frequency: string; due_day: number; account_id: number; category_id?: number | null; is_variable?: boolean; notes?: string | null }) => {
+  fetchBillHistory: async (billId: number) => {
+    set({ billHistory: { transactions: [], monthly_spending: [], loading: true } })
+    try {
+      const res = await api.get(`/api/bills/${billId}/history`)
+      set({
+        billHistory: {
+          transactions: res.data.transactions,
+          monthly_spending: res.data.monthly_spending,
+          loading: false,
+        },
+      })
+    } catch {
+      set({ billHistory: { transactions: [], monthly_spending: [], loading: false } })
+    }
+  },
+
+  createBill: async (data: {
+    name: string
+    amount: number
+    frequency: string
+    due_day: number
+    account_id: number
+    category_id?: number | null
+    is_variable?: boolean
+    notes?: string | null
+  }) => {
     await api.post('/api/bills/', data)
     const res = await api.get('/api/bills/')
     set({ items: res.data })

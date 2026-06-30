@@ -1,11 +1,11 @@
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from core.logging import get_logger
-from database.models import Bill
+from database.models import Bill, Transaction
 
 log = get_logger(__name__)
 
@@ -90,6 +90,50 @@ async def delete_bill(bill_id: int, user_id: int, db: AsyncSession) -> bool:
     await db.delete(bill)
     await db.flush()
     return True
+
+
+async def get_bill_history(bill_id: int, user_id: int, db: AsyncSession) -> list[dict]:
+    result = await db.execute(
+        select(Transaction)
+        .options(joinedload(Transaction.category))
+        .where(
+            Transaction.bill_id == bill_id,
+            Transaction.user_id == user_id,
+        )
+        .order_by(Transaction.date.desc())
+    )
+    txs = result.scalars().all()
+
+    monthly_result = await db.execute(
+        select(
+            func.date_trunc("month", Transaction.date),
+            func.sum(Transaction.amount),
+        )
+        .where(
+            Transaction.bill_id == bill_id,
+            Transaction.user_id == user_id,
+            Transaction.transaction_type == "expense",
+        )
+        .group_by(func.date_trunc("month", Transaction.date))
+        .order_by(func.date_trunc("month", Transaction.date))
+    )
+    monthly_chart = [
+        {"month": row[0].strftime("%Y-%m"), "amount": float(row[1])} for row in monthly_result.all()
+    ]
+
+    return {
+        "transactions": [
+            {
+                "id": t.id,
+                "amount": t.amount,
+                "description": t.description,
+                "date": t.date.isoformat(),
+                "category_name": t.category.name if t.category else None,
+            }
+            for t in txs
+        ],
+        "monthly_spending": monthly_chart,
+    }
 
 
 def _next_due_date(due_day: int, frequency: str) -> date:

@@ -1,0 +1,13 @@
+.chart {
+  height: 180px;
+}
+
+.txRow {
+  padding: var(--space-2);
+  border-radius: var(--radius-2);
+  border-bottom: 1px solid var(--gray-5);
+}
+
+.txRow:last-child {
+  border-bottom: none;
+}

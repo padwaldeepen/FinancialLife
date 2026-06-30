@@ -98,10 +98,31 @@ async def get_budgets(
     )
     budgets = result.unique().scalars().all()
 
-    response_list = []
+    period_budgets: dict[tuple[datetime, datetime], list[Budget]] = {}
     for budget in budgets:
         start, end = get_period_range(budget.period)
-        spent = await _get_spent(current_user.id, start, end, db)
+        key = (start, end)
+        if key not in period_budgets:
+            period_budgets[key] = []
+        period_budgets[key].append(budget)
+
+    spent_map: dict[int, float] = {}
+    for (start, end), budget_list in period_budgets.items():
+        result = await db.execute(
+            select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+                Transaction.user_id == current_user.id,
+                Transaction.transaction_type == "expense",
+                Transaction.date >= start,
+                Transaction.date < end,
+            )
+        )
+        total = float(result.scalar())
+        for budget in budget_list:
+            spent_map[budget.id] = total
+
+    response_list = []
+    for budget in budgets:
+        spent = spent_map.get(budget.id, 0.0)
         category = budget.category
 
         response_list.append(

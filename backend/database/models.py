@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,7 +11,7 @@ class Merchant(Base):
     __tablename__ = "merchants"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String)
     normalized_name: Mapped[str] = mapped_column(String, index=True)
     aliases: Mapped[list[str] | None] = mapped_column(JSONB, default=None)
@@ -52,9 +52,9 @@ class Category(Base):
     name: Mapped[str] = mapped_column(String)
     color: Mapped[str] = mapped_column(String, default="#6B7280")
     icon: Mapped[str | None] = mapped_column(String, default=None)
-    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
-    parent_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     user: Mapped[User | None] = relationship(back_populates="categories")
@@ -70,7 +70,7 @@ class Account(Base):
     __tablename__ = "accounts"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String)
     type: Mapped[str] = mapped_column(String)
     currency: Mapped[str] = mapped_column(String, default="USD")
@@ -85,6 +85,14 @@ class Account(Base):
 
 class Transaction(Base):
     __tablename__ = "transactions"
+
+    __table_args__ = (
+        Index("ix_transactions_user_date", "user_id", "date"),
+        Index("ix_transactions_user_type", "user_id", "transaction_type"),
+        Index("ix_transactions_account", "account_id"),
+        Index("ix_transactions_category", "category_id"),
+        Index("ix_transactions_merchant", "merchant_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     amount: Mapped[float] = mapped_column(Float)
@@ -117,8 +125,8 @@ class Budget(Base):
     name: Mapped[str] = mapped_column(String)
     amount: Mapped[float] = mapped_column(Float)
     period: Mapped[str] = mapped_column(String)
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     start_date: Mapped[datetime] = mapped_column(DateTime)
     end_date: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -133,7 +141,7 @@ class Bill(Base):
     __tablename__ = "bills"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String)
     amount: Mapped[float] = mapped_column(Float)
     amount_estimated: Mapped[float | None] = mapped_column(Float, default=None)

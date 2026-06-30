@@ -44,9 +44,10 @@ async def list_accounts(
     db: AsyncSession = Depends(get_db),
 ):
     accounts = await account_service.get_accounts(current_user.id, db)
+    balances = await account_service.get_account_balances(current_user.id, db)
     results = []
     for account in accounts:
-        balance = await account_service.get_account_balance(account.id, db)
+        balance = balances.get(account.id, 0.0)
         results.append(
             AccountResponse(
                 id=account.id,

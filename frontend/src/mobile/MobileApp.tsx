@@ -7,7 +7,7 @@ import { Login } from './pages/Login/Login.tsx'
 import { Register } from './pages/Register/Register.tsx'
 import { Activity } from './pages/Activity/Activity.tsx'
 import { Home } from './pages/Home/Home.tsx'
-import { Budgets } from './pages/Budgets/Budgets.tsx'
+import { Goals } from './pages/Goals/Goals.tsx'
 import { Bills } from './pages/Bills/Bills.tsx'
 
 const PlaceholderPage = ({ title }: { title: string }) => (
@@ -56,10 +56,10 @@ export const MobileApp = (): JSX.Element => {
           }
         />
         <Route
-          path="/budgets"
+          path="/goals"
           element={
             <ProtectedRoute>
-              <Budgets />
+              <Goals />
             </ProtectedRoute>
           }
         />

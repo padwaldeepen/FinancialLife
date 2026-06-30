@@ -8,7 +8,7 @@ import { Register } from './pages/Register/Register.tsx'
 import { Activity } from './pages/Activity/Activity.tsx'
 import { Categories } from './pages/Categories/Categories.tsx'
 import { Home } from './pages/Home/Home.tsx'
-import { Budgets } from './pages/Budgets/Budgets.tsx'
+import { Goals } from './pages/Goals/Goals.tsx'
 import { Bills } from './pages/Bills/Bills.tsx'
 import { Merchants } from './pages/Merchants/Merchants.tsx'
 
@@ -69,7 +69,7 @@ export const DesktopApp = (): JSX.Element => {
           path="/goals"
           element={
             <ProtectedRoute>
-              <PlaceholderPage title="Goals" />
+              <Goals />
             </ProtectedRoute>
           }
         />
@@ -86,14 +86,6 @@ export const DesktopApp = (): JSX.Element => {
           element={
             <ProtectedRoute>
               <PlaceholderPage title="Settings" />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/budgets"
-          element={
-            <ProtectedRoute>
-              <Budgets />
             </ProtectedRoute>
           }
         />

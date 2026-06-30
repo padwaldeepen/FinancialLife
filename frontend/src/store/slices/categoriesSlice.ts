@@ -18,6 +18,15 @@ interface FlatCategory {
   depth: number
 }
 
+export interface CategorySpending {
+  id: number
+  name: string
+  color: string
+  total: number
+  percentage: number
+  transaction_count: number
+}
+
 const flattenCategories = (cats: CategoryNode[], depth = 0): FlatCategory[] => {
   const result: FlatCategory[] = []
   for (const cat of cats) {
@@ -34,14 +43,19 @@ export type CategoriesSlice = {
     tree: CategoryNode[]
     flat: FlatCategory[]
     loading: boolean
+    spending: CategorySpending[]
+    spendingLoading: boolean
   }
   fetchCategories: () => Promise<void>
+  fetchSpendingByCategory: (days?: number) => Promise<void>
 }
 
 export const createCategoriesSlice = namespaceSlice('categories', (set) => ({
   tree: [] as CategoryNode[],
   flat: [] as FlatCategory[],
   loading: true,
+  spending: [] as CategorySpending[],
+  spendingLoading: false,
 
   fetchCategories: async () => {
     set({ loading: true, tree: [], flat: [] })
@@ -51,6 +65,16 @@ export const createCategoriesSlice = namespaceSlice('categories', (set) => ({
       set({ tree, flat: flattenCategories(tree) })
     } finally {
       set({ loading: false })
+    }
+  },
+
+  fetchSpendingByCategory: async (days = 90) => {
+    set({ spendingLoading: true })
+    try {
+      const res = await api.get(`/api/categories/spending?days=${days}`)
+      set({ spending: res.data as CategorySpending[] })
+    } finally {
+      set({ spendingLoading: false })
     }
   },
 }))

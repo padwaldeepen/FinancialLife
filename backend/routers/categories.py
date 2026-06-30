@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import date, datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import User
+from database.models import Category, Transaction, User
 from database.session import get_db
 from routers.auth import get_current_user
 from services import category_service
@@ -34,6 +37,63 @@ class CategoryResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CategorySpending(BaseModel):
+    id: int
+    name: str
+    color: str
+    total: float
+    percentage: float
+    transaction_count: int
+
+
+@router.get("/spending", response_model=list[CategorySpending])
+async def category_spending(
+    days: int = Query(90, description="Number of days to look back"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    cutoff = datetime.combine(date.today(), datetime.min.time())
+    cutoff = cutoff.replace(day=max(1, cutoff.day - days))
+
+    query = (
+        select(
+            Transaction.category_id,
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("tx_count"),
+        )
+        .where(
+            Transaction.user_id == current_user.id,
+            Transaction.transaction_type == "expense",
+            Transaction.category_id.isnot(None),
+            Transaction.date >= cutoff,
+        )
+        .group_by(Transaction.category_id)
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    grand_total = sum(r.total for r in rows) or 0
+
+    spending = []
+    for r in rows:
+        cat_result = await db.execute(select(Category).where(Category.id == r.category_id))
+        cat = cat_result.scalar_one_or_none()
+        spending.append(
+            CategorySpending(
+                id=r.category_id,
+                name=cat.name if cat else "Unknown",
+                color=cat.color if cat else "#6B7280",
+                total=round(r.total, 2),
+                percentage=round((r.total / grand_total * 100), 1) if grand_total > 0 else 0,
+                transaction_count=r.tx_count,
+            )
+        )
+
+    spending.sort(key=lambda s: s.total, reverse=True)
+    return spending
 
 
 @router.get("/", response_model=list[CategoryResponse])

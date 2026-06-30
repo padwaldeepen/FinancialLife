@@ -2,59 +2,25 @@ import { useState, useEffect, type JSX } from 'react'
 import { Box, Flex, Heading, Text, Card, Badge, Select } from '@radix-ui/themes'
 import { PieChart } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
-import api from '../../../auth/api.ts'
+import { useShallow } from 'zustand/react/shallow'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Reports.module.css'
-
-interface MonthlyEntry {
-  month: string
-  income: number
-  expense: number
-  net: number
-}
-
-interface Summary {
-  total_income: number
-  total_expense: number
-  net: number
-  transaction_count: number
-  avg_daily_expense: number
-  top_category: string | null
-  top_category_amount: number | null
-}
-
-interface CategoryTotal {
-  category_name: string
-  category_color: string
-  total: number
-  percentage: number
-  transaction_count: number
-}
 
 export const Reports = (): JSX.Element => {
   const [year, setYear] = useState(new Date().getFullYear().toString())
-  const [monthly, setMonthly] = useState<MonthlyEntry[]>([])
-  const [summary, setSummary] = useState<Summary | null>(null)
-  const [categories, setCategories] = useState<CategoryTotal[]>([])
-  const [loading, setLoading] = useState(true)
+  const { monthly, summary, categories, loading, fetchReports } = useBoundStore(
+    useShallow((s) => ({
+      monthly: s.reports.monthly,
+      summary: s.reports.summary,
+      categories: s.reports.categories,
+      loading: s.reports.loading,
+      fetchReports: s.fetchReports,
+    })),
+  )
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      try {
-        const [monthlyRes, summaryRes, catRes] = await Promise.all([
-          api.get(`/api/reports/monthly?year=${year}`),
-          api.get('/api/reports/summary?days=30'),
-          api.get('/api/reports/categories?days=90'),
-        ])
-        setMonthly(monthlyRes.data)
-        setSummary(summaryRes.data)
-        setCategories(catRes.data)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [year])
+    fetchReports(year)
+  }, [fetchReports, year])
 
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => (currentYear - 2 + i).toString())

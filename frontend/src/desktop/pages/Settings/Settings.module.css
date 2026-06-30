@@ -1,0 +1,42 @@
+.page {
+  max-width: 640px;
+}
+
+.section {
+  margin-bottom: var(--space-6);
+}
+
+.sectionTitle {
+  margin-bottom: var(--space-3);
+}
+
+.card {
+  padding: var(--space-4);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--gray-5);
+}
+
+.labelGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.labelText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.logoutRow {
+  padding-top: var(--space-3);
+}

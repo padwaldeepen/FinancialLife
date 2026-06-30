@@ -118,7 +118,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
           </Tabs.List>
 
           {bill.is_variable && (
-            <Tabs.Content value="chart" pt="3">
+            <Tabs.Content value="chart" style={{ paddingTop: 'var(--space-3)' }}>
               {billHistory.monthly_spending.length > 0 ? (
                 <Box className={styles.chart}>
                   <ResponsiveBar
@@ -142,14 +142,14 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                   />
                 </Box>
               ) : (
-                <Text color="gray" py="4">
+                <Text color="gray" style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}>
                   No historical data for this bill
                 </Text>
               )}
             </Tabs.Content>
           )}
 
-          <Tabs.Content value="history" pt="3">
+          <Tabs.Content value="history" style={{ paddingTop: 'var(--space-3)' }}>
             {billHistory.loading ? (
               <Text color="gray">Loading...</Text>
             ) : billHistory.transactions.length > 0 ? (
@@ -169,7 +169,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                 ))}
               </Flex>
             ) : (
-              <Text color="gray" py="4">
+              <Text color="gray" style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}>
                 No payments linked to this bill yet
               </Text>
             )}

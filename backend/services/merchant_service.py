@@ -141,6 +141,15 @@ async def update_merchant(
     return merchant
 
 
+async def delete_merchant(merchant_id: int, user_id: int, db: AsyncSession) -> bool:
+    merchant = await get_merchant(merchant_id, user_id, db)
+    if not merchant:
+        return False
+    await db.delete(merchant)
+    await db.flush()
+    return True
+
+
 async def merge_merchants(
     target_id: int, source_ids: list[int], user_id: int, db: AsyncSession
 ) -> Merchant | None:

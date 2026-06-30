@@ -49,6 +49,8 @@ export type MerchantsSlice = {
   fetchMerchants: () => Promise<void>
   fetchMerchantDetail: (id: number) => Promise<void>
   toggleHidden: (id: number, current: boolean) => Promise<void>
+  updateMerchant: (id: number, data: { name?: string; is_hidden?: boolean }) => Promise<void>
+  deleteMerchant: (id: number) => Promise<void>
   fetchSimilar: () => Promise<void>
   doMerge: (targetId: number, sourceId: number) => Promise<void>
 }
@@ -80,6 +82,18 @@ export const createMerchantsSlice = namespaceSlice('merchants', (set, _get) => (
 
   toggleHidden: async (id: number, current: boolean) => {
     await api.put(`/api/merchants/${id}`, { is_hidden: !current })
+    const res = await api.get('/api/merchants/')
+    set({ items: res.data })
+  },
+
+  updateMerchant: async (id: number, data: { name?: string; is_hidden?: boolean }) => {
+    await api.put(`/api/merchants/${id}`, data)
+    const res = await api.get('/api/merchants/')
+    set({ items: res.data })
+  },
+
+  deleteMerchant: async (id: number) => {
+    await api.delete(`/api/merchants/${id}`)
     const res = await api.get('/api/merchants/')
     set({ items: res.data })
   },

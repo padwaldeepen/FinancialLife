@@ -54,10 +54,12 @@ class TransactionResponse(BaseModel):
     description: str
     transaction_type: str
     account_id: int
+    account_name: str | None = None
     category_id: int | None
     category_name: str | None
     category_color: str | None
     merchant_id: int | None = None
+    merchant_name: str | None = None
     bill_id: int | None = None
     goal_id: int | None = None
     is_pending: bool = False
@@ -132,19 +134,27 @@ async def create_transaction(
     await db.commit()
     await db.refresh(db_transaction)
 
+    merchant = db_transaction.merchant
+    account = db_transaction.account
+
     return TransactionResponse(
         id=db_transaction.id,
         amount=db_transaction.amount,
         description=db_transaction.description,
         transaction_type=db_transaction.transaction_type,
         account_id=db_transaction.account_id,
+        account_name=account.name if account else None,
         category_id=db_transaction.category_id,
         category_name=category.name if category else None,
         category_color=category.color if category else None,
-        date=db_transaction.date,
-        notes=db_transaction.notes,
+        merchant_id=db_transaction.merchant_id,
+        merchant_name=merchant.name if merchant else None,
+        bill_id=db_transaction.bill_id,
+        goal_id=db_transaction.goal_id,
         is_pending=db_transaction.is_pending,
         is_recurring=db_transaction.is_recurring,
+        date=db_transaction.date,
+        notes=db_transaction.notes,
         ai_categorized=db_transaction.ai_categorized,
         created_at=db_transaction.created_at,
     )
@@ -166,7 +176,11 @@ async def get_transactions(
 ):
     stmt = (
         select(Transaction)
-        .options(joinedload(Transaction.category))
+        .options(
+            joinedload(Transaction.category),
+            joinedload(Transaction.merchant),
+            joinedload(Transaction.account),
+        )
         .where(Transaction.user_id == current_user.id)
     )
 
@@ -197,6 +211,8 @@ async def get_transactions(
     response_list = []
     for transaction in transactions:
         category = transaction.category
+        merchant = transaction.merchant
+        account = transaction.account
 
         response_list.append(
             TransactionResponse(
@@ -205,9 +221,16 @@ async def get_transactions(
                 description=transaction.description,
                 transaction_type=transaction.transaction_type,
                 account_id=transaction.account_id,
+                account_name=account.name if account else None,
                 category_id=transaction.category_id,
                 category_name=category.name if category else None,
                 category_color=category.color if category else None,
+                merchant_id=transaction.merchant_id,
+                merchant_name=merchant.name if merchant else None,
+                bill_id=transaction.bill_id,
+                goal_id=transaction.goal_id,
+                is_pending=transaction.is_pending,
+                is_recurring=transaction.is_recurring,
                 date=transaction.date,
                 notes=transaction.notes,
                 ai_categorized=transaction.ai_categorized,
@@ -226,7 +249,11 @@ async def get_transaction(
 ):
     result = await db.execute(
         select(Transaction)
-        .options(joinedload(Transaction.category))
+        .options(
+            joinedload(Transaction.category),
+            joinedload(Transaction.merchant),
+            joinedload(Transaction.account),
+        )
         .where(Transaction.id == transaction_id, Transaction.user_id == current_user.id)
     )
     transaction = result.scalar_one_or_none()
@@ -235,6 +262,9 @@ async def get_transaction(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
 
     category = transaction.category
+    merchant = transaction.merchant
+    account = transaction.account
+    account = transaction.account
 
     return TransactionResponse(
         id=transaction.id,
@@ -242,16 +272,18 @@ async def get_transaction(
         description=transaction.description,
         transaction_type=transaction.transaction_type,
         account_id=transaction.account_id,
+        account_name=account.name if account else None,
         category_id=transaction.category_id,
         category_name=category.name if category else None,
         category_color=category.color if category else None,
-        date=transaction.date,
-        notes=transaction.notes,
         merchant_id=transaction.merchant_id,
+        merchant_name=merchant.name if merchant else None,
         bill_id=transaction.bill_id,
         goal_id=transaction.goal_id,
         is_pending=transaction.is_pending,
         is_recurring=transaction.is_recurring,
+        date=transaction.date,
+        notes=transaction.notes,
         ai_categorized=transaction.ai_categorized,
         created_at=transaction.created_at,
     )
@@ -266,7 +298,11 @@ async def update_transaction(
 ):
     result = await db.execute(
         select(Transaction)
-        .options(joinedload(Transaction.category))
+        .options(
+            joinedload(Transaction.category),
+            joinedload(Transaction.merchant),
+            joinedload(Transaction.account),
+        )
         .where(Transaction.id == transaction_id, Transaction.user_id == current_user.id)
     )
     transaction = result.scalar_one_or_none()
@@ -298,22 +334,27 @@ async def update_transaction(
         result = await db.execute(select(Category).where(Category.id == transaction.category_id))
         category = result.scalar_one_or_none()
 
+    merchant = transaction.merchant
+    account = transaction.account
+
     return TransactionResponse(
         id=transaction.id,
         amount=transaction.amount,
         description=transaction.description,
         transaction_type=transaction.transaction_type,
         account_id=transaction.account_id,
+        account_name=account.name if account else None,
         category_id=transaction.category_id,
         category_name=category.name if category else None,
         category_color=category.color if category else None,
-        date=transaction.date,
-        notes=transaction.notes,
         merchant_id=transaction.merchant_id,
+        merchant_name=merchant.name if merchant else None,
         bill_id=transaction.bill_id,
         goal_id=transaction.goal_id,
         is_pending=transaction.is_pending,
         is_recurring=transaction.is_recurring,
+        date=transaction.date,
+        notes=transaction.notes,
         ai_categorized=transaction.ai_categorized,
         created_at=transaction.created_at,
     )
@@ -404,7 +445,11 @@ async def get_dashboard_summary(
 
     recent_result = await db.execute(
         select(Transaction)
-        .options(joinedload(Transaction.category))
+        .options(
+            joinedload(Transaction.category),
+            joinedload(Transaction.merchant),
+            joinedload(Transaction.account),
+        )
         .where(Transaction.user_id == current_user.id)
         .order_by(Transaction.date.desc())
         .limit(10)
@@ -414,6 +459,8 @@ async def get_dashboard_summary(
     formatted_transactions = []
     for transaction in recent_transactions:
         category = transaction.category
+        merchant = transaction.merchant
+        account = transaction.account
 
         formatted_transactions.append(
             TransactionResponse(
@@ -422,9 +469,16 @@ async def get_dashboard_summary(
                 description=transaction.description,
                 transaction_type=transaction.transaction_type,
                 account_id=transaction.account_id,
+                account_name=account.name if account else None,
                 category_id=transaction.category_id,
                 category_name=category.name if category else None,
                 category_color=category.color if category else None,
+                merchant_id=transaction.merchant_id,
+                merchant_name=merchant.name if merchant else None,
+                bill_id=transaction.bill_id,
+                goal_id=transaction.goal_id,
+                is_pending=transaction.is_pending,
+                is_recurring=transaction.is_recurring,
                 date=transaction.date,
                 notes=transaction.notes,
                 ai_categorized=transaction.ai_categorized,
@@ -566,18 +620,23 @@ async def quick_add_transaction(
     await db.commit()
     await db.refresh(transaction)
 
+    merchant = transaction.merchant
+    account = transaction.account
+
     return TransactionResponse(
         id=transaction.id,
         amount=transaction.amount,
         description=transaction.description,
         transaction_type=transaction.transaction_type,
         account_id=transaction.account_id,
+        account_name=account.name if account else None,
         category_id=transaction.category_id,
         category_name=category.name if category else None,
         category_color=category.color if category else None,
         date=transaction.date,
         notes=transaction.notes,
         merchant_id=transaction.merchant_id,
+        merchant_name=merchant.name if merchant else None,
         bill_id=transaction.bill_id,
         goal_id=transaction.goal_id,
         is_pending=transaction.is_pending,

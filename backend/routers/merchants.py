@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from database.models import User
 from database.session import get_db
 from routers.auth import get_current_user
 from services.merchant_service import (
@@ -51,13 +52,13 @@ class MerchantMerge(BaseModel):
     source_ids: list[int]
 
 
-@router.get("")
+@router.get("/")
 async def list_merchants(
     include_hidden: bool = False,
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    merchants = await get_merchants(user["id"], db, include_hidden=include_hidden)
+    merchants = await get_merchants(user.id, db, include_hidden=include_hidden)
     return [
         MerchantResponse(
             id=m.id,
@@ -75,10 +76,10 @@ async def list_merchants(
 @router.get("/{merchant_id}")
 async def merchant_detail(
     merchant_id: int,
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await get_merchant_summary(merchant_id, user["id"], db)
+    result = await get_merchant_summary(merchant_id, user.id, db)
     if not result:
         raise HTTPException(status_code=404, detail="Merchant not found")
     return result
@@ -88,13 +89,13 @@ async def merchant_detail(
 async def update_merchant_endpoint(
     merchant_id: int,
     data: MerchantUpdate,
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     update_data = data.model_dump(exclude_none=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
-    merchant = await update_merchant(merchant_id, user["id"], update_data, db)
+    merchant = await update_merchant(merchant_id, user.id, update_data, db)
     if not merchant:
         raise HTTPException(status_code=404, detail="Merchant not found")
     return MerchantResponse(
@@ -111,10 +112,10 @@ async def update_merchant_endpoint(
 @router.post("/merge")
 async def merge_merchants_endpoint(
     data: MerchantMerge,
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    merchant = await merge_merchants(data.target_id, data.source_ids, user["id"], db)
+    merchant = await merge_merchants(data.target_id, data.source_ids, user.id, db)
     if not merchant:
         raise HTTPException(status_code=404, detail="Target merchant not found")
     return MerchantResponse(
@@ -130,16 +131,16 @@ async def merge_merchants_endpoint(
 
 @router.get("/similar/")
 async def similar_merchants(
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await find_similar_merchants(user["id"], db)
+    return await find_similar_merchants(user.id, db)
 
 
 @router.post("/backfill")
 async def backfill_endpoint(
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    count = await backfill_merchants(user["id"], db)
+    count = await backfill_merchants(user.id, db)
     return {"backfilled": count}

@@ -3,14 +3,14 @@ import {
   Box,
   Flex,
   Text,
-  Button,
   TextField,
   Select,
   Badge,
   IconButton,
   Dialog,
+  Button,
 } from '@radix-ui/themes'
-import { Search, Trash2, Pencil, X } from 'lucide-react'
+import { Search, Trash2, Pencil, X, Calendar } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
 import toast from 'react-hot-toast'
 import api from '../../../auth/api.ts'
@@ -22,10 +22,12 @@ type Transaction = {
   description: string
   transaction_type: string
   account_id: number
+  account_name: string | null
   category_id: number | null
   category_name: string | null
   category_color: string | null
   merchant_id: number | null
+  merchant_name: string | null
   bill_id: number | null
   goal_id: number | null
   is_pending: boolean
@@ -35,6 +37,8 @@ type Transaction = {
   ai_categorized: boolean
   created_at: string
 }
+
+type FilterOption = { id: number; name: string }
 
 type DateGroup = 'today' | 'yesterday' | 'thisWeek' | 'earlier'
 
@@ -56,17 +60,49 @@ function getDateGroup(dateStr: string): DateGroup {
 export const Activity = (): JSX.Element => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
+  const [merchantFilter, setMerchantFilter] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [categories, setCategories] = useState<FilterOption[]>([])
+  const [merchants, setMerchants] = useState<FilterOption[]>([])
   const [selected, setSelected] = useState<Transaction | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editNotes, setEditNotes] = useState('')
   const offsetRef = useRef(0)
+  const sentinelRef = useRef<HTMLDivElement>(null)
   const limit = 50
+
+  const fetchOptions = useCallback(async () => {
+    try {
+      const [catRes, merRes] = await Promise.all([
+        api.get('/api/categories/'),
+        api.get('/api/merchants/'),
+      ])
+      setCategories((catRes.data as FilterOption[]) || [])
+      setMerchants((merRes.data as FilterOption[]) || [])
+    } catch {
+      // options are non-critical
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchOptions()
+  }, [fetchOptions])
 
   const fetchTransactions = useCallback(
     async (reset = false) => {
-      setLoading(true)
+      if (reset) {
+        setLoading(true)
+        offsetRef.current = 0
+        setHasMore(true)
+      } else {
+        setLoadingMore(true)
+      }
       try {
         const offset = reset ? 0 : offsetRef.current
         const params: Record<string, string | number> = {
@@ -77,6 +113,10 @@ export const Activity = (): JSX.Element => {
         }
         if (search) params.search = search
         if (typeFilter) params.transaction_type = typeFilter
+        if (categoryFilter) params.category_id = Number(categoryFilter)
+        if (merchantFilter) params.merchant_id = Number(merchantFilter)
+        if (startDate) params.start_date = startDate
+        if (endDate) params.end_date = endDate
         const response = await api.get('/api/transactions/', { params })
         const data = response.data as Transaction[]
         if (reset) {
@@ -85,19 +125,36 @@ export const Activity = (): JSX.Element => {
           setTransactions((prev) => [...prev, ...data])
         }
         offsetRef.current = offset + data.length
+        if (data.length < limit) setHasMore(false)
       } catch (error: any) {
         toast.error(error.response?.data?.detail || 'Failed to load transactions')
       } finally {
         setLoading(false)
+        setLoadingMore(false)
       }
     },
-    [search, typeFilter],
+    [search, typeFilter, categoryFilter, merchantFilter, startDate, endDate],
   )
 
   useEffect(() => {
     offsetRef.current = 0
+    setHasMore(true)
     fetchTransactions(true)
   }, [fetchTransactions])
+
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMore || loading || loadingMore) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasMore && !loadingMore) {
+          fetchTransactions()
+        }
+      },
+      { threshold: 0.1 },
+    )
+    observer.observe(sentinelRef.current)
+    return () => observer.disconnect()
+  }, [hasMore, loading, loadingMore, fetchTransactions])
 
   const handleDelete = async (id: number) => {
     try {
@@ -173,7 +230,7 @@ export const Activity = (): JSX.Element => {
         </TextField.Slot>
       </TextField.Root>
 
-      <Flex gap="2" mb="4" wrap="wrap" align="center">
+      <Flex gap="2" mb="3" wrap="wrap" align="center">
         <Select.Root value={typeFilter} onValueChange={setTypeFilter}>
           <Select.Trigger placeholder="All types" />
           <Select.Content>
@@ -182,6 +239,56 @@ export const Activity = (): JSX.Element => {
             <Select.Item value="expense">Expense</Select.Item>
           </Select.Content>
         </Select.Root>
+
+        <Select.Root value={categoryFilter} onValueChange={setCategoryFilter}>
+          <Select.Trigger placeholder="All categories" />
+          <Select.Content>
+            <Select.Item value="">All categories</Select.Item>
+            {categories.map((c) => (
+              <Select.Item key={c.id} value={String(c.id)}>
+                {c.name}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+
+        <Select.Root value={merchantFilter} onValueChange={setMerchantFilter}>
+          <Select.Trigger placeholder="All merchants" />
+          <Select.Content>
+            <Select.Item value="">All merchants</Select.Item>
+            {merchants.map((m) => (
+              <Select.Item key={m.id} value={String(m.id)}>
+                {m.name}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+
+        <TextField.Root
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          style={{ width: 140 }}
+        >
+          <TextField.Slot side="left">
+            <Calendar size={14} />
+          </TextField.Slot>
+        </TextField.Root>
+
+        <Text size="1" color="gray">
+          to
+        </Text>
+
+        <TextField.Root
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          style={{ width: 140 }}
+        >
+          <TextField.Slot side="left">
+            <Calendar size={14} />
+          </TextField.Slot>
+        </TextField.Root>
       </Flex>
 
       {loading && transactions.length === 0 ? (
@@ -215,7 +322,12 @@ export const Activity = (): JSX.Element => {
                       <Text size="2" weight="medium">
                         {t.description}
                       </Text>
-                      <Flex gap="2" align="center">
+                      <Flex gap="2" align="center" wrap="wrap">
+                        {t.merchant_name && (
+                          <Text size="1" color="gray">
+                            {t.merchant_name}
+                          </Text>
+                        )}
                         {t.category_name && (
                           <Badge color={(t.category_color as any) || 'gray'}>
                             {t.category_name}
@@ -246,13 +358,14 @@ export const Activity = (): JSX.Element => {
               </Box>
             ) : null,
           )}
-          {transactions.length >= limit && (
+          {loadingMore && (
             <Flex justify="center" py="4">
-              <Button onClick={() => fetchTransactions()} loading={loading} variant="soft">
-                Load more
-              </Button>
+              <Text color="gray" size="2">
+                Loading more...
+              </Text>
             </Flex>
           )}
+          <div ref={sentinelRef} style={{ height: 1 }} />
         </Box>
       )}
 
@@ -289,6 +402,15 @@ export const Activity = (): JSX.Element => {
                   <Text size="2">{format(parseISO(selected.date), 'EEEE, MMMM d, yyyy')}</Text>
                 </Flex>
 
+                {selected.merchant_name && (
+                  <Flex direction="column" gap="1">
+                    <Text size="2" color="gray">
+                      Merchant
+                    </Text>
+                    <Text size="2">{selected.merchant_name}</Text>
+                  </Flex>
+                )}
+
                 {selected.category_name && (
                   <Flex direction="column" gap="1">
                     <Text size="2" color="gray">
@@ -300,21 +422,14 @@ export const Activity = (): JSX.Element => {
                   </Flex>
                 )}
 
-                {selected.merchant_id && (
+                {selected.account_name && (
                   <Flex direction="column" gap="1">
                     <Text size="2" color="gray">
-                      Merchant ID
+                      Account
                     </Text>
-                    <Text size="2">{selected.merchant_id}</Text>
+                    <Text size="2">{selected.account_name}</Text>
                   </Flex>
                 )}
-
-                <Flex direction="column" gap="1">
-                  <Text size="2" color="gray">
-                    Account ID
-                  </Text>
-                  <Text size="2">{selected.account_id}</Text>
-                </Flex>
 
                 {selected.is_pending && <Badge color="orange">Pending</Badge>}
                 {selected.is_recurring && <Badge color="blue">Recurring</Badge>}

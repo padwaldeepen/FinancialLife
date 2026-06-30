@@ -260,7 +260,9 @@ async def find_similar_merchants(
     user_id: int, db: AsyncSession, threshold: float = 0.6
 ) -> list[dict]:
     result = await db.execute(
-        select(Merchant).where(Merchant.user_id == user_id, Merchant.is_hidden.is_(False))
+        select(Merchant)
+        .options(selectinload(Merchant.transactions))
+        .where(Merchant.user_id == user_id, Merchant.is_hidden.is_(False))
     )
     merchants = result.scalars().all()
 

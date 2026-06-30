@@ -71,21 +71,36 @@ async def delete_account(account_id: int, user_id: int, db: AsyncSession) -> boo
     return True
 
 
+async def get_account_balances(user_id: int, db: AsyncSession) -> dict[int, float]:
+    result = await db.execute(
+        select(
+            Transaction.account_id,
+            func.coalesce(
+                func.sum(Transaction.amount).filter(Transaction.transaction_type == "income"), 0
+            ),
+            func.coalesce(
+                func.sum(Transaction.amount).filter(Transaction.transaction_type == "expense"), 0
+            ),
+        )
+        .where(Transaction.user_id == user_id)
+        .group_by(Transaction.account_id)
+    )
+    balances: dict[int, float] = {}
+    for account_id, income, expense in result.all():
+        balances[account_id] = float(income) - float(expense)
+    return balances
+
+
 async def get_account_balance(account_id: int, db: AsyncSession) -> float:
-    income_result = await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.account_id == account_id,
-            Transaction.transaction_type == "income",
-        )
+    result = await db.execute(
+        select(
+            func.coalesce(
+                func.sum(Transaction.amount).filter(Transaction.transaction_type == "income"), 0
+            ),
+            func.coalesce(
+                func.sum(Transaction.amount).filter(Transaction.transaction_type == "expense"), 0
+            ),
+        ).where(Transaction.account_id == account_id)
     )
-    total_income = float(income_result.scalar() or 0)
-
-    expense_result = await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.account_id == account_id,
-            Transaction.transaction_type == "expense",
-        )
-    )
-    total_expense = float(expense_result.scalar() or 0)
-
-    return total_income - total_expense
+    row = result.one()
+    return float(row[0]) - float(row[1])

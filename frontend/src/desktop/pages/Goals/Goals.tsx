@@ -1,0 +1,366 @@
+import { useState, useEffect, type JSX } from 'react'
+import {
+  Box,
+  Flex,
+  Heading,
+  Text,
+  Button,
+  Card,
+  Dialog,
+  TextField,
+  Select,
+  IconButton,
+  Badge,
+} from '@radix-ui/themes'
+import { Plus, Trash2, Target, PiggyBank, TrendingDown } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useShallow } from 'zustand/react/shallow'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
+import styles from './Goals.module.css'
+
+const goalIcons: Record<string, JSX.Element> = {
+  save_up: <PiggyBank size={18} />,
+  pay_down: <TrendingDown size={18} />,
+  monthly_envelope: <Target size={18} />,
+}
+
+const goalLabels: Record<string, string> = {
+  save_up: 'Save Up',
+  pay_down: 'Pay Down',
+  monthly_envelope: 'Monthly Envelope',
+}
+
+export const Goals = (): JSX.Element => {
+  const { goals, loading, fetchGoals, createGoal, contributeToGoal, deleteGoal } = useBoundStore(
+    useShallow((s) => ({
+      goals: s.goals.items,
+      loading: s.goals.loading,
+      fetchGoals: s.fetchGoals,
+      createGoal: s.createGoal,
+      contributeToGoal: s.contributeToGoal,
+      deleteGoal: s.deleteGoal,
+    })),
+  )
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [goalAmount, setGoalAmount] = useState('')
+  const [goalType, setGoalType] = useState('save_up')
+  const [initialAmount, setInitialAmount] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const [detailGoal, setDetailGoal] = useState<(typeof goals)[0] | null>(null)
+  const [contributeOpen, setContributeOpen] = useState(false)
+  const [contributeAmount, setContributeAmount] = useState('')
+  const [contributing, setContributing] = useState(false)
+
+  useEffect(() => {
+    fetchGoals()
+  }, [fetchGoals])
+
+  const handleCreate = async () => {
+    if (!name.trim() || !goalAmount) return
+    setSaving(true)
+    try {
+      await createGoal({
+        name: name.trim(),
+        target_amount: parseFloat(goalAmount),
+        type: goalType,
+        current_amount: parseFloat(initialAmount) || 0,
+      })
+      toast.success('Goal created')
+      setOpen(false)
+      setName('')
+      setGoalAmount('')
+      setGoalType('save_up')
+      setInitialAmount('')
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to create goal')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteGoal(id)
+      toast.success('Goal deleted')
+    } catch {
+      toast.error('Failed to delete goal')
+    }
+  }
+
+  const handleContribute = async () => {
+    if (!detailGoal || !contributeAmount) return
+    setContributing(true)
+    try {
+      await contributeToGoal(detailGoal.id, parseFloat(contributeAmount))
+      toast.success('Contribution added')
+      setContributeOpen(false)
+      setContributeAmount('')
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to contribute')
+    } finally {
+      setContributing(false)
+    }
+  }
+
+  const completed = (g: (typeof goals)[0]) => g.progress_pct >= 100
+
+  return (
+    <Box className={styles.page}>
+      <Flex align="center" justify="between" mb="5">
+        <Heading size="6">Goals</Heading>
+        <Dialog.Root open={open} onOpenChange={setOpen}>
+          <Dialog.Trigger>
+            <Button size="2">
+              <Plus size={16} /> Add Goal
+            </Button>
+          </Dialog.Trigger>
+          <Dialog.Content maxWidth="400px">
+            <Dialog.Title>Create Goal</Dialog.Title>
+            <Flex direction="column" gap="3" mt="3">
+              <Flex direction="column" gap="1">
+                <Text size="2" weight="medium">
+                  Name
+                </Text>
+                <TextField.Root
+                  placeholder="e.g. Emergency Fund"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </Flex>
+              <Flex direction="column" gap="1">
+                <Text size="2" weight="medium">
+                  Goal Type
+                </Text>
+                <Select.Root value={goalType} onValueChange={setGoalType}>
+                  <Select.Trigger />
+                  <Select.Content>
+                    <Select.Item value="save_up">Save Up</Select.Item>
+                    <Select.Item value="pay_down">Pay Down</Select.Item>
+                    <Select.Item value="monthly_envelope">Monthly Envelope</Select.Item>
+                  </Select.Content>
+                </Select.Root>
+              </Flex>
+              <Flex direction="column" gap="1">
+                <Text size="2" weight="medium">
+                  Target Amount
+                </Text>
+                <TextField.Root
+                  type="number"
+                  placeholder="10000"
+                  value={goalAmount}
+                  onChange={(e) => setGoalAmount(e.target.value)}
+                >
+                  <TextField.Slot side="left">$</TextField.Slot>
+                </TextField.Root>
+              </Flex>
+              <Flex direction="column" gap="1">
+                <Text size="2" weight="medium">
+                  Initial Amount (optional)
+                </Text>
+                <TextField.Root
+                  type="number"
+                  placeholder="0"
+                  value={initialAmount}
+                  onChange={(e) => setInitialAmount(e.target.value)}
+                >
+                  <TextField.Slot side="left">$</TextField.Slot>
+                </TextField.Root>
+              </Flex>
+              <Button onClick={handleCreate} loading={saving} size="3" mt="2">
+                Create Goal
+              </Button>
+            </Flex>
+          </Dialog.Content>
+        </Dialog.Root>
+      </Flex>
+
+      {loading ? (
+        <Text color="gray">Loading...</Text>
+      ) : goals.length === 0 ? (
+        <Flex direction="column" align="center" gap="2" py="8">
+          <Text size="4" weight="medium">
+            No goals yet
+          </Text>
+          <Text size="2" color="gray">
+            Create your first goal to start tracking
+          </Text>
+        </Flex>
+      ) : (
+        <Flex direction="column" gap="3">
+          {goals.map((goal) => {
+            const done = completed(goal)
+            return (
+              <Card
+                key={goal.id}
+                size="2"
+                className={styles.card}
+                onClick={() => setDetailGoal(goal)}
+              >
+                <Flex direction="column" gap="2">
+                  <Flex align="center" justify="between">
+                    <Flex align="center" gap="2">
+                      {goalIcons[goal.type] || <Target size={18} />}
+                      <Heading size="3">{goal.name}</Heading>
+                      <Badge color={done ? 'green' : 'gray'} size="1">
+                        {goalLabels[goal.type] || goal.type}
+                      </Badge>
+                    </Flex>
+                    <IconButton
+                      variant="ghost"
+                      size="1"
+                      color="red"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(goal.id)
+                      }}
+                      aria-label="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </IconButton>
+                  </Flex>
+
+                  <Flex align="center" justify="between">
+                    <Text size="2" color="gray">
+                      {goal.progress_pct}% complete
+                    </Text>
+                    <Text size="2" weight="medium" color={done ? 'green' : undefined}>
+                      ${goal.current_amount.toFixed(2)} / ${goal.target_amount.toFixed(2)}
+                    </Text>
+                  </Flex>
+
+                  <Box className={styles.barOuter}>
+                    <Box
+                      className={styles.barInner}
+                      style={{
+                        width: `${Math.min(goal.progress_pct, 100)}%`,
+                        backgroundColor: done
+                          ? 'var(--green-9)'
+                          : goal.color
+                            ? goal.color
+                            : 'var(--accent-9)',
+                      }}
+                    />
+                  </Box>
+
+                  {done && (
+                    <Text size="1" color="green" weight="medium">
+                      Goal achieved!
+                    </Text>
+                  )}
+                </Flex>
+                {/* Detail Dialog */}
+                <Dialog.Root
+                  open={detailGoal?.id === goal.id}
+                  onOpenChange={(open) => {
+                    if (!open) setDetailGoal(null)
+                  }}
+                >
+                  <Dialog.Content maxWidth="420px">
+                    {detailGoal && (
+                      <>
+                        <Flex align="center" gap="2" mb="3">
+                          {goalIcons[detailGoal.type]}
+                          <Dialog.Title mb="0">{detailGoal.name}</Dialog.Title>
+                          <Badge color={done ? 'green' : 'gray'} size="1">
+                            {goalLabels[detailGoal.type]}
+                          </Badge>
+                        </Flex>
+
+                        <Flex direction="column" gap="2" mb="4">
+                          <Flex align="center" justify="between">
+                            <Text size="2" color="gray">
+                              Progress
+                            </Text>
+                            <Text size="2" weight="medium">
+                              ${detailGoal.current_amount.toFixed(2)} / $
+                              {detailGoal.target_amount.toFixed(2)}
+                            </Text>
+                          </Flex>
+                          <Box className={styles.barOuter}>
+                            <Box
+                              className={styles.barInner}
+                              style={{
+                                width: `${Math.min(detailGoal.progress_pct, 100)}%`,
+                                backgroundColor: done ? 'var(--green-9)' : 'var(--accent-9)',
+                              }}
+                            />
+                          </Box>
+                          <Text size="1" color="gray">
+                            {detailGoal.progress_pct}% complete
+                          </Text>
+                        </Flex>
+
+                        <Flex direction="column" gap="1" mb="4">
+                          {detailGoal.monthly_contribution && (
+                            <Flex justify="between">
+                              <Text size="2" color="gray">
+                                Monthly contribution
+                              </Text>
+                              <Text size="2">${detailGoal.monthly_contribution.toFixed(2)}</Text>
+                            </Flex>
+                          )}
+                          {detailGoal.deadline && (
+                            <Flex justify="between">
+                              <Text size="2" color="gray">
+                                Deadline
+                              </Text>
+                              <Text size="2">{detailGoal.deadline}</Text>
+                            </Flex>
+                          )}
+                          {detailGoal.category_name && (
+                            <Flex justify="between">
+                              <Text size="2" color="gray">
+                                Category
+                              </Text>
+                              <Text size="2">{detailGoal.category_name}</Text>
+                            </Flex>
+                          )}
+                        </Flex>
+
+                        <Dialog.Root open={contributeOpen} onOpenChange={setContributeOpen}>
+                          <Dialog.Trigger>
+                            <Button size="2" style={{ width: '100%' }}>
+                              <Plus size={16} /> Add Contribution
+                            </Button>
+                          </Dialog.Trigger>
+                          <Dialog.Content maxWidth="360px">
+                            <Dialog.Title>Add Contribution</Dialog.Title>
+                            <Flex direction="column" gap="3" mt="3">
+                              <Flex direction="column" gap="1">
+                                <Text size="2" weight="medium">
+                                  Amount
+                                </Text>
+                                <TextField.Root
+                                  type="number"
+                                  placeholder="100"
+                                  value={contributeAmount}
+                                  onChange={(e) => setContributeAmount(e.target.value)}
+                                >
+                                  <TextField.Slot side="left">$</TextField.Slot>
+                                </TextField.Root>
+                              </Flex>
+                              <Button
+                                onClick={handleContribute}
+                                loading={contributing}
+                                size="3"
+                                mt="2"
+                              >
+                                Add
+                              </Button>
+                            </Flex>
+                          </Dialog.Content>
+                        </Dialog.Root>
+                      </>
+                    )}
+                  </Dialog.Content>
+                </Dialog.Root>
+              </Card>
+            )
+          })}
+        </Flex>
+      )}
+    </Box>
+  )
+}

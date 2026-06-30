@@ -3,6 +3,10 @@
   padding: var(--space-4);
 }
 
+.card {
+  cursor: pointer;
+}
+
 .barOuter {
   width: 100%;
   height: 8px;

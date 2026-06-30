@@ -43,6 +43,7 @@ class User(Base):
     categories: Mapped[list["Category"]] = relationship(back_populates="user")
     merchants: Mapped[list["Merchant"]] = relationship(back_populates="user")
     bills: Mapped[list["Bill"]] = relationship(back_populates="user")
+    goals: Mapped[list["Goal"]] = relationship(back_populates="user")
 
 
 class Category(Base):
@@ -181,3 +182,26 @@ class TransactionBillLink(Base):
 
     transaction: Mapped["Transaction"] = relationship()
     bill: Mapped["Bill"] = relationship(back_populates="transaction_links")
+
+
+class Goal(Base):
+    __tablename__ = "goals"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String)
+    target_amount: Mapped[float] = mapped_column(Float)
+    current_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    monthly_contribution: Mapped[float | None] = mapped_column(Float, default=None)
+    type: Mapped[str] = mapped_column(String)
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
+    deadline: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    icon: Mapped[str | None] = mapped_column(String, default=None)
+    color: Mapped[str | None] = mapped_column(String, default=None)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
+
+    user: Mapped[User] = relationship(back_populates="goals")
+    category: Mapped[Category | None] = relationship()

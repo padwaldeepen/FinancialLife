@@ -7,7 +7,18 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from core.config import settings
 from core.logging import get_logger, log_startup
 from database.session import AsyncSessionLocal
-from routers import accounts, ai, auth, bills, budgets, categories, goals, merchants, transactions
+from routers import (
+    accounts,
+    ai,
+    auth,
+    bills,
+    budgets,
+    categories,
+    goals,
+    merchants,
+    reports,
+    transactions,
+)
 
 log = get_logger(__name__)
 
@@ -51,6 +62,7 @@ app.include_router(budgets.router, prefix="/api/budgets", tags=["Budgets"])
 app.include_router(categories.router, prefix="/api/categories", tags=["Categories"])
 app.include_router(bills.router, prefix="/api/bills", tags=["Bills"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI Services"])
+app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(goals.router, prefix="/api/goals", tags=["Goals"])
 app.include_router(merchants.router)
 

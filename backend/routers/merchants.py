@@ -7,6 +7,7 @@ from database.session import get_db
 from routers.auth import get_current_user
 from services.merchant_service import (
     backfill_merchants,
+    delete_merchant,
     find_similar_merchants,
     get_merchant_summary,
     get_merchants,
@@ -135,6 +136,17 @@ async def similar_merchants(
     db: AsyncSession = Depends(get_db),
 ):
     return await find_similar_merchants(user.id, db)
+
+
+@router.delete("/{merchant_id}", status_code=204)
+async def delete_merchant_endpoint(
+    merchant_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    deleted = await delete_merchant(merchant_id, user.id, db)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Merchant not found")
 
 
 @router.post("/backfill")

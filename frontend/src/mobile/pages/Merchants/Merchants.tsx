@@ -13,7 +13,7 @@ import {
   Tabs,
   Button,
 } from '@radix-ui/themes'
-import { Store, Search, X, Merge, BarChart3 } from 'lucide-react'
+import { Store, Search, X, Merge, BarChart3, Pencil, Trash2 } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
@@ -28,6 +28,8 @@ export const Merchants = (): JSX.Element => {
     fetchMerchants,
     fetchMerchantDetail,
     toggleHidden,
+    updateMerchant,
+    deleteMerchant,
     fetchSimilar,
     similarPairs,
     doMerge,
@@ -40,6 +42,8 @@ export const Merchants = (): JSX.Element => {
       fetchMerchants: s.fetchMerchants,
       fetchMerchantDetail: s.fetchMerchantDetail,
       toggleHidden: s.toggleHidden,
+      updateMerchant: s.updateMerchant,
+      deleteMerchant: s.deleteMerchant,
       fetchSimilar: s.fetchSimilar,
       doMerge: s.doMerge,
     })),
@@ -47,6 +51,11 @@ export const Merchants = (): JSX.Element => {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<number | null>(null)
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameName, setRenameName] = useState('')
+  const [renaming, setRenaming] = useState(false)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetchMerchants()
@@ -68,6 +77,43 @@ export const Merchants = (): JSX.Element => {
       toast.success(current ? 'Merchant unhidden' : 'Merchant hidden')
     } catch {
       toast.error('Failed to update merchant')
+    }
+  }
+
+  const openRename = () => {
+    if (detail) {
+      setRenameName(detail.name)
+      setRenameOpen(true)
+    }
+  }
+
+  const handleRename = async () => {
+    if (!detail || !renameName.trim()) return
+    setRenaming(true)
+    try {
+      await updateMerchant(detail.id, { name: renameName.trim() })
+      toast.success('Merchant renamed')
+      setRenameOpen(false)
+      fetchMerchantDetail(detail.id)
+    } catch {
+      toast.error('Failed to rename merchant')
+    } finally {
+      setRenaming(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (deleteConfirmId === null) return
+    setDeleting(true)
+    try {
+      await deleteMerchant(deleteConfirmId)
+      toast.success('Merchant deleted')
+      setDeleteConfirmId(null)
+      setSelected(null)
+    } catch {
+      toast.error('Failed to delete merchant')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -327,9 +373,21 @@ export const Merchants = (): JSX.Element => {
 
               <Separator size="4" my="4" />
 
-              <Flex gap="3" justify="end">
+              <Flex gap="2" justify="end" wrap="wrap">
+                <Button variant="soft" size="1" onClick={openRename}>
+                  <Pencil size={14} /> Rename
+                </Button>
                 <Button
                   variant="soft"
+                  size="1"
+                  color="red"
+                  onClick={() => setDeleteConfirmId(detail.id)}
+                >
+                  <Trash2 size={14} /> Delete
+                </Button>
+                <Button
+                  variant="soft"
+                  size="1"
                   color={detail.is_hidden ? 'green' : 'gray'}
                   onClick={() => handleToggleHidden(detail.id, detail.is_hidden)}
                 >
@@ -338,6 +396,57 @@ export const Merchants = (): JSX.Element => {
               </Flex>
             </>
           )}
+        </Dialog.Content>
+      </Dialog.Root>
+
+      {/* Rename Dialog */}
+      <Dialog.Root open={renameOpen} onOpenChange={setRenameOpen}>
+        <Dialog.Content style={{ maxWidth: 360 }}>
+          <Dialog.Title>Rename Merchant</Dialog.Title>
+          <Flex direction="column" gap="3" mt="3">
+            <Text size="2" color="gray">
+              Update the display name for this merchant.
+            </Text>
+            <TextField.Root
+              placeholder="Merchant name"
+              value={renameName}
+              onChange={(e) => setRenameName(e.target.value)}
+            />
+          </Flex>
+          <Flex gap="3" mt="4" justify="end">
+            <Dialog.Close>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </Dialog.Close>
+            <Button onClick={handleRename} disabled={renaming || !renameName.trim()}>
+              {renaming ? 'Saving...' : 'Save'}
+            </Button>
+          </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog.Root
+        open={deleteConfirmId !== null}
+        onOpenChange={(o) => {
+          if (!o) setDeleteConfirmId(null)
+        }}
+      >
+        <Dialog.Content style={{ maxWidth: 360 }}>
+          <Dialog.Title>Delete Merchant</Dialog.Title>
+          <Text size="2" mt="2">
+            Are you sure? This action cannot be undone. Transactions linked to this merchant will be
+            unaffected.
+          </Text>
+          <Flex gap="3" mt="4" justify="end">
+            <Button variant="soft" color="gray" onClick={() => setDeleteConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </Flex>
         </Dialog.Content>
       </Dialog.Root>
 

@@ -1,7 +1,7 @@
-import { useState, useEffect, type JSX } from 'react'
+import { useState, useEffect, useRef, type JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Box, Flex, Heading, Text, Card } from '@radix-ui/themes'
-import { Wallet, PiggyBank, CreditCard, TrendingUp } from 'lucide-react'
+import { Wallet, PiggyBank, CreditCard, TrendingUp, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../../auth/api.ts'
 import styles from './Home.module.css'
@@ -41,14 +41,20 @@ const accountColors: Record<string, string> = {
   investment: 'var(--purple-9)',
 }
 
+const PULL_THRESHOLD = 80
+
 export const Home = (): JSX.Element => {
   const navigate = useNavigate()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [recentTx, setRecentTx] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [pullDistance, setPullDistance] = useState(0)
+  const touchStartY = useRef(0)
+  const isPulling = useRef(false)
 
-  const fetchData = async (_isRefresh = false) => {
+  const fetchData = async () => {
+    setRefreshing(true)
     try {
       const [acctsRes, txRes] = await Promise.all([
         api.get('/api/accounts/'),
@@ -70,6 +76,31 @@ export const Home = (): JSX.Element => {
     fetchData()
   }, [])
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY > 0) return
+    touchStartY.current = e.touches[0]!.clientY
+    isPulling.current = true
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling.current || refreshing) return
+    const currentY = e.touches[0]!.clientY
+    const diff = currentY - touchStartY.current
+    if (diff > 0) {
+      setPullDistance(Math.min(diff * 0.5, PULL_THRESHOLD * 1.5))
+    }
+  }
+
+  const handleTouchEnd = () => {
+    if (!isPulling.current) return
+    isPulling.current = false
+    if (pullDistance >= PULL_THRESHOLD && !refreshing) {
+      setPullDistance(PULL_THRESHOLD)
+      fetchData()
+    }
+    setPullDistance(0)
+  }
+
   const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0)
 
   const formatDate = (dateStr: string) => {
@@ -88,7 +119,27 @@ export const Home = (): JSX.Element => {
   }
 
   return (
-    <Box className={styles.page}>
+    <Box
+      className={styles.page}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <Box
+        className={styles.pullIndicator}
+        style={{
+          height: pullDistance,
+          opacity: Math.min(pullDistance / PULL_THRESHOLD, 1),
+        }}
+      >
+        <RefreshCw
+          size={20}
+          className={
+            refreshing ? styles.spinning : pullDistance >= PULL_THRESHOLD ? styles.ready : ''
+          }
+        />
+      </Box>
+
       <Flex direction="column" gap="4">
         <Card className={styles.balanceCard}>
           <Text size="2" color="gray">
@@ -184,9 +235,12 @@ export const Home = (): JSX.Element => {
         </Card>
 
         {refreshing && (
-          <Text size="1" color="gray" align="center">
-            Refreshing...
-          </Text>
+          <Flex justify="center" gap="2" align="center">
+            <RefreshCw size={14} className={styles.spinning} />
+            <Text size="1" color="gray">
+              Refreshing...
+            </Text>
+          </Flex>
         )}
       </Flex>
     </Box>

@@ -3,8 +3,9 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Category
+from database.models import Category, User
 from database.session import get_db
+from routers.auth import get_current_user
 from services.ai.ai_service import AIService
 from services.transaction_service import parse_transaction
 
@@ -31,6 +32,7 @@ class CategorizeResponse(BaseModel):
 @router.post("/categorize", response_model=CategorizeResponse)
 async def categorize_transaction(
     request: CategorizeRequest,
+    _current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     ai_result = await ai_service.parse(request.description)
@@ -70,7 +72,10 @@ async def categorize_transaction(
 
 
 @router.get("/categories")
-async def get_available_categories(db: AsyncSession = Depends(get_db)):
+async def get_available_categories(
+    _current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     system_cats = await db.execute(
         select(Category).where(Category.is_system.is_(True)).order_by(Category.name)
     )

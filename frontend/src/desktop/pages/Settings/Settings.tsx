@@ -26,6 +26,7 @@ import {
   PiggyBank,
   CreditCard,
   TrendingUp,
+  DollarSign,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
@@ -58,18 +59,35 @@ interface AccountForm {
 const defaultForm: AccountForm = { name: '', type: 'checking', currency: 'USD' }
 
 export const Settings = (): JSX.Element => {
-  const { user, logout, accounts, fetchAccounts, createAccount, updateAccount, deleteAccount } =
-    useBoundStore(
-      useShallow((s) => ({
-        user: s.auth.user,
-        logout: s.logout,
-        accounts: s.accounts.items,
-        fetchAccounts: s.fetchAccounts,
-        createAccount: s.createAccount,
-        updateAccount: s.updateAccount,
-        deleteAccount: s.deleteAccount,
-      })),
-    )
+  const {
+    user,
+    logout,
+    accounts,
+    fetchAccounts,
+    createAccount,
+    updateAccount,
+    deleteAccount,
+    budgets,
+    fetchBudgets,
+    createBudget,
+    updateBudget,
+    deleteBudget,
+  } = useBoundStore(
+    useShallow((s) => ({
+      user: s.auth.user,
+      logout: s.logout,
+      accounts: s.accounts.items,
+      fetchAccounts: s.fetchAccounts,
+      createAccount: s.createAccount,
+      updateAccount: s.updateAccount,
+      deleteAccount: s.deleteAccount,
+      budgets: s.budgets.items,
+      fetchBudgets: s.fetchBudgets,
+      createBudget: s.createBudget,
+      updateBudget: s.updateBudget,
+      deleteBudget: s.deleteBudget,
+    })),
+  )
   const { dark, toggle } = useAppTheme()
   const navigate = useNavigate()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -77,9 +95,19 @@ export const Settings = (): JSX.Element => {
   const [form, setForm] = useState<AccountForm>(defaultForm)
   const [saving, setSaving] = useState(false)
 
+  const [budgetDialogOpen, setBudgetDialogOpen] = useState(false)
+  const [budgetId, setBudgetId] = useState<number | null>(null)
+  const [budgetName, setBudgetName] = useState('')
+  const [budgetAmount, setBudgetAmount] = useState('')
+  const [budgetPeriod, setBudgetPeriod] = useState('monthly')
+  const [budgetSaving, setBudgetSaving] = useState(false)
+  const [budgetDeleteId, setBudgetDeleteId] = useState<number | null>(null)
+  const [budgetDeleting, setBudgetDeleting] = useState(false)
+
   useEffect(() => {
     fetchAccounts()
-  }, [fetchAccounts])
+    fetchBudgets()
+  }, [fetchAccounts, fetchBudgets])
 
   const handleLogout = async () => {
     await logout()
@@ -121,6 +149,69 @@ export const Settings = (): JSX.Element => {
     if (!window.confirm(`Delete account "${name}"? This cannot be undone.`)) return
     deleteAccount(id)
     toast.success('Account deleted')
+  }
+
+  const openBudgetCreate = () => {
+    setBudgetId(null)
+    setBudgetName('')
+    setBudgetAmount('')
+    setBudgetPeriod('monthly')
+    setBudgetDialogOpen(true)
+  }
+
+  const openBudgetEdit = (budget: (typeof budgets)[0]) => {
+    setBudgetId(budget.id)
+    setBudgetName(budget.name)
+    setBudgetAmount(String(budget.amount))
+    setBudgetPeriod(budget.period)
+    setBudgetDialogOpen(true)
+  }
+
+  const handleBudgetSave = async () => {
+    if (!budgetName.trim() || !budgetAmount) return
+    setBudgetSaving(true)
+    try {
+      if (budgetId) {
+        await updateBudget(budgetId, {
+          name: budgetName.trim(),
+          amount: parseFloat(budgetAmount),
+          period: budgetPeriod,
+        })
+        toast.success('Budget updated')
+      } else {
+        await createBudget({
+          name: budgetName.trim(),
+          amount: parseFloat(budgetAmount),
+          period: budgetPeriod,
+        })
+        toast.success('Budget created')
+      }
+      setBudgetDialogOpen(false)
+    } catch {
+      toast.error('Failed to save budget')
+    } finally {
+      setBudgetSaving(false)
+    }
+  }
+
+  const handleBudgetDelete = async () => {
+    if (budgetDeleteId === null) return
+    setBudgetDeleting(true)
+    try {
+      await deleteBudget(budgetDeleteId)
+      toast.success('Budget deleted')
+      setBudgetDeleteId(null)
+    } catch {
+      toast.error('Failed to delete budget')
+    } finally {
+      setBudgetDeleting(false)
+    }
+  }
+
+  const budgetPeriodLabel: Record<string, string> = {
+    monthly: 'Monthly',
+    weekly: 'Weekly',
+    yearly: 'Yearly',
   }
 
   return (
@@ -211,6 +302,63 @@ export const Settings = (): JSX.Element => {
       </Box>
 
       <Box className={styles.section}>
+        <Flex align="center" justify="between" mb="2">
+          <Text size="2" weight="bold" color="gray" className={styles.sectionTitle}>
+            Budgets
+          </Text>
+          <Button size="1" variant="soft" onClick={openBudgetCreate}>
+            <Plus size={14} /> Add
+          </Button>
+        </Flex>
+        {budgets.length === 0 ? (
+          <Text color="gray" size="2">
+            No budgets yet
+          </Text>
+        ) : (
+          <Card className={styles.card}>
+            {budgets.map((budget) => {
+              const pct = budget.amount > 0 ? Math.round((budget.spent / budget.amount) * 100) : 0
+              return (
+                <Box key={budget.id} className={styles.row}>
+                  <Flex className={styles.labelGroup}>
+                    <DollarSign size={18} />
+                    <Box className={styles.labelText}>
+                      <Flex align="center" gap="2">
+                        <Text size="2">{budget.name}</Text>
+                      </Flex>
+                      <Text size="1" color="gray">
+                        {budgetPeriodLabel[budget.period] || budget.period} &middot; $
+                        {budget.spent.toFixed(0)} / ${budget.amount.toFixed(0)} ({pct}%)
+                      </Text>
+                    </Box>
+                  </Flex>
+                  <Flex gap="1">
+                    <IconButton
+                      variant="ghost"
+                      size="1"
+                      onClick={() => openBudgetEdit(budget)}
+                      aria-label="Edit"
+                    >
+                      <Pencil size={14} />
+                    </IconButton>
+                    <IconButton
+                      variant="ghost"
+                      size="1"
+                      color="red"
+                      onClick={() => setBudgetDeleteId(budget.id)}
+                      aria-label="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </IconButton>
+                  </Flex>
+                </Box>
+              )
+            })}
+          </Card>
+        )}
+      </Box>
+
+      <Box className={styles.section}>
         <Text size="2" weight="bold" color="gray" className={styles.sectionTitle}>
           Appearance
         </Text>
@@ -276,6 +424,67 @@ export const Settings = (): JSX.Element => {
                 {editingId ? 'Save' : 'Create'}
               </Button>
             </Flex>
+          </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
+
+      {/* Budget Create/Edit Dialog */}
+      <Dialog.Root open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
+        <Dialog.Content aria-describedby={undefined}>
+          <Dialog.Title>{budgetId ? 'Edit Budget' : 'Add Budget'}</Dialog.Title>
+          <Flex direction="column" gap="3" mt="3">
+            <TextField.Root
+              placeholder="Budget name"
+              value={budgetName}
+              onChange={(e) => setBudgetName(e.target.value)}
+            />
+            <TextField.Root
+              type="number"
+              placeholder="Amount"
+              value={budgetAmount}
+              onChange={(e) => setBudgetAmount(e.target.value)}
+            >
+              <TextField.Slot side="left">$</TextField.Slot>
+            </TextField.Root>
+            <Select.Root value={budgetPeriod} onValueChange={setBudgetPeriod}>
+              <Select.Trigger />
+              <Select.Content>
+                <Select.Item value="monthly">Monthly</Select.Item>
+                <Select.Item value="weekly">Weekly</Select.Item>
+                <Select.Item value="yearly">Yearly</Select.Item>
+              </Select.Content>
+            </Select.Root>
+            <Flex gap="2" justify="end">
+              <Button variant="soft" onClick={() => setBudgetDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleBudgetSave} loading={budgetSaving}>
+                {budgetId ? 'Save' : 'Create'}
+              </Button>
+            </Flex>
+          </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
+
+      {/* Budget Delete Confirmation */}
+      <Dialog.Root
+        open={budgetDeleteId !== null}
+        onOpenChange={(o) => {
+          if (!o) setBudgetDeleteId(null)
+        }}
+      >
+        <Dialog.Content aria-describedby={undefined} style={{ maxWidth: 380 }}>
+          <Dialog.Title>Delete Budget</Dialog.Title>
+          <Text size="2" mt="2">
+            Are you sure you want to delete this budget? This action cannot be undone.
+          </Text>
+          <Flex gap="3" mt="4" justify="end">
+            <Button variant="soft" color="gray" onClick={() => setBudgetDeleteId(null)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={handleBudgetDelete} disabled={budgetDeleting}>
+              {budgetDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
           </Flex>
         </Dialog.Content>
       </Dialog.Root>

@@ -47,3 +47,15 @@
   padding: var(--space-1) 0;
   border-bottom: 1px solid var(--gray-4);
 }
+
+.colorSwatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.colorSwatch:hover {
+  transform: scale(1.15);
+}

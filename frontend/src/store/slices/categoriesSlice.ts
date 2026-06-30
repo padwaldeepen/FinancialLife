@@ -48,6 +48,16 @@ export type CategoriesSlice = {
   }
   fetchCategories: () => Promise<void>
   fetchSpendingByCategory: (days?: number) => Promise<void>
+  createCategory: (data: {
+    name: string
+    color?: string
+    parent_id?: number | null
+  }) => Promise<void>
+  updateCategory: (
+    id: number,
+    data: { name?: string; color?: string; parent_id?: number | null },
+  ) => Promise<void>
+  deleteCategory: (id: number) => Promise<void>
 }
 
 export const createCategoriesSlice = namespaceSlice('categories', (set) => ({
@@ -76,5 +86,35 @@ export const createCategoriesSlice = namespaceSlice('categories', (set) => ({
     } finally {
       set({ spendingLoading: false })
     }
+  },
+
+  createCategory: async (data: { name: string; color?: string; parent_id?: number | null }) => {
+    await api.post('/api/categories/', data)
+    const refetch = await api.get('/api/categories/')
+    set({
+      tree: refetch.data as CategoryNode[],
+      flat: flattenCategories(refetch.data as CategoryNode[]),
+    })
+  },
+
+  updateCategory: async (
+    id: number,
+    data: { name?: string; color?: string; parent_id?: number | null },
+  ) => {
+    await api.put(`/api/categories/${id}`, data)
+    const refetch = await api.get('/api/categories/')
+    set({
+      tree: refetch.data as CategoryNode[],
+      flat: flattenCategories(refetch.data as CategoryNode[]),
+    })
+  },
+
+  deleteCategory: async (id: number) => {
+    await api.delete(`/api/categories/${id}`)
+    const refetch = await api.get('/api/categories/')
+    set({
+      tree: refetch.data as CategoryNode[],
+      flat: flattenCategories(refetch.data as CategoryNode[]),
+    })
   },
 }))

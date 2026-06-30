@@ -15,11 +15,11 @@ COPY --link requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt
 
-RUN useradd -m -u 1000 appuser
+RUN groupadd -g 1000 appuser && useradd -m -u 1000 -g appuser appuser
 
-COPY --link --chown=appuser:appuser . .
+COPY --chown=appuser:appuser . .
+
+USER appuser
 
 EXPOSE 8080
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
-
-USER appuser 
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"] 

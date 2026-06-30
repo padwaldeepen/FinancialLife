@@ -7,6 +7,7 @@ import type { BillsSlice } from './slices/billsSlice.ts'
 import type { MerchantsSlice } from './slices/merchantsSlice.ts'
 import type { CategoriesSlice } from './slices/categoriesSlice.ts'
 import type { ReportsSlice } from './slices/reportsSlice.ts'
+import type { BudgetsSlice } from './slices/budgetsSlice.ts'
 
 export type StoreState = AuthSlice &
   UISlice &
@@ -16,4 +17,5 @@ export type StoreState = AuthSlice &
   BillsSlice &
   MerchantsSlice &
   CategoriesSlice &
-  ReportsSlice
+  ReportsSlice &
+  BudgetsSlice

@@ -251,9 +251,12 @@ export const Merchants = (): JSX.Element => {
                       />
                     </Box>
                   ) : (
-                      <Text color="gray" style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}>
-                        No spending data
-                      </Text>
+                    <Text
+                      color="gray"
+                      style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
+                    >
+                      No spending data
+                    </Text>
                   )}
                 </Tabs.Content>
 
@@ -280,9 +283,12 @@ export const Merchants = (): JSX.Element => {
                       ))}
                     </Flex>
                   ) : (
-                      <Text color="gray" style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}>
-                        No category data
-                      </Text>
+                    <Text
+                      color="gray"
+                      style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
+                    >
+                      No category data
+                    </Text>
                   )}
                 </Tabs.Content>
 
@@ -309,9 +315,12 @@ export const Merchants = (): JSX.Element => {
                       ))}
                     </Flex>
                   ) : (
-                      <Text color="gray" style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}>
-                        No transactions
-                      </Text>
+                    <Text
+                      color="gray"
+                      style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
+                    >
+                      No transactions
+                    </Text>
                   )}
                 </Tabs.Content>
               </Tabs.Root>

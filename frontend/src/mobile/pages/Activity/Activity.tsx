@@ -10,7 +10,7 @@ import {
   Dialog,
   Button,
 } from '@radix-ui/themes'
-import { Search, Trash2, Pencil, X } from 'lucide-react'
+import { Search, Trash2, Pencil, X, Calendar } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
@@ -91,6 +91,8 @@ export const Activity = (): JSX.Element => {
   const [showFilters, setShowFilters] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState('')
   const [merchantFilter, setMerchantFilter] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const sentinelRef = useRef<HTMLDivElement>(null)
   const touchStartX = useRef(0)
 
@@ -99,15 +101,30 @@ export const Activity = (): JSX.Element => {
   }, [fetchTxFilters])
 
   useEffect(() => {
-    fetchTransactions({ reset: true, search, typeFilter, categoryFilter, merchantFilter })
-  }, [fetchTransactions, search, typeFilter, categoryFilter, merchantFilter])
+    fetchTransactions({
+      reset: true,
+      search,
+      typeFilter,
+      categoryFilter,
+      merchantFilter,
+      startDate,
+      endDate,
+    })
+  }, [fetchTransactions, search, typeFilter, categoryFilter, merchantFilter, startDate, endDate])
 
   useEffect(() => {
     if (!sentinelRef.current || !hasMore || loading || loadingMore) return
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && hasMore && !loadingMore) {
-          fetchTransactions({ search, typeFilter, categoryFilter, merchantFilter })
+          fetchTransactions({
+            search,
+            typeFilter,
+            categoryFilter,
+            merchantFilter,
+            startDate,
+            endDate,
+          })
         }
       },
       { threshold: 0.1 },
@@ -123,6 +140,8 @@ export const Activity = (): JSX.Element => {
     typeFilter,
     categoryFilter,
     merchantFilter,
+    startDate,
+    endDate,
   ])
 
   const handleDelete = async (id: number) => {
@@ -241,6 +260,25 @@ export const Activity = (): JSX.Element => {
               ))}
             </Select.Content>
           </Select.Root>
+
+          <Flex gap="2" align="center">
+            <Calendar size={14} />
+            <TextField.Root
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <Text size="1" color="gray">
+              to
+            </Text>
+            <TextField.Root
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              style={{ flex: 1 }}
+            />
+          </Flex>
         </Flex>
       )}
 

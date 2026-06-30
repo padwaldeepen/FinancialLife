@@ -196,8 +196,9 @@ async def login(
     if not user.is_active:
         log.warning("Login failed — inactive user: %s", user_credentials.email)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     log.info("Login successful — user_id=%d email=%s", user.id, user.email)

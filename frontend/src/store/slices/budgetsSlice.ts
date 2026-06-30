@@ -1,7 +1,7 @@
 import { namespaceSlice } from '../namespaceSlice.ts'
 import api from '../../auth/api.ts'
 
-interface Budget {
+export interface Budget {
   id: number
   name: string
   amount: number
@@ -19,7 +19,22 @@ export type BudgetsSlice = {
     loading: boolean
   }
   fetchBudgets: () => Promise<void>
-  createBudget: (data: { name: string; amount: number; period: string }) => Promise<void>
+  createBudget: (data: {
+    name: string
+    amount: number
+    period: string
+    category_id?: number | null
+  }) => Promise<void>
+  updateBudget: (
+    id: number,
+    data: {
+      name?: string
+      amount?: number
+      period?: string
+      category_id?: number | null
+      is_active?: boolean
+    },
+  ) => Promise<void>
   deleteBudget: (id: number) => Promise<void>
 }
 
@@ -37,8 +52,28 @@ export const createBudgetsSlice = namespaceSlice('budgets', (set, get) => ({
     }
   },
 
-  createBudget: async (data: { name: string; amount: number; period: string }) => {
+  createBudget: async (data: {
+    name: string
+    amount: number
+    period: string
+    category_id?: number | null
+  }) => {
     await api.post('/api/budgets/', data)
+    const res = await api.get('/api/budgets/')
+    set({ items: res.data })
+  },
+
+  updateBudget: async (
+    id: number,
+    data: {
+      name?: string
+      amount?: number
+      period?: string
+      category_id?: number | null
+      is_active?: boolean
+    },
+  ) => {
+    await api.put(`/api/budgets/${id}`, data)
     const res = await api.get('/api/budgets/')
     set({ items: res.data })
   },

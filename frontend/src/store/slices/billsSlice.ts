@@ -41,11 +41,11 @@ export type BillsSlice = {
     items: Bill[]
     upcoming: UpcomingBill[]
     loading: boolean
-  }
-  billHistory: {
-    transactions: any[]
-    monthly_spending: any[]
-    loading: boolean
+    billHistory: {
+      transactions: any[]
+      monthly_spending: any[]
+      loading: boolean
+    }
   }
   fetchBills: () => Promise<void>
   fetchUpcomingBills: (days?: number) => Promise<void>

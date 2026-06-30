@@ -24,6 +24,7 @@ interface UpcomingBill {
   next_due: string
   days_until: number
   is_variable: boolean
+  has_paid: boolean
   category_name: string | null
 }
 

@@ -1,6 +1,5 @@
 import { type JSX } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { Heading, Text, Flex } from '@radix-ui/themes'
 import { ProtectedRoute } from '../shared/components/ProtectedRoute/ProtectedRoute.tsx'
 import { DesktopLayout } from './layouts/DesktopLayout.tsx'
 import { Login } from './pages/Login/Login.tsx'
@@ -12,13 +11,7 @@ import { Goals } from './pages/Goals/Goals.tsx'
 import { Reports } from './pages/Reports/Reports.tsx'
 import { Bills } from './pages/Bills/Bills.tsx'
 import { Merchants } from './pages/Merchants/Merchants.tsx'
-
-const PlaceholderPage = ({ title }: { title: string }) => (
-  <Flex direction="column" gap="4">
-    <Heading size="6">{title}</Heading>
-    <Text color="gray">This page will be implemented in a later phase.</Text>
-  </Flex>
-)
+import { Settings } from './pages/Settings/Settings.tsx'
 
 export const DesktopApp = (): JSX.Element => {
   return (
@@ -86,7 +79,7 @@ export const DesktopApp = (): JSX.Element => {
           path="/settings"
           element={
             <ProtectedRoute>
-              <PlaceholderPage title="Settings" />
+              <Settings />
             </ProtectedRoute>
           }
         />

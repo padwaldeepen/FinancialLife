@@ -227,7 +227,7 @@ export const Merchants = (): JSX.Element => {
                   <Tabs.Trigger value="history">History</Tabs.Trigger>
                 </Tabs.List>
 
-                <Tabs.Content value="spending" pt="3">
+                <Tabs.Content value="spending" style={{ paddingTop: 'var(--space-3)' }}>
                   {detail.monthly_spending.length > 0 ? (
                     <Box style={{ height: 200 }}>
                       <ResponsiveBar
@@ -251,13 +251,13 @@ export const Merchants = (): JSX.Element => {
                       />
                     </Box>
                   ) : (
-                    <Text color="gray" py="4">
-                      No spending data
-                    </Text>
+                      <Text color="gray" style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}>
+                        No spending data
+                      </Text>
                   )}
                 </Tabs.Content>
 
-                <Tabs.Content value="categories" pt="3">
+                <Tabs.Content value="categories" style={{ paddingTop: 'var(--space-3)' }}>
                   {detail.category_breakdown.length > 0 ? (
                     <Flex direction="column" gap="2">
                       {detail.category_breakdown.map((c) => (
@@ -280,13 +280,13 @@ export const Merchants = (): JSX.Element => {
                       ))}
                     </Flex>
                   ) : (
-                    <Text color="gray" py="4">
-                      No category data
-                    </Text>
+                      <Text color="gray" style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}>
+                        No category data
+                      </Text>
                   )}
                 </Tabs.Content>
 
-                <Tabs.Content value="history" pt="3">
+                <Tabs.Content value="history" style={{ paddingTop: 'var(--space-3)' }}>
                   {detail.recent_transactions.length > 0 ? (
                     <Flex direction="column" gap="1">
                       {detail.recent_transactions.map((tx) => (
@@ -309,9 +309,9 @@ export const Merchants = (): JSX.Element => {
                       ))}
                     </Flex>
                   ) : (
-                    <Text color="gray" py="4">
-                      No transactions
-                    </Text>
+                      <Text color="gray" style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}>
+                        No transactions
+                      </Text>
                   )}
                 </Tabs.Content>
               </Tabs.Root>

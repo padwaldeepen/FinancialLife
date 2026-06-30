@@ -13,51 +13,35 @@ import {
 } from '@radix-ui/themes'
 import { Plus, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import api from '../../../auth/api.ts'
+import { useShallow } from 'zustand/react/shallow'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Budgets.module.css'
 
-interface Budget {
-  id: number
-  name: string
-  amount: number
-  period: string
-  category_id: number | null
-  category_name: string | null
-  category_color: string | null
-  spent: number
-  is_active: boolean
-}
-
 export const Budgets = (): JSX.Element => {
-  const [budgets, setBudgets] = useState<Budget[]>([])
-  const [loading, setLoading] = useState(true)
+  const { budgets, loading, fetchBudgets, createBudget, deleteBudget } = useBoundStore(
+    useShallow((s) => ({
+      budgets: s.budgets.items,
+      loading: s.budgets.loading,
+      fetchBudgets: s.fetchBudgets,
+      createBudget: s.createBudget,
+      deleteBudget: s.deleteBudget,
+    })),
+  )
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [budgetAmount, setBudgetAmount] = useState('')
   const [period, setPeriod] = useState('monthly')
   const [saving, setSaving] = useState(false)
 
-  const fetchBudgets = async () => {
-    setLoading(true)
-    try {
-      const response = await api.get('/api/budgets/')
-      setBudgets(response.data)
-    } catch {
-      toast.error('Failed to load budgets')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
     fetchBudgets()
-  }, [])
+  }, [fetchBudgets])
 
   const handleCreate = async () => {
     if (!name.trim() || !budgetAmount) return
     setSaving(true)
     try {
-      await api.post('/api/budgets/', {
+      await createBudget({
         name: name.trim(),
         amount: parseFloat(budgetAmount),
         period,
@@ -67,7 +51,6 @@ export const Budgets = (): JSX.Element => {
       setName('')
       setBudgetAmount('')
       setPeriod('monthly')
-      fetchBudgets()
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to create budget')
     } finally {
@@ -77,15 +60,14 @@ export const Budgets = (): JSX.Element => {
 
   const handleDelete = async (id: number) => {
     try {
-      await api.delete(`/api/budgets/${id}`)
-      setBudgets((prev) => prev.filter((b) => b.id !== id))
+      await deleteBudget(id)
       toast.success('Budget deleted')
     } catch {
       toast.error('Failed to delete budget')
     }
   }
 
-  const progress = (budget: Budget) => {
+  const progress = (budget: (typeof budgets)[0]) => {
     if (budget.amount === 0) return 0
     return Math.min((budget.spent / budget.amount) * 100, 100)
   }

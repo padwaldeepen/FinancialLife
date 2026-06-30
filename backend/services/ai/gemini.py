@@ -46,7 +46,7 @@ class GeminiService(BaseAIService):
                         "contents": [{"parts": [{"text": f"{SYSTEM_PROMPT}\n\nText: {text}"}]}],
                         "generationConfig": {
                             "temperature": 0.1,
-                            "maxOutputTokens": 200,
+                            "maxOutputTokens": 800,
                         },
                     },
                 )

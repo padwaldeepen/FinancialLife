@@ -1,0 +1,194 @@
+from datetime import date, timedelta
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
+from core.logging import get_logger
+from database.models import Bill
+
+log = get_logger(__name__)
+
+
+async def get_bills(user_id: int, db: AsyncSession) -> list[Bill]:
+    result = await db.execute(
+        select(Bill)
+        .options(joinedload(Bill.category), joinedload(Bill.account), joinedload(Bill.merchant))
+        .where(Bill.user_id == user_id, Bill.is_active)
+        .order_by(Bill.due_day, Bill.name)
+    )
+    return result.unique().scalars().all()
+
+
+async def get_bill(bill_id: int, user_id: int, db: AsyncSession) -> Bill | None:
+    result = await db.execute(
+        select(Bill)
+        .options(joinedload(Bill.category), joinedload(Bill.account), joinedload(Bill.merchant))
+        .where(Bill.id == bill_id, Bill.user_id == user_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def create_bill(
+    db: AsyncSession,
+    user_id: int,
+    name: str,
+    amount: float,
+    frequency: str,
+    due_day: int,
+    account_id: int,
+    category_id: int | None = None,
+    merchant_id: int | None = None,
+    amount_estimated: float | None = None,
+    is_variable: bool = False,
+    notes: str | None = None,
+) -> Bill:
+    bill = Bill(
+        user_id=user_id,
+        name=name,
+        amount=amount,
+        amount_estimated=amount_estimated,
+        frequency=frequency,
+        due_day=due_day,
+        category_id=category_id,
+        merchant_id=merchant_id,
+        account_id=account_id,
+        is_active=True,
+        is_variable=is_variable,
+        notes=notes,
+    )
+    db.add(bill)
+    await db.flush()
+    await db.refresh(bill)
+    result = await db.execute(
+        select(Bill)
+        .options(joinedload(Bill.category), joinedload(Bill.account), joinedload(Bill.merchant))
+        .where(Bill.id == bill.id)
+    )
+    return result.unique().scalar_one()
+
+
+async def update_bill(bill_id: int, user_id: int, data: dict, db: AsyncSession) -> Bill | None:
+    bill = await get_bill(bill_id, user_id, db)
+    if not bill:
+        return None
+    for field, value in data.items():
+        setattr(bill, field, value)
+    await db.flush()
+    result = await db.execute(
+        select(Bill)
+        .options(joinedload(Bill.category), joinedload(Bill.account), joinedload(Bill.merchant))
+        .where(Bill.id == bill.id)
+    )
+    return result.unique().scalar_one_or_none()
+
+
+async def delete_bill(bill_id: int, user_id: int, db: AsyncSession) -> bool:
+    bill = await get_bill(bill_id, user_id, db)
+    if not bill:
+        return False
+    await db.delete(bill)
+    await db.flush()
+    return True
+
+
+def _next_due_date(due_day: int, frequency: str) -> date:
+    """Calculate the next due date based on frequency and due_day."""
+    today = date.today()
+    current_year = today.year
+    current_month = today.month
+
+    if frequency == "monthly":
+        try:
+            next_due = date(current_year, current_month, due_day)
+        except ValueError:
+            next_due = date(current_year, current_month + 1, 1) - timedelta(days=1)
+        if next_due <= today:
+            next_month = current_month + 1
+            next_year = current_year
+            if next_month > 12:
+                next_month = 1
+                next_year += 1
+            try:
+                next_due = date(next_year, next_month, due_day)
+            except ValueError:
+                next_due = date(next_year, next_month + 1, 1) - timedelta(days=1)
+        return next_due
+
+    if frequency == "weekly":
+        days_ahead = due_day - today.weekday()
+        if days_ahead <= 0:
+            days_ahead += 7
+        return today + timedelta(days=days_ahead)
+
+    if frequency == "biweekly":
+        days_ahead = due_day - (today.weekday() % 14)
+        if days_ahead <= 0:
+            days_ahead += 14
+        return today + timedelta(days=days_ahead)
+
+    if frequency == "quarterly":
+        quarter_month = ((current_month - 1) // 3) * 3 + 1
+        try:
+            next_due = date(current_year, quarter_month, due_day)
+        except ValueError:
+            next_due = date(current_year, quarter_month + 1, 1) - timedelta(days=1)
+        if next_due <= today:
+            quarter_month += 3
+            if quarter_month > 12:
+                quarter_month = 1
+                current_year += 1
+            try:
+                next_due = date(current_year, quarter_month, due_day)
+            except ValueError:
+                next_due = date(current_year, quarter_month + 1, 1) - timedelta(days=1)
+        return next_due
+
+    if frequency == "yearly":
+        try:
+            next_due = date(current_year, 1, due_day)
+        except ValueError:
+            next_due = date(current_year, 2, 1) - timedelta(days=1)
+        if next_due <= today:
+            next_year = current_year + 1
+            try:
+                next_due = date(next_year, 1, due_day)
+            except ValueError:
+                next_due = date(next_year, 2, 1) - timedelta(days=1)
+        return next_due
+
+    return today + timedelta(days=30)
+
+
+def compute_upcoming(bills: list[Bill], days: int = 7) -> list[dict]:
+    """Compute upcoming bills within the next N days."""
+    today = date.today()
+    cutoff = today + timedelta(days=days)
+    upcoming: list[dict] = []
+
+    for bill in bills:
+        next_due = _next_due_date(bill.due_day, bill.frequency)
+        if today <= next_due <= cutoff:
+            category_name = bill.category.name if bill.category else None
+            account_name = bill.account.name if bill.account else None
+            merchant_name = bill.merchant.name if bill.merchant else None
+
+            upcoming.append(
+                {
+                    "id": bill.id,
+                    "name": bill.name,
+                    "amount": bill.amount,
+                    "amount_estimated": bill.amount_estimated,
+                    "frequency": bill.frequency,
+                    "due_day": bill.due_day,
+                    "next_due": next_due.isoformat(),
+                    "days_until": (next_due - today).days,
+                    "category_name": category_name,
+                    "account_name": account_name,
+                    "merchant_name": merchant_name,
+                    "is_variable": bill.is_variable,
+                }
+            )
+
+    upcoming.sort(key=lambda b: b["days_until"])
+    return upcoming

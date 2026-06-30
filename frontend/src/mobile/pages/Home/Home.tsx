@@ -2,18 +2,9 @@ import { useState, useEffect, useRef, type JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Box, Flex, Heading, Text, Card } from '@radix-ui/themes'
 import { Wallet, PiggyBank, CreditCard, TrendingUp, RefreshCw } from 'lucide-react'
-import toast from 'react-hot-toast'
-import api from '../../../auth/api.ts'
+import { useShallow } from 'zustand/react/shallow'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Home.module.css'
-
-interface Account {
-  id: number
-  name: string
-  type: string
-  currency: string
-  balance: number
-  is_active: boolean
-}
 
 interface Transaction {
   id: number
@@ -23,6 +14,17 @@ interface Transaction {
   category_name: string | null
   category_color: string | null
   date: string
+}
+
+interface UpcomingBill {
+  id: number
+  name: string
+  amount: number
+  frequency: string
+  next_due: string
+  days_until: number
+  is_variable: boolean
+  category_name: string | null
 }
 
 const accountIcons: Record<string, JSX.Element> = {
@@ -45,36 +47,48 @@ const PULL_THRESHOLD = 80
 
 export const Home = (): JSX.Element => {
   const navigate = useNavigate()
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [recentTx, setRecentTx] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
+  const {
+    accounts,
+    accountsLoading,
+    fetchAccounts,
+    transactions,
+    txLoading,
+    fetchTransactions,
+    upcomingBills,
+    fetchUpcomingBills,
+  } = useBoundStore(
+    useShallow((s) => ({
+      accounts: s.accounts.items,
+      accountsLoading: s.accounts.loading,
+      fetchAccounts: s.fetchAccounts,
+      transactions: s.transactions.items,
+      txLoading: s.transactions.loading,
+      fetchTransactions: s.fetchTransactions,
+      upcomingBills: s.bills.upcoming as UpcomingBill[],
+      fetchUpcomingBills: s.fetchUpcomingBills,
+    })),
+  )
   const [refreshing, setRefreshing] = useState(false)
   const [pullDistance, setPullDistance] = useState(0)
   const touchStartY = useRef(0)
   const isPulling = useRef(false)
 
+  useEffect(() => {
+    fetchAccounts()
+    fetchTransactions({ reset: true })
+    fetchUpcomingBills()
+  }, [fetchAccounts, fetchTransactions, fetchUpcomingBills])
+
+  const loading = accountsLoading && txLoading
+
   const fetchData = async () => {
     setRefreshing(true)
-    try {
-      const [acctsRes, txRes] = await Promise.all([
-        api.get('/api/accounts/'),
-        api.get('/api/transactions/', {
-          params: { limit: 5, sort_by: 'date', sort_order: 'desc' },
-        }),
-      ])
-      setAccounts(acctsRes.data)
-      setRecentTx(txRes.data)
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to load home data')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
+    await Promise.all([fetchAccounts(), fetchTransactions({ reset: true })])
+    setRefreshing(false)
   }
 
-  useEffect(() => {
-    fetchData()
-  }, [])
+  const recentTx = transactions.slice(0, 5) as Transaction[]
+  const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0)
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (window.scrollY > 0) return
@@ -84,8 +98,7 @@ export const Home = (): JSX.Element => {
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isPulling.current || refreshing) return
-    const currentY = e.touches[0]!.clientY
-    const diff = currentY - touchStartY.current
+    const diff = e.touches[0]!.clientY - touchStartY.current
     if (diff > 0) {
       setPullDistance(Math.min(diff * 0.5, PULL_THRESHOLD * 1.5))
     }
@@ -101,14 +114,11 @@ export const Home = (): JSX.Element => {
     setPullDistance(0)
   }
 
-  const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0)
-
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr)
     const today = new Date()
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
-
     if (d.toDateString() === today.toDateString()) return 'Today'
     if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -223,15 +233,34 @@ export const Home = (): JSX.Element => {
           )}
         </Card>
 
-        <Card className={styles.placeholderCard}>
-          <Flex direction="column" gap="2" align="center" py="3">
-            <Text size="2" color="gray">
-              Upcoming Bills
+        <Card>
+          <Heading size="3" mb="2">
+            Upcoming Bills
+          </Heading>
+          {upcomingBills.length === 0 ? (
+            <Text color="gray" size="2">
+              No upcoming bills
             </Text>
-            <Text size="1" color="gray">
-              Coming in a later phase
-            </Text>
-          </Flex>
+          ) : (
+            <Flex direction="column" gap="2">
+              {upcomingBills.slice(0, 5).map((bill) => (
+                <Flex key={bill.id} align="center" justify="between" className={styles.billRow}>
+                  <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
+                    <Text size="2" weight="medium">
+                      {bill.name}
+                    </Text>
+                    <Text size="1" color="gray">
+                      {bill.days_until === 0 ? 'Due today' : `${bill.days_until}d`}
+                      {bill.is_variable && ' (est.)'}
+                    </Text>
+                  </Flex>
+                  <Text size="2" weight="bold">
+                    ${bill.amount.toFixed(2)}
+                  </Text>
+                </Flex>
+              ))}
+            </Flex>
+          )}
         </Card>
 
         {refreshing && (

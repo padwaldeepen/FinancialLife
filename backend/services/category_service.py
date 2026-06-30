@@ -64,17 +64,37 @@ SYSTEM_CATEGORIES: list[dict] = [
             {"name": "Insurance", "color": "#D1FAE5"},
         ],
     },
+    {
+        "name": "Bills & Utilities",
+        "color": "#6B7280",
+        "children": [
+            {"name": "Electric", "color": "#9CA3AF"},
+            {"name": "Water", "color": "#D1D5DB"},
+            {"name": "Internet", "color": "#E5E7EB"},
+            {"name": "Phone", "color": "#F3F4F6"},
+        ],
+    },
+    {
+        "name": "Income",
+        "color": "#059669",
+        "children": [
+            {"name": "Salary", "color": "#34D399"},
+            {"name": "Freelance", "color": "#6EE7B7"},
+            {"name": "Gift", "color": "#A7F3D0"},
+            {"name": "Refund", "color": "#D1FAE5"},
+        ],
+    },
 ]
 
 
 async def seed_system_categories(db: AsyncSession) -> None:
-    result = await db.execute(select(Category).where(Category.is_system.is_(True)))
-    existing = result.scalars().all()
-    if existing:
-        return
+    result = await db.execute(select(Category.name).where(Category.is_system.is_(True)))
+    existing = {row[0] for row in result.all()}
 
-    parent_ids: dict[str, int] = {}
     for group in SYSTEM_CATEGORIES:
+        if group["name"] in existing:
+            continue
+
         parent = Category(
             name=group["name"],
             color=group["color"],
@@ -83,7 +103,6 @@ async def seed_system_categories(db: AsyncSession) -> None:
         )
         db.add(parent)
         await db.flush()
-        parent_ids[group["name"]] = parent.id
 
         for child_data in group["children"]:
             child = Category(
@@ -163,3 +182,33 @@ async def get_system_categories(db: AsyncSession) -> list[Category]:
         .order_by(Category.name)
     )
     return result.scalars().all()
+
+
+async def get_category_descendants(category_id: int, user_id: int, db: AsyncSession) -> list[int]:
+    """Recursively get all descendant category IDs under the given category."""
+    ids: list[int] = [category_id]
+    result = await db.execute(
+        select(Category.id).where(
+            Category.parent_id == category_id,
+            (Category.user_id == user_id) | (Category.is_system.is_(True)),
+        )
+    )
+    child_ids = result.scalars().all()
+    for child_id in child_ids:
+        descendant_ids = await get_category_descendants(child_id, user_id, db)
+        ids.extend(descendant_ids)
+    return ids
+
+
+async def get_leaf_categories(user_id: int, db: AsyncSession) -> list[Category]:
+    """Get all categories that have no children (leaf nodes)."""
+    result = await db.execute(
+        select(Category)
+        .options(selectinload(Category.children))
+        .where(
+            (Category.user_id == user_id) | (Category.is_system.is_(True)),
+        )
+        .order_by(Category.name)
+    )
+    all_cats = result.scalars().all()
+    return [c for c in all_cats if not c.children]

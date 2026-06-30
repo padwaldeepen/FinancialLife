@@ -3,6 +3,12 @@ import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { createAuthSlice } from './slices/authSlice.ts'
 import { createUISlice } from './slices/uiSlice.ts'
+import { createAccountsSlice } from './slices/accountsSlice.ts'
+import { createTransactionsSlice } from './slices/transactionsSlice.ts'
+import { createBudgetsSlice } from './slices/budgetsSlice.ts'
+import { createBillsSlice } from './slices/billsSlice.ts'
+import { createMerchantsSlice } from './slices/merchantsSlice.ts'
+import { createCategoriesSlice } from './slices/categoriesSlice.ts'
 import type { StoreState } from './types.ts'
 
 export const useBoundStore = create<StoreState>()(
@@ -10,6 +16,12 @@ export const useBoundStore = create<StoreState>()(
     immer((...a) => ({
       ...(createAuthSlice(...a) as unknown as StoreState),
       ...(createUISlice(...a) as unknown as StoreState),
+      ...(createAccountsSlice(...a) as unknown as StoreState),
+      ...(createTransactionsSlice(...a) as unknown as StoreState),
+      ...(createBudgetsSlice(...a) as unknown as StoreState),
+      ...(createBillsSlice(...a) as unknown as StoreState),
+      ...(createMerchantsSlice(...a) as unknown as StoreState),
+      ...(createCategoriesSlice(...a) as unknown as StoreState),
     })),
     { name: 'My Financial Life' },
   ),

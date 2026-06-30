@@ -9,6 +9,7 @@ import { Activity } from './pages/Activity/Activity.tsx'
 import { Categories } from './pages/Categories/Categories.tsx'
 import { Home } from './pages/Home/Home.tsx'
 import { Budgets } from './pages/Budgets/Budgets.tsx'
+import { Bills } from './pages/Bills/Bills.tsx'
 import { Merchants } from './pages/Merchants/Merchants.tsx'
 
 const PlaceholderPage = ({ title }: { title: string }) => (
@@ -44,7 +45,7 @@ export const DesktopApp = (): JSX.Element => {
           path="/bills"
           element={
             <ProtectedRoute>
-              <PlaceholderPage title="Bills" />
+              <Bills />
             </ProtectedRoute>
           }
         />

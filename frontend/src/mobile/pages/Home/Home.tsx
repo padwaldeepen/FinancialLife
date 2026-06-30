@@ -25,6 +25,7 @@ interface UpcomingBill {
   days_until: number
   is_variable: boolean
   category_name: string | null
+  has_paid: boolean
 }
 
 const accountIcons: Record<string, JSX.Element> = {
@@ -250,12 +251,16 @@ export const Home = (): JSX.Element => {
                       {bill.name}
                     </Text>
                     <Text size="1" color="gray">
-                      {bill.days_until === 0 ? 'Due today' : `${bill.days_until}d`}
+                      {bill.has_paid
+                        ? 'Paid'
+                        : bill.days_until === 0
+                          ? 'Due today'
+                          : `${bill.days_until}d`}
                       {bill.is_variable && ' (est.)'}
                     </Text>
                   </Flex>
-                  <Text size="2" weight="bold">
-                    ${bill.amount.toFixed(2)}
+                  <Text size="2" weight="bold" color={bill.has_paid ? 'green' : undefined}>
+                    {bill.has_paid ? '✓ ' : ''}${bill.amount.toFixed(2)}
                   </Text>
                 </Flex>
               ))}

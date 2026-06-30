@@ -10,6 +10,7 @@ from database.models import Account, Category, Transaction, User
 from database.session import get_db
 from routers.auth import get_current_user
 from services.ai.ai_service import AIService
+from services.bill_service import auto_link_transaction, suggest_bill_match
 from services.merchant_service import extract_merchant_from_description, find_or_create_merchant
 from services.transaction_service import parse_transaction
 
@@ -131,11 +132,26 @@ async def create_transaction(
     )
 
     db.add(db_transaction)
-    await db.commit()
-    await db.refresh(db_transaction)
+    await db.flush()
 
     merchant = db_transaction.merchant
     account = db_transaction.account
+
+    if db_transaction.bill_id is None:
+        matched_bill = await suggest_bill_match(
+            current_user.id,
+            db_transaction.description,
+            db_transaction.amount,
+            db_transaction.date,
+            db_transaction.merchant_id,
+            db,
+        )
+        if matched_bill:
+            await auto_link_transaction(db_transaction.id, matched_bill.id, db, is_auto=True)
+            db_transaction.bill_id = matched_bill.id
+
+    await db.commit()
+    await db.refresh(db_transaction)
 
     return TransactionResponse(
         id=db_transaction.id,
@@ -626,6 +642,20 @@ async def quick_add_transaction(
     )
 
     db.add(transaction)
+    await db.flush()
+
+    matched_bill = await suggest_bill_match(
+        current_user.id,
+        transaction.description,
+        transaction.amount,
+        transaction.date,
+        transaction.merchant_id,
+        db,
+    )
+    if matched_bill:
+        await auto_link_transaction(transaction.id, matched_bill.id, db, is_auto=True)
+        transaction.bill_id = matched_bill.id
+
     await db.commit()
     await db.refresh(transaction)
 

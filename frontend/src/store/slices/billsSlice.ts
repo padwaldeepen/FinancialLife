@@ -14,6 +14,7 @@ interface UpcomingBill {
   account_name: string | null
   merchant_name: string | null
   is_variable: boolean
+  has_paid: boolean
 }
 
 interface Bill {
@@ -60,6 +61,18 @@ export type BillsSlice = {
     notes?: string | null
   }) => Promise<void>
   deleteBill: (id: number) => Promise<void>
+  suggestBillLink: (data: {
+    description: string
+    amount: number
+    date: string
+    merchant_id: number | null
+  }) => Promise<{
+    bill_id: number
+    bill_name: string
+    bill_amount: number
+    confidence: string
+  } | null>
+  linkTransactionToBill: (billId: number, transactionId: number) => Promise<void>
 }
 
 export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
@@ -122,5 +135,28 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
     await api.delete(`/api/bills/${id}`)
     const state = get()
     set({ items: state.items.filter((b: Bill) => b.id !== id) })
+  },
+
+  suggestBillLink: async (data: {
+    description: string
+    amount: number
+    date: string
+    merchant_id: number | null
+  }) => {
+    try {
+      const res = await api.post('/api/bills/suggest-link', data)
+      return res.data as {
+        bill_id: number
+        bill_name: string
+        bill_amount: number
+        confidence: string
+      } | null
+    } catch {
+      return null
+    }
+  },
+
+  linkTransactionToBill: async (billId: number, transactionId: number) => {
+    await api.post(`/api/bills/${billId}/link/${transactionId}`)
   },
 }))

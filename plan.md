@@ -369,18 +369,18 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Automatically detect when a transaction matches a bill.
 
 **Tasks:**
-- [ ] detect bill payments automatically
+- [x] detect bill payments automatically
   - match by: merchant_id + approximate amount + date proximity to due_day
   - match by: description containing bill name
-- [ ] suggest linking transactions to bills
+- [x] suggest linking transactions to bills
   - "Is this your Rent payment?" toast/question
   - yes/no prompt, not intrusive
-- [ ] allow manual linking (edit transaction → link to bill)
-- [ ] create TransactionBillLink table
+- [x] allow manual linking (edit transaction → link to bill)
+- [x] create TransactionBillLink table
   - id, transaction_id (FK), bill_id (FK), period_start, period_end, is_auto_linked
-- [ ] update Home upcoming bills to show linked payments as "Paid ✓"
-- [ ] update Bill detail to show linked transaction history
-- [ ] add Alembic migration
+- [x] update Home upcoming bills to show linked payments as "Paid ✓"
+- [x] update Bill detail to show linked transaction history
+- [x] add Alembic migration
 
 **Acceptance:** System detects bill payments. User can confirm linking. Bill history shows linked transactions.
 

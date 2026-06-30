@@ -1,11 +1,11 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from core.logging import get_logger
-from database.models import Bill, Transaction
+from database.models import Bill, Transaction, TransactionBillLink
 
 log = get_logger(__name__)
 
@@ -136,6 +136,66 @@ async def get_bill_history(bill_id: int, user_id: int, db: AsyncSession) -> list
     }
 
 
+async def suggest_bill_match(
+    user_id: int,
+    description: str,
+    amount: float,
+    date: datetime,
+    merchant_id: int | None,
+    db: AsyncSession,
+) -> Bill | None:
+    """Find a bill that likely matches this transaction."""
+    bills = await get_bills(user_id, db)
+    today = date.date()
+
+    for bill in bills:
+        if bill.merchant_id and bill.merchant_id == merchant_id:
+            next_due = _next_due_date(bill.due_day, bill.frequency)
+            days_diff = abs((next_due - today).days)
+            if days_diff <= 5:
+                amount_diff = abs(bill.amount - amount)
+                if amount_diff <= bill.amount * 0.2:
+                    return bill
+
+    for bill in bills:
+        desc_lower = description.lower()
+        bill_lower = bill.name.lower()
+        if bill_lower in desc_lower or desc_lower in bill_lower:
+            next_due = _next_due_date(bill.due_day, bill.frequency)
+            days_diff = abs((next_due - today).days)
+            if days_diff <= 7:
+                return bill
+
+    return None
+
+
+async def auto_link_transaction(
+    transaction_id: int,
+    bill_id: int,
+    db: AsyncSession,
+    is_auto: bool = True,
+) -> TransactionBillLink | None:
+    result = await db.execute(select(Bill).where(Bill.id == bill_id))
+    bill = result.scalar_one_or_none()
+    if not bill:
+        return None
+
+    next_due = _next_due_date(bill.due_day, bill.frequency)
+    period_start = next_due - timedelta(days=30)
+    period_end = next_due + timedelta(days=1)
+
+    link = TransactionBillLink(
+        transaction_id=transaction_id,
+        bill_id=bill_id,
+        period_start=datetime.combine(period_start, datetime.min.time()),
+        period_end=datetime.combine(period_end, datetime.min.time()),
+        is_auto_linked=is_auto,
+    )
+    db.add(link)
+    await db.flush()
+    return link
+
+
 def _next_due_date(due_day: int, frequency: str) -> date:
     """Calculate the next due date based on frequency and due_day."""
     today = date.today()
@@ -204,8 +264,10 @@ def _next_due_date(due_day: int, frequency: str) -> date:
     return today + timedelta(days=30)
 
 
-def compute_upcoming(bills: list[Bill], days: int = 7) -> list[dict]:
-    """Compute upcoming bills within the next N days."""
+def compute_upcoming(
+    bills: list[Bill], days: int = 7, db: AsyncSession | None = None
+) -> list[dict]:
+    """Compute upcoming bills within the next N days, checking for paid status."""
     today = date.today()
     cutoff = today + timedelta(days=days)
     upcoming: list[dict] = []
@@ -216,6 +278,19 @@ def compute_upcoming(bills: list[Bill], days: int = 7) -> list[dict]:
             category_name = bill.category.name if bill.category else None
             account_name = bill.account.name if bill.account else None
             merchant_name = bill.merchant.name if bill.merchant else None
+
+            has_paid = False
+            if db is not None:
+                paid_result = db.execute(
+                    select(TransactionBillLink).where(
+                        TransactionBillLink.bill_id == bill.id,
+                        TransactionBillLink.period_start
+                        <= datetime.combine(today, datetime.min.time()),
+                        TransactionBillLink.period_end
+                        >= datetime.combine(today, datetime.min.time()),
+                    )
+                ).scalar_one_or_none()
+                has_paid = paid_result is not None
 
             upcoming.append(
                 {
@@ -231,6 +306,7 @@ def compute_upcoming(bills: list[Bill], days: int = 7) -> list[dict]:
                     "account_name": account_name,
                     "merchant_name": merchant_name,
                     "is_variable": bill.is_variable,
+                    "has_paid": has_paid,
                 }
             )
 

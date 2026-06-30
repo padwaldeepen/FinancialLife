@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Account, Category, Merchant, User
+from database.models import Account, Category, Merchant, Transaction, TransactionBillLink, User
 from database.session import get_db
 from routers.auth import get_current_user
 from services import bill_service
@@ -75,6 +75,7 @@ class UpcomingBillResponse(BaseModel):
     account_name: str | None
     merchant_name: str | None
     is_variable: bool
+    has_paid: bool = False
 
 
 def _to_response(bill) -> BillResponse:
@@ -114,7 +115,7 @@ async def upcoming_bills(
     db: AsyncSession = Depends(get_db),
 ):
     bills = await bill_service.get_bills(current_user.id, db)
-    return bill_service.compute_upcoming(bills, days)
+    return bill_service.compute_upcoming(bills, days, db)
 
 
 @router.get("/{bill_id}", response_model=BillResponse)
@@ -229,3 +230,102 @@ async def bill_history(
     db: AsyncSession = Depends(get_db),
 ):
     return await bill_service.get_bill_history(bill_id, current_user.id, db)
+
+
+class LinkSuggestion(BaseModel):
+    bill_id: int
+    bill_name: str
+    bill_amount: float
+    confidence: str
+
+
+class SuggestLinkRequest(BaseModel):
+    description: str
+    amount: float
+    date: datetime
+    merchant_id: int | None = None
+
+
+@router.post("/suggest-link", response_model=LinkSuggestion | None)
+async def suggest_link(
+    request: SuggestLinkRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    bill = await bill_service.suggest_bill_match(
+        current_user.id,
+        request.description,
+        request.amount,
+        request.date,
+        request.merchant_id,
+        db,
+    )
+    if not bill:
+        return None
+    return LinkSuggestion(
+        bill_id=bill.id,
+        bill_name=bill.name,
+        bill_amount=bill.amount,
+        confidence="high",
+    )
+
+
+@router.post("/{bill_id}/link/{transaction_id}")
+async def link_transaction(
+    bill_id: int,
+    transaction_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.user_id == current_user.id,
+        )
+    )
+    tx = result.scalar_one_or_none()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    link = await bill_service.auto_link_transaction(
+        transaction_id,
+        bill_id,
+        db,
+        is_auto=False,
+    )
+    if not link:
+        raise HTTPException(status_code=404, detail="Bill not found")
+
+    tx.bill_id = bill_id
+    await db.commit()
+    return {"message": "Transaction linked to bill"}
+
+
+@router.delete("/{bill_id}/link/{transaction_id}")
+async def unlink_transaction(
+    bill_id: int,
+    transaction_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(TransactionBillLink).where(
+            TransactionBillLink.transaction_id == transaction_id,
+            TransactionBillLink.bill_id == bill_id,
+        )
+    )
+    link = result.scalar_one_or_none()
+    if link:
+        await db.delete(link)
+
+    result = await db.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.user_id == current_user.id,
+        )
+    )
+    tx = result.scalar_one_or_none()
+    if tx:
+        tx.bill_id = None
+    await db.commit()
+    return {"message": "Transaction unlinked from bill"}

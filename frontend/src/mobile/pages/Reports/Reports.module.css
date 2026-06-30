@@ -1,0 +1,29 @@
+.page {
+  min-height: 100dvh;
+  padding: var(--space-4);
+}
+
+.chartContainer {
+  height: 260px;
+}
+
+.incomeText {
+  color: var(--green-9);
+}
+
+.expenseText {
+  color: var(--red-9);
+}
+
+.catRow {
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--gray-4);
+  min-height: 44px;
+}
+
+.colorDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

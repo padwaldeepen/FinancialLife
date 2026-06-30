@@ -9,6 +9,7 @@ import { Activity } from './pages/Activity/Activity.tsx'
 import { Categories } from './pages/Categories/Categories.tsx'
 import { Home } from './pages/Home/Home.tsx'
 import { Goals } from './pages/Goals/Goals.tsx'
+import { Reports } from './pages/Reports/Reports.tsx'
 import { Bills } from './pages/Bills/Bills.tsx'
 import { Merchants } from './pages/Merchants/Merchants.tsx'
 
@@ -77,7 +78,7 @@ export const DesktopApp = (): JSX.Element => {
           path="/reports"
           element={
             <ProtectedRoute>
-              <PlaceholderPage title="Reports" />
+              <Reports />
             </ProtectedRoute>
           }
         />

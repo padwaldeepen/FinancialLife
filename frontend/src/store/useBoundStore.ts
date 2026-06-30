@@ -10,6 +10,7 @@ import { createBillsSlice } from './slices/billsSlice.ts'
 import { createMerchantsSlice } from './slices/merchantsSlice.ts'
 import { createCategoriesSlice } from './slices/categoriesSlice.ts'
 import { createReportsSlice } from './slices/reportsSlice.ts'
+import { createBudgetsSlice } from './slices/budgetsSlice.ts'
 import type { StoreState } from './types.ts'
 
 export const useBoundStore = create<StoreState>()(
@@ -24,6 +25,7 @@ export const useBoundStore = create<StoreState>()(
       ...(createMerchantsSlice(...a) as unknown as StoreState),
       ...(createCategoriesSlice(...a) as unknown as StoreState),
       ...(createReportsSlice(...a) as unknown as StoreState),
+      ...(createBudgetsSlice(...a) as unknown as StoreState),
     })),
     { name: 'My Financial Life' },
   ),

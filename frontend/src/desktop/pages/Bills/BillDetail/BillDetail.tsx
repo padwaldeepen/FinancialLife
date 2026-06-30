@@ -142,7 +142,10 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                   />
                 </Box>
               ) : (
-                <Text color="gray" style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}>
+                <Text
+                  color="gray"
+                  style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
+                >
                   No historical data for this bill
                 </Text>
               )}
@@ -169,7 +172,10 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                 ))}
               </Flex>
             ) : (
-              <Text color="gray" style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}>
+              <Text
+                color="gray"
+                style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
+              >
                 No payments linked to this bill yet
               </Text>
             )}

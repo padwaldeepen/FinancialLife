@@ -1,91 +1,238 @@
 .page {
   max-width: 1100px;
+  animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
 }
 
 .layout {
-  gap: var(--space-5);
+  gap: var(--space-6);
   align-items: flex-start;
 }
 
 .leftColumn {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
 .rightColumn {
-  width: 380px;
+  width: 400px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
+/* ---- Balance Hero Card ---- */
 .balanceCard {
   text-align: center;
-  padding: var(--space-5);
+  padding: var(--space-6) var(--space-5);
+  border-radius: var(--radius-section);
+  background: linear-gradient(135deg, var(--accent-9), var(--accent-10));
+  color: white;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+
+.balanceCard::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -30%;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.balanceLabel {
+  font-size: var(--font-size-2);
+  opacity: 0.85;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 .balanceAmount {
-  margin: var(--space-2) 0;
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: 48px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: white;
+}
+
+.balanceAccounts {
+  font-size: var(--font-size-1);
+  opacity: 0.7;
+}
+
+/* ---- Section Headers ---- */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.sectionTitle {
+  font-weight: 600;
+  color: var(--gray-12);
+}
+
+.seeAll {
+  font-size: var(--font-size-2);
+  color: var(--accent-9);
+  cursor: pointer;
+  font-weight: 500;
+  transition: color var(--duration-fast) var(--ease-out);
+  background: none;
+  border: none;
+}
+
+.seeAll:hover {
+  color: var(--accent-10);
+}
+
+/* ---- Account Cards ---- */
+.accountsList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .accountCard {
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
+  transition:
+    box-shadow var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
 }
 
 .accountCard:hover {
-  background-color: var(--gray-3);
+  box-shadow: var(--shadow-card-hover) !important;
+  transform: translateY(-1px);
 }
 
 .accountIcon {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--gray-3);
   border-radius: var(--radius-3);
+  flex-shrink: 0;
 }
 
-.seeAll {
-  cursor: pointer;
+.accountInfo {
+  flex: 1;
+  min-width: 0;
 }
 
-.seeAll:hover {
-  color: var(--accent-9);
+.accountName {
+  font-weight: 600;
+  font-size: var(--font-size-2);
 }
 
-.transactionRow {
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--gray-5);
-  cursor: pointer;
+.accountType {
+  font-size: var(--font-size-1);
+  color: var(--gray-11);
+  text-transform: capitalize;
 }
 
-.transactionRow:hover {
-  background-color: var(--gray-2);
-  margin: 0 calc(-1 * var(--space-3));
-  padding-left: var(--space-3);
-  padding-right: var(--space-3);
-  border-radius: var(--radius-2);
-}
-
-.transactionRow:last-child {
-  border-bottom: none;
-}
-
-.description {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.accountBalance {
+  font-weight: 700;
+  font-size: var(--font-size-3);
   white-space: nowrap;
 }
 
-.billRow {
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--gray-5);
+/* ---- Transaction Rows ---- */
+.txList {
+  display: flex;
+  flex-direction: column;
 }
 
-.billRow:last-child {
+.txRow {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--gray-4);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    padding var(--duration-fast) var(--ease-out);
+  border-radius: 0;
+}
+
+.txRow:hover {
+  background-color: var(--gray-3);
+  margin: 0 calc(-1 * var(--space-4));
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+  border-radius: var(--radius-2);
+}
+
+.txRow:last-child {
   border-bottom: none;
 }
 
-.placeholderCard {
-  border: 1px dashed var(--gray-6);
+.txDescription {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.txDate {
+  font-size: var(--font-size-1);
+  color: var(--gray-11);
+}
+
+.txAmount {
+  font-weight: 700;
+  font-size: var(--font-size-3);
+}
+
+/* ---- Bill Rows ---- */
+.billList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.billRow {
+  padding: var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--gray-3);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.billRow:hover {
+  background: var(--gray-4);
+}
+
+/* ---- Empty State ---- */
+.emptyState {
+  text-align: center;
+  padding: var(--space-6) var(--space-4);
+  color: var(--gray-11);
+}
+
+/* ---- Cards ---- */
+.contentCard {
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
+  padding: var(--space-4);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

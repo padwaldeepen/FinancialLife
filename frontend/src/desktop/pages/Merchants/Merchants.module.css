@@ -1,5 +1,20 @@
 .page {
-  padding: var(--space-6);
+  max-width: 700px;
+  animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.pageTitle {
+  font-size: var(--font-size-6);
+  font-weight: 700;
+  color: var(--gray-12);
+  letter-spacing: -0.01em;
 }
 
 .search {
@@ -9,29 +24,56 @@
 
 .card {
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
+  transition:
+    box-shadow var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
+  padding: var(--space-3) var(--space-4);
 }
 
 .card:hover {
-  background-color: var(--gray-3);
+  box-shadow: var(--shadow-card-hover) !important;
+  transform: translateY(-1px);
 }
 
 .icon {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-2);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-3);
   background: var(--gray-3);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  color: var(--gray-11);
 }
 
 .txRow {
-  padding: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-2);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .txRow:hover {
   background-color: var(--gray-3);
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-4);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

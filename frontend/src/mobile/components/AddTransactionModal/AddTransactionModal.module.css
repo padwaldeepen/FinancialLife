@@ -7,12 +7,21 @@
   border-radius: var(--radius-4) var(--radius-4) 0 0;
   padding: var(--space-4);
   background-color: var(--color-panel);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  transition: background-color var(--duration-normal) var(--ease-out);
+}
+
+[data-theme='dark'] .content {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border-top: 1px solid var(--glass-border);
 }
 
 .title {
   margin: 0;
   font-size: var(--font-size-5);
-  font-weight: var(--font-weight-bold);
+  font-weight: 700;
 }
 
 .categoryBadge {
@@ -23,9 +32,9 @@
   cursor: pointer;
   border-radius: var(--radius-2);
   padding: var(--space-1) var(--space-2);
-  transition: background 0.1s;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
-.categoryItem:hover {
+.categoryItem:active {
   background: var(--accent-3);
 }

@@ -1,6 +1,6 @@
 import { type JSX } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Box, Flex, Text, IconButton } from '@radix-ui/themes'
+import { Box } from '@radix-ui/themes'
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -31,18 +31,15 @@ export const Sidebar = (): JSX.Element => {
 
   return (
     <aside className={styles.sidebar}>
-      <Box p="4" className={styles.logo}>
-        <Text size="4" weight="bold">
-          My Financial Life
-        </Text>
+      <Box className={styles.logo}>
+        <div className={styles.logoIcon}>F</div>
+        <span className={styles.logoText}>My Financial Life</span>
       </Box>
 
-      <Box px="4" py="2">
-        <IconButton size="3" highContrast className={styles.addButton} onClick={openAddModal}>
-          <Plus size={20} />
-          <Text size="2">Add</Text>
-        </IconButton>
-      </Box>
+      <button className={styles.addButton} onClick={openAddModal}>
+        <Plus size={18} />
+        Add Transaction
+      </button>
 
       <nav className={styles.nav}>
         {navItems.map((item) => (
@@ -54,10 +51,8 @@ export const Sidebar = (): JSX.Element => {
               `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
             }
           >
-            <Flex align="center" gap="3" px="4" py="2">
-              <item.icon size={20} />
-              <Text size="2">{item.label}</Text>
-            </Flex>
+            <item.icon size={18} />
+            <span>{item.label}</span>
           </NavLink>
         ))}
       </nav>

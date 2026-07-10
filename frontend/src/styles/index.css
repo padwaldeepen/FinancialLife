@@ -1,3 +1,5 @@
+@import './design-tokens.css';
+
 *,
 *::before,
 *::after {
@@ -31,6 +33,7 @@ body {
 a {
   color: var(--accent-9);
   text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 a:hover {
@@ -61,4 +64,52 @@ ol {
 img {
   max-width: 100%;
   display: block;
+}
+
+/* Radix Themes overrides for premium feel */
+.rt-Card {
+  border-radius: var(--radius-card) !important;
+  transition:
+    box-shadow var(--duration-normal) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+/* Improve Radix button hover */
+.rt-Button[data-variant='solid']:hover {
+  filter: brightness(1.08);
+}
+
+.rt-Button[data-variant='soft']:hover {
+  filter: brightness(0.95);
+}
+
+/* Better focus rings */
+*:focus-visible {
+  outline: 2px solid var(--accent-9);
+  outline-offset: 2px;
+  border-radius: var(--radius-2);
+}
+
+/* Smooth page transitions */
+main {
+  animation: fadeIn var(--duration-normal) var(--ease-out);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gray-6);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-7);
 }

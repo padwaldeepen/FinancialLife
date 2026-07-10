@@ -1,10 +1,24 @@
 .topBar {
-  height: 56px;
-  border-bottom: 1px solid var(--gray-5);
+  height: 60px;
+  border-bottom: 1px solid var(--gray-4);
   background-color: var(--color-panel);
   position: sticky;
   top: 0;
   z-index: 10;
+  transition: background-color var(--duration-normal) var(--ease-out);
+}
+
+[data-theme='dark'] .topBar {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border-bottom-color: var(--glass-border);
+}
+
+.welcomeText {
+  font-size: var(--font-size-2);
+  color: var(--gray-11);
+  font-weight: 500;
 }
 
 .trigger {
@@ -13,21 +27,25 @@
   display: flex;
   align-items: center;
   border-radius: var(--radius-full);
-  transition: opacity 0.15s;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 
 .trigger:hover {
-  opacity: 0.8;
+  opacity: 0.85;
+  transform: scale(1.05);
 }
 
 .popoverContent {
-  min-width: 200px;
+  min-width: 220px;
+  box-shadow: var(--shadow-lg);
 }
 
 .themeRow {
   cursor: pointer;
   border-radius: var(--radius-2);
-  transition: background-color 0.15s;
+  transition: background-color var(--duration-fast) var(--ease-out);
   padding-top: var(--space-1);
   padding-bottom: var(--space-1);
 }

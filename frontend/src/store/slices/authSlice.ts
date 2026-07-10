@@ -35,7 +35,7 @@ export const createAuthSlice = namespaceSlice('auth', (set, _get) => ({
     } catch {
       // ignore
     }
-    set({ token: null, user: null })
+    set({ token: null, user: null, loading: false })
   },
 
   verifyToken: async () => {

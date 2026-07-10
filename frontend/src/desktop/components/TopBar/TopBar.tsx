@@ -33,7 +33,6 @@ export const TopBar = (): JSX.Element => {
   return (
     <header className={styles.topBar}>
       <Flex align="center" justify="end" px="4" height="100%">
-        {' '}
         <Popover.Root>
           <Popover.Trigger>
             <IconButton variant="ghost" className={styles.trigger}>

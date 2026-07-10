@@ -6,6 +6,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from core.config import settings
 from core.logging import get_logger, log_startup
+from core.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
 from database.session import AsyncSessionLocal
 from routers import (
     accounts,
@@ -14,6 +15,8 @@ from routers import (
     bills,
     budgets,
     categories,
+    chat,
+    export,
     goals,
     merchants,
     reports,
@@ -55,6 +58,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
+
 app.include_router(accounts.router, prefix="/api/accounts", tags=["Accounts"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(transactions.router, prefix="/api/transactions", tags=["Transactions"])
@@ -65,6 +71,8 @@ app.include_router(ai.router, prefix="/api/ai", tags=["AI Services"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(goals.router, prefix="/api/goals", tags=["Goals"])
 app.include_router(merchants.router)
+app.include_router(export.router, prefix="/api/export", tags=["Export"])
+app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
 
 
 @app.get("/")

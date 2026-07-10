@@ -26,9 +26,7 @@ def upgrade() -> None:
         sa.Column("full_name", sa.String(), nullable=True),
         sa.Column("is_admin", sa.Boolean(), server_default=sa.text("false"), nullable=False),
         sa.Column("is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
-        ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
     )
 
@@ -40,10 +38,10 @@ def upgrade() -> None:
         sa.Column("icon", sa.String(), nullable=True),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), index=True, nullable=True),
         sa.Column("is_system", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("parent_id", sa.Integer(), sa.ForeignKey("categories.id"), index=True, nullable=True),
         sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
+            "parent_id", sa.Integer(), sa.ForeignKey("categories.id"), index=True, nullable=True
         ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
     )
 
     op.create_table(
@@ -55,9 +53,7 @@ def upgrade() -> None:
         sa.Column("currency", sa.String(), server_default="USD", nullable=False),
         sa.Column("is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False),
         sa.Column("sort_order", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
-        ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
     )
 
@@ -69,9 +65,7 @@ def upgrade() -> None:
         sa.Column("normalized_name", sa.String(), index=True, nullable=False),
         sa.Column("aliases", postgresql.JSONB(), nullable=True),
         sa.Column("is_hidden", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
-        ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
     )
 
     op.create_table(
@@ -91,9 +85,7 @@ def upgrade() -> None:
         sa.Column("date", sa.DateTime(), nullable=False),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column("ai_categorized", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
-        ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
     )
     op.create_index("ix_transactions_user_date", "transactions", ["user_id", "date"])
@@ -108,14 +100,14 @@ def upgrade() -> None:
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("amount", sa.Float(), nullable=False),
         sa.Column("period", sa.String(), nullable=False),
-        sa.Column("category_id", sa.Integer(), sa.ForeignKey("categories.id"), index=True, nullable=True),
+        sa.Column(
+            "category_id", sa.Integer(), sa.ForeignKey("categories.id"), index=True, nullable=True
+        ),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), index=True, nullable=False),
         sa.Column("start_date", sa.DateTime(), nullable=False),
         sa.Column("end_date", sa.DateTime(), nullable=True),
         sa.Column("is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
-        ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
     )
 
@@ -134,23 +126,25 @@ def upgrade() -> None:
         sa.Column("is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False),
         sa.Column("is_variable", sa.Boolean(), server_default=sa.text("false"), nullable=False),
         sa.Column("notes", sa.Text(), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
-        ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
     )
 
     op.create_table(
         "transaction_bill_links",
         sa.Column("id", sa.Integer(), primary_key=True, index=True),
-        sa.Column("transaction_id", sa.Integer(), sa.ForeignKey("transactions.id"), index=True, nullable=False),
+        sa.Column(
+            "transaction_id",
+            sa.Integer(),
+            sa.ForeignKey("transactions.id"),
+            index=True,
+            nullable=False,
+        ),
         sa.Column("bill_id", sa.Integer(), sa.ForeignKey("bills.id"), index=True, nullable=False),
         sa.Column("period_start", sa.DateTime(), nullable=False),
         sa.Column("period_end", sa.DateTime(), nullable=False),
         sa.Column("is_auto_linked", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
-        ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
     )
 
     op.create_table(
@@ -168,9 +162,7 @@ def upgrade() -> None:
         sa.Column("color", sa.String(), nullable=True),
         sa.Column("is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False),
         sa.Column("sort_order", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
-        ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
     )
 

@@ -1,18 +1,20 @@
 import { useState, useEffect, type JSX } from 'react'
-import { Box, Flex, Text, Card, Grid, Badge, Select } from '@radix-ui/themes'
-import { DollarSign, TrendingUp, TrendingDown, PieChart } from 'lucide-react'
+import { Box, Flex, Text, Card, Grid, Badge, Button, Select } from '@radix-ui/themes'
+import { DollarSign, TrendingUp, TrendingDown, PieChart, Download } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import api from '../../../auth/api.ts'
 import styles from './Reports.module.css'
 
 export const Reports = (): JSX.Element => {
   const [year, setYear] = useState(new Date().getFullYear().toString())
-  const { monthly, summary, categories, loading, fetchReports } = useBoundStore(
+  const { monthly, summary, categories, comparison, loading, fetchReports } = useBoundStore(
     useShallow((s) => ({
       monthly: s.reports.monthly,
       summary: s.reports.summary,
       categories: s.reports.categories,
+      comparison: s.reports.comparison,
       loading: s.reports.loading,
       fetchReports: s.fetchReports,
     })),
@@ -25,6 +27,25 @@ export const Reports = (): JSX.Element => {
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => (currentYear - 2 + i).toString())
 
+  const handleExport = async () => {
+    try {
+      const res = await api.get('/api/export/csv', { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute(
+        'download',
+        `my-financial-life-${new Date().toISOString().slice(0, 10)}.csv`,
+      )
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      // export failed silently
+    }
+  }
+
   if (loading) {
     return <Text color="gray">Loading...</Text>
   }
@@ -33,16 +54,22 @@ export const Reports = (): JSX.Element => {
     <Box className={styles.page}>
       <Flex className={styles.pageHeader}>
         <span className={styles.pageTitle}>Reports</span>
-        <Select.Root value={year} onValueChange={setYear}>
-          <Select.Trigger />
-          <Select.Content>
-            {years.map((y) => (
-              <Select.Item key={y} value={y}>
-                {y}
-              </Select.Item>
-            ))}
-          </Select.Content>
-        </Select.Root>
+        <Flex align="center" gap="3">
+          <Button variant="outline" size="2" onClick={handleExport}>
+            <Download size={14} />
+            Export CSV
+          </Button>
+          <Select.Root value={year} onValueChange={setYear}>
+            <Select.Trigger />
+            <Select.Content>
+              {years.map((y) => (
+                <Select.Item key={y} value={y}>
+                  {y}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+        </Flex>
       </Flex>
 
       {summary && (
@@ -90,6 +117,53 @@ export const Reports = (): JSX.Element => {
             </Flex>
           </Card>
         </Grid>
+      )}
+
+      {comparison && (
+        <Card size="2" className={styles.comparisonCard}>
+          <div className={styles.comparisonLabel}>{comparison.label}</div>
+          {[
+            {
+              field: 'Income',
+              current: comparison.current_income,
+              prev: comparison.previous_income,
+              pct: comparison.income_change_pct,
+            },
+            {
+              field: 'Expenses',
+              current: comparison.current_expense,
+              prev: comparison.previous_expense,
+              pct: comparison.expense_change_pct,
+            },
+            {
+              field: 'Net',
+              current: comparison.current_net,
+              prev: comparison.previous_net,
+              pct: comparison.net_change_pct,
+            },
+          ].map((row) => (
+            <div key={row.field} className={styles.comparisonRow}>
+              <span className={styles.comparisonFieldName}>{row.field}</span>
+              <div className={styles.comparisonValues}>
+                <span className={styles.comparisonCurrent}>${row.current.toFixed(2)}</span>
+                <span className={styles.comparisonPrev}>${row.prev.toFixed(2)}</span>
+                <span
+                  className={`${styles.comparisonChange} ${
+                    row.pct === null
+                      ? styles.changeNeutral
+                      : row.pct > 0
+                        ? styles.changePositive
+                        : row.pct < 0
+                          ? styles.changeNegative
+                          : styles.changeNeutral
+                  }`}
+                >
+                  {row.pct === null ? '—' : `${row.pct > 0 ? '+' : ''}${row.pct}%`}
+                </span>
+              </div>
+            </div>
+          ))}
+        </Card>
       )}
 
       <Card size="2" className={styles.chartCard}>

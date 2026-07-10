@@ -255,9 +255,7 @@ export const Settings = (): JSX.Element => {
               <User size={18} />
               <Box className={styles.labelText}>
                 <span className={styles.labelTextPrimary}>Name</span>
-                <span className={styles.labelTextSecondary}>
-                  {user?.name || 'Not set'}
-                </span>
+                <span className={styles.labelTextSecondary}>{user?.name || 'Not set'}</span>
               </Box>
             </Flex>
           </Box>
@@ -266,9 +264,7 @@ export const Settings = (): JSX.Element => {
               <Mail size={18} />
               <Box className={styles.labelText}>
                 <span className={styles.labelTextPrimary}>Email</span>
-                <span className={styles.labelTextSecondary}>
-                  {user?.email}
-                </span>
+                <span className={styles.labelTextSecondary}>{user?.email}</span>
               </Box>
             </Flex>
           </Box>
@@ -294,7 +290,10 @@ export const Settings = (): JSX.Element => {
                   {accountIcons[account.type] || <Wallet size={18} />}
                   <Box className={styles.labelText}>
                     <span className={styles.labelTextPrimary}>{account.name}</span>
-                    <span className={styles.labelTextSecondary} style={{ textTransform: 'capitalize' }}>
+                    <span
+                      className={styles.labelTextSecondary}
+                      style={{ textTransform: 'capitalize' }}
+                    >
                       {account.type} — ${account.balance.toFixed(2)}
                     </span>
                   </Box>
@@ -387,9 +386,7 @@ export const Settings = (): JSX.Element => {
               {dark ? <Moon size={18} /> : <Sun size={18} />}
               <Box className={styles.labelText}>
                 <span className={styles.labelTextPrimary}>Dark mode</span>
-                <span className={styles.labelTextSecondary}>
-                  {dark ? 'On' : 'Off'}
-                </span>
+                <span className={styles.labelTextSecondary}>{dark ? 'On' : 'Off'}</span>
               </Box>
             </Flex>
             <Switch checked={dark} onCheckedChange={toggle} />

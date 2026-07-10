@@ -12,6 +12,19 @@ from routers.auth import get_current_user
 router = APIRouter()
 
 
+class ComparisonEntry(BaseModel):
+    label: str
+    current_income: float
+    current_expense: float
+    current_net: float
+    previous_income: float
+    previous_expense: float
+    previous_net: float
+    income_change_pct: float | None
+    expense_change_pct: float | None
+    net_change_pct: float | None
+
+
 class MonthlyEntry(BaseModel):
     month: str
     income: float
@@ -213,3 +226,83 @@ async def report_categories(
             )
         )
     return result
+
+
+async def _get_period_totals(
+    db: AsyncSession,
+    user_id: int,
+    start: datetime,
+    end: datetime,
+) -> tuple[float, float]:
+    income_result = await db.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.transaction_type == "income",
+            Transaction.date >= start,
+            Transaction.date <= end,
+        )
+    )
+    income = round(income_result.scalar() or 0, 2)
+
+    expense_result = await db.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == user_id,
+            Transaction.transaction_type == "expense",
+            Transaction.date >= start,
+            Transaction.date <= end,
+        )
+    )
+    expense = round(expense_result.scalar() or 0, 2)
+    return income, expense
+
+
+def _pct_change(current: float, previous: float) -> float | None:
+    if previous == 0:
+        return None if current == 0 else 100.0
+    return round(((current - previous) / abs(previous)) * 100, 1)
+
+
+@router.get("/comparison", response_model=ComparisonEntry)
+async def report_comparison(
+    year: int = Query(default_factory=lambda: date.today().year),
+    month: int = Query(default_factory=lambda: date.today().month),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    cur_start = datetime(year, month, 1)
+    if month == 12:
+        cur_end = datetime(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        cur_end = datetime(year, month + 1, 1) - timedelta(days=1)
+
+    prev_month = month - 1
+    prev_year = year
+    if prev_month == 0:
+        prev_month = 12
+        prev_year -= 1
+    prev_start = datetime(prev_year, prev_month, 1)
+    if prev_month == 12:
+        prev_end = datetime(prev_year + 1, 1, 1) - timedelta(days=1)
+    else:
+        prev_end = datetime(prev_year, prev_month + 1, 1) - timedelta(days=1)
+
+    cur_income, cur_expense = await _get_period_totals(db, current_user.id, cur_start, cur_end)
+    prev_income, prev_expense = await _get_period_totals(db, current_user.id, prev_start, prev_end)
+
+    cur_net = round(cur_income - cur_expense, 2)
+    prev_net = round(prev_income - prev_expense, 2)
+
+    label = f"{MONTH_NAMES[month - 1]} {year} vs {MONTH_NAMES[prev_month - 1]} {prev_year}"
+
+    return ComparisonEntry(
+        label=label,
+        current_income=cur_income,
+        current_expense=cur_expense,
+        current_net=cur_net,
+        previous_income=prev_income,
+        previous_expense=prev_expense,
+        previous_net=prev_net,
+        income_change_pct=_pct_change(cur_income, prev_income),
+        expense_change_pct=_pct_change(cur_expense, prev_expense),
+        net_change_pct=_pct_change(cur_net, prev_net),
+    )

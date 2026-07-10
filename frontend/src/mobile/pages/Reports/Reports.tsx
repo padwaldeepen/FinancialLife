@@ -8,11 +8,12 @@ import styles from './Reports.module.css'
 
 export const Reports = (): JSX.Element => {
   const [year, setYear] = useState(new Date().getFullYear().toString())
-  const { monthly, summary, categories, loading, fetchReports } = useBoundStore(
+  const { monthly, summary, categories, comparison, loading, fetchReports } = useBoundStore(
     useShallow((s) => ({
       monthly: s.reports.monthly,
       summary: s.reports.summary,
       categories: s.reports.categories,
+      comparison: s.reports.comparison,
       loading: s.reports.loading,
       fetchReports: s.fetchReports,
     })),
@@ -94,6 +95,55 @@ export const Reports = (): JSX.Element => {
             </Flex>
           </Card>
         </Flex>
+      )}
+
+      {comparison && (
+        <Card size="1" mb="4">
+          <Text size="1" color="gray" mb="2" as="div">
+            {comparison.label}
+          </Text>
+          <Flex direction="column" gap="1">
+            {[
+              {
+                field: 'Income',
+                current: comparison.current_income,
+                pct: comparison.income_change_pct,
+              },
+              {
+                field: 'Expenses',
+                current: comparison.current_expense,
+                pct: comparison.expense_change_pct,
+              },
+              { field: 'Net', current: comparison.current_net, pct: comparison.net_change_pct },
+            ].map((row) => (
+              <Flex key={row.field} align="center" justify="between">
+                <Text size="2" color="gray">
+                  {row.field}
+                </Text>
+                <Flex align="center" gap="2">
+                  <Text size="2" weight="medium">
+                    ${row.current.toFixed(2)}
+                  </Text>
+                  <Text
+                    size="1"
+                    weight="bold"
+                    color={
+                      row.pct === null
+                        ? 'gray'
+                        : row.pct > 0
+                          ? 'green'
+                          : row.pct < 0
+                            ? 'red'
+                            : 'gray'
+                    }
+                  >
+                    {row.pct === null ? '—' : `${row.pct > 0 ? '+' : ''}${row.pct}%`}
+                  </Text>
+                </Flex>
+              </Flex>
+            ))}
+          </Flex>
+        </Card>
       )}
 
       <Card size="1" mb="4">

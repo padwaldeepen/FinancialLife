@@ -32,6 +32,9 @@ class Settings(BaseSettings):
 
     USE_AI: bool = False
     GEMINI_API_KEY: str = ""
+    NVIDIA_API_KEY: str = ""
+    NVIDIA_MODEL: str = "meta/llama-3.3-70b-instruct"
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
     GROQ_API_KEY: str = ""
 
 

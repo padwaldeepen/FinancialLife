@@ -1,12 +1,12 @@
 import { namespaceSlice } from '../namespaceSlice.ts'
 import api from '../../auth/api.ts'
 
-interface FilterOption {
+export interface FilterOption {
   id: number
   name: string
 }
 
-interface Transaction {
+export interface Transaction {
   id: number
   amount: number
   description: string
@@ -51,6 +51,10 @@ export type TransactionsSlice = {
   fetchTxFilters: () => Promise<void>
   deleteTransaction: (id: number) => void
   updateNotes: (id: number, notes: string) => void
+  updateTransaction: (
+    id: number,
+    data: Partial<Omit<Transaction, 'id' | 'created_at'>>,
+  ) => Promise<void>
 }
 
 const LIMIT = 50
@@ -136,5 +140,17 @@ export const createTransactionsSlice = namespaceSlice('transactions', (set, get)
     api.put(`/api/transactions/${id}`, { notes }).catch(() => {
       // revert on failure
     })
+  },
+
+  updateTransaction: async (id: number, data: Partial<Omit<Transaction, 'id' | 'created_at'>>) => {
+    const items: Transaction[] = get().items
+    const old = items.find((t) => t.id === id)
+    set({ items: items.map((t) => (t.id === id ? { ...t, ...data } : t)) })
+
+    try {
+      await api.put(`/api/transactions/${id}`, data)
+    } catch {
+      if (old) set({ items: items.map((t) => (t.id === id ? old : t)) })
+    }
   },
 }))

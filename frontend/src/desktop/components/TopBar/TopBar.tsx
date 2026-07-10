@@ -32,13 +32,8 @@ export const TopBar = (): JSX.Element => {
 
   return (
     <header className={styles.topBar}>
-      <Flex align="center" justify="between" px="4" height="100%">
-        <Flex align="center" gap="2">
-          <Text size="2" color="gray">
-            Welcome back
-          </Text>
-        </Flex>
-
+      <Flex align="center" justify="end" px="4" height="100%">
+        {' '}
         <Popover.Root>
           <Popover.Trigger>
             <IconButton variant="ghost" className={styles.trigger}>

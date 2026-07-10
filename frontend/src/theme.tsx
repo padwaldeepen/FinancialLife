@@ -35,7 +35,8 @@ export const ThemeProvider = ({ children }: ThemeProviderProps): JSX.Element => 
         grayColor="slate"
         appearance={dark ? 'dark' : 'light'}
         scaling="100%"
-        radius="medium"
+        radius="large"
+        panelBackground="translucent"
       >
         {children}
       </Theme>

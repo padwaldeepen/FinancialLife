@@ -1,9 +1,67 @@
 .page {
   max-width: 900px;
+  animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.pageTitle {
+  font-size: var(--font-size-6);
+  font-weight: 700;
+  color: var(--gray-12);
+  letter-spacing: -0.01em;
+}
+
+.statCard {
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
+  padding: var(--space-4);
+  transition:
+    box-shadow var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
+}
+
+.statCard:hover {
+  box-shadow: var(--shadow-card-hover) !important;
+  transform: translateY(-1px);
+}
+
+.statLabel {
+  font-size: var(--font-size-1);
+  color: var(--gray-11);
+  font-weight: 500;
+  margin-bottom: var(--space-1);
+}
+
+.statValue {
+  font-size: var(--font-size-5);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.chartCard {
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.chartTitle {
+  font-size: var(--font-size-4);
+  font-weight: 600;
+  color: var(--gray-12);
+  margin-bottom: var(--space-4);
 }
 
 .chartContainer {
   height: 300px;
+  border-radius: var(--radius-3);
+  overflow: hidden;
 }
 
 .incomeIcon {
@@ -15,16 +73,25 @@
 }
 
 .incomeText {
-  color: var(--green-9);
+  color: var(--green-11);
 }
 
 .expenseText {
-  color: var(--red-9);
+  color: var(--red-11);
 }
 
 .catRow {
-  padding: var(--space-1) 0;
+  padding: var(--space-2) 0;
   border-bottom: 1px solid var(--gray-4);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.catRow:hover {
+  background-color: var(--gray-3);
+  border-radius: var(--radius-2);
+  margin: 0 calc(-1 * var(--space-3));
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
 }
 
 .colorDot {
@@ -32,4 +99,16 @@
   height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

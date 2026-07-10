@@ -2,7 +2,6 @@ import { useState, useEffect, type JSX } from 'react'
 import {
   Box,
   Flex,
-  Heading,
   Text,
   Button,
   Card,
@@ -108,8 +107,8 @@ export const Bills = (): JSX.Element => {
 
   return (
     <Box className={styles.page}>
-      <Flex align="center" justify="between" mb="5">
-        <Heading size="6">Bills</Heading>
+      <Flex className={styles.pageHeader}>
+        <span className={styles.pageTitle}>Bills</span>
         <Dialog.Root open={open} onOpenChange={setOpen}>
           <Dialog.Trigger>
             <Button size="2">
@@ -211,21 +210,15 @@ export const Bills = (): JSX.Element => {
       {loading ? (
         <Text color="gray">Loading...</Text>
       ) : bills.length === 0 ? (
-        <Flex direction="column" align="center" gap="2" py="8">
-          <Text size="4" weight="medium">
-            No bills yet
-          </Text>
-          <Text size="2" color="gray">
-            Add your recurring expenses to track them
-          </Text>
+        <Flex className={styles.emptyState} direction="column">
+          <span className={styles.emptyTitle}>No bills yet</span>
+          <span className={styles.emptyHint}>Add your recurring expenses to track them</span>
         </Flex>
       ) : (
         <>
           {bills.length > 0 && upcoming.length > 0 && (
             <Card mb="4" className={styles.upcomingCard}>
-              <Heading size="3" mb="3">
-                Upcoming (next 30 days)
-              </Heading>
+              <div className={styles.sectionTitle}>Upcoming (next 30 days)</div>
               <Flex direction="column" gap="2">
                 {upcoming.map((bill: any) => (
                   <Flex key={bill.id} align="center" justify="between" className={styles.billRow}>
@@ -249,9 +242,7 @@ export const Bills = (): JSX.Element => {
             </Card>
           )}
 
-          <Heading size="4" mb="3">
-            All Bills
-          </Heading>
+          <div className={styles.sectionTitle}>All Bills</div>
           <Flex direction="column" gap="3">
             {bills.map((bill: any) => (
               <Card

@@ -1,5 +1,14 @@
 .page {
   padding: var(--space-4);
+  animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
+}
+
+.pageTitle {
+  font-size: var(--font-size-5);
+  font-weight: 700;
+  color: var(--gray-12);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-4);
 }
 
 .menuList {
@@ -15,16 +24,28 @@
   padding: var(--space-3) var(--space-3);
   border-radius: var(--radius-3);
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--duration-fast) var(--ease-out);
   text-decoration: none;
   color: inherit;
   min-height: 48px;
 }
 
-.menuItem:hover {
-  background-color: var(--gray-3);
+.menuItem:active {
+  background-color: var(--gray-4);
 }
 
 .menuItemActive {
-  background-color: var(--gray-4);
+  background-color: var(--accent-3);
+  color: var(--accent-11);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

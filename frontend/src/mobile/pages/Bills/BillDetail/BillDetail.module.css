@@ -1,13 +1,20 @@
 .chart {
   height: 180px;
+  border-radius: var(--radius-3);
+  overflow: hidden;
 }
 
 .txRow {
-  padding: var(--space-2);
+  padding: var(--space-3);
   border-radius: var(--radius-2);
-  border-bottom: 1px solid var(--gray-5);
+  border-bottom: 1px solid var(--gray-4);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .txRow:last-child {
   border-bottom: none;
+}
+
+.txRow:active {
+  background-color: var(--gray-3);
 }

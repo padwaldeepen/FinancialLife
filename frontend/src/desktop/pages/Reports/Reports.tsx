@@ -1,5 +1,5 @@
 import { useState, useEffect, type JSX } from 'react'
-import { Box, Flex, Heading, Text, Card, Grid, Badge, Select } from '@radix-ui/themes'
+import { Box, Flex, Text, Card, Grid, Badge, Select } from '@radix-ui/themes'
 import { DollarSign, TrendingUp, TrendingDown, PieChart } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
 import { useShallow } from 'zustand/react/shallow'
@@ -31,8 +31,8 @@ export const Reports = (): JSX.Element => {
 
   return (
     <Box className={styles.page}>
-      <Flex align="center" justify="between" mb="5">
-        <Heading size="6">Reports</Heading>
+      <Flex className={styles.pageHeader}>
+        <span className={styles.pageTitle}>Reports</span>
         <Select.Root value={year} onValueChange={setYear}>
           <Select.Trigger />
           <Select.Content>
@@ -47,73 +47,53 @@ export const Reports = (): JSX.Element => {
 
       {summary && (
         <Grid columns="4" gap="3" mb="5">
-          <Card size="2">
-            <Flex direction="column" gap="1">
-              <Text size="1" color="gray">
-                Income (30d)
-              </Text>
-              <Flex align="center" gap="2">
-                <TrendingUp size={18} className={styles.incomeIcon} />
-                <Heading size="5" className={styles.incomeText}>
-                  ${summary.total_income.toFixed(2)}
-                </Heading>
-              </Flex>
+          <Card size="2" className={styles.statCard}>
+            <div className={styles.statLabel}>Income (30d)</div>
+            <Flex align="center" gap="2">
+              <TrendingUp size={18} className={styles.incomeIcon} />
+              <span className={`${styles.statValue} ${styles.incomeText}`}>
+                ${summary.total_income.toFixed(2)}
+              </span>
             </Flex>
           </Card>
-          <Card size="2">
-            <Flex direction="column" gap="1">
-              <Text size="1" color="gray">
-                Expenses (30d)
-              </Text>
-              <Flex align="center" gap="2">
-                <TrendingDown size={18} className={styles.expenseIcon} />
-                <Heading size="5" className={styles.expenseText}>
-                  ${summary.total_expense.toFixed(2)}
-                </Heading>
-              </Flex>
+          <Card size="2" className={styles.statCard}>
+            <div className={styles.statLabel}>Expenses (30d)</div>
+            <Flex align="center" gap="2">
+              <TrendingDown size={18} className={styles.expenseIcon} />
+              <span className={`${styles.statValue} ${styles.expenseText}`}>
+                ${summary.total_expense.toFixed(2)}
+              </span>
             </Flex>
           </Card>
-          <Card size="2">
-            <Flex direction="column" gap="1">
-              <Text size="1" color="gray">
-                Net
-              </Text>
-              <Flex align="center" gap="2">
-                <DollarSign
-                  size={18}
-                  color={summary.net >= 0 ? 'var(--green-9)' : 'var(--red-9)'}
-                />
-                <Heading size="5" color={summary.net >= 0 ? undefined : 'red'}>
-                  ${summary.net.toFixed(2)}
-                </Heading>
-              </Flex>
+          <Card size="2" className={styles.statCard}>
+            <div className={styles.statLabel}>Net</div>
+            <Flex align="center" gap="2">
+              <DollarSign size={18} color={summary.net >= 0 ? 'var(--green-9)' : 'var(--red-9)'} />
+              <span
+                className={styles.statValue}
+                style={{ color: summary.net >= 0 ? 'var(--green-11)' : 'var(--red-11)' }}
+              >
+                ${summary.net.toFixed(2)}
+              </span>
             </Flex>
           </Card>
-          <Card size="2">
-            <Flex direction="column" gap="1">
-              <Text size="1" color="gray">
-                Top Category
-              </Text>
-              <Flex align="center" gap="2">
-                <PieChart size={18} />
-                <Text size="3" weight="bold">
-                  {summary.top_category || 'N/A'}
+          <Card size="2" className={styles.statCard}>
+            <div className={styles.statLabel}>Top Category</div>
+            <Flex align="center" gap="2">
+              <PieChart size={18} />
+              <span className={styles.statValue}>{summary.top_category || 'N/A'}</span>
+              {summary.top_category_amount && (
+                <Text size="2" color="gray">
+                  ${summary.top_category_amount.toFixed(2)}
                 </Text>
-                {summary.top_category_amount && (
-                  <Text size="2" color="gray">
-                    ${summary.top_category_amount.toFixed(2)}
-                  </Text>
-                )}
-              </Flex>
+              )}
             </Flex>
           </Card>
         </Grid>
       )}
 
-      <Card size="2" mb="5">
-        <Heading size="4" mb="4">
-          Monthly Income vs Expenses ({year})
-        </Heading>
+      <Card size="2" className={styles.chartCard}>
+        <div className={styles.chartTitle}>Monthly Income vs Expenses ({year})</div>
         <Box className={styles.chartContainer}>
           <ResponsiveBar
             data={monthly as any}
@@ -149,10 +129,8 @@ export const Reports = (): JSX.Element => {
         </Box>
       </Card>
 
-      <Card size="2">
-        <Heading size="4" mb="3">
-          Spending by Category (90d)
-        </Heading>
+      <Card size="2" className={styles.chartCard}>
+        <div className={styles.chartTitle}>Spending by Category (90d)</div>
         {categories.length === 0 ? (
           <Text color="gray">No categorized expenses</Text>
         ) : (

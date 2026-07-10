@@ -1,12 +1,32 @@
 .page {
   min-height: 100dvh;
   padding: var(--space-4);
+  animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.pageTitle {
+  font-size: var(--font-size-5);
+  font-weight: 700;
+  color: var(--gray-12);
+  letter-spacing: -0.01em;
 }
 
 .parentRow {
   cursor: pointer;
   padding: var(--space-1) 0;
   min-height: 48px;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.parentRow:active {
+  background-color: var(--gray-3);
 }
 
 .colorDot {
@@ -14,6 +34,7 @@
   height: 16px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .colorDotSmall {
@@ -24,14 +45,14 @@
 }
 
 .chevron {
-  transition: transform 0.2s ease;
+  transition: transform var(--duration-normal) var(--ease-out);
   color: var(--gray-9);
 }
 
 .childrenList {
   padding-left: var(--space-6);
   margin-top: var(--space-2);
-  border-left: 2px solid var(--gray-5);
+  border-left: 2px solid var(--gray-4);
 }
 
 .childRow {
@@ -41,10 +62,12 @@
 
 .chartContainer {
   height: 280px;
+  border-radius: var(--radius-3);
+  overflow: hidden;
 }
 
 .spendingRow {
-  padding: var(--space-1) 0;
+  padding: var(--space-2) 0;
   border-bottom: 1px solid var(--gray-4);
 }
 
@@ -53,9 +76,21 @@
   height: 28px;
   border-radius: 50%;
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transition: transform var(--duration-fast) var(--ease-out);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.colorSwatch:hover {
+.colorSwatch:active {
   transform: scale(1.15);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

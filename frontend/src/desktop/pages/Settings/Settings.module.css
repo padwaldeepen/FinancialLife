@@ -1,17 +1,39 @@
 .page {
   max-width: 640px;
+  animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
+}
+
+.pageTitle {
+  font-size: var(--font-size-6);
+  font-weight: 700;
+  color: var(--gray-12);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-5);
 }
 
 .section {
   margin-bottom: var(--space-6);
 }
 
-.sectionTitle {
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: var(--space-3);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-2);
+  font-weight: 600;
+  color: var(--gray-11);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .card {
   padding: var(--space-4);
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
 }
 
 .row {
@@ -19,10 +41,11 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3) 0;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .row + .row {
-  border-top: 1px solid var(--gray-5);
+  border-top: 1px solid var(--gray-4);
 }
 
 .labelGroup {
@@ -34,9 +57,28 @@
 .labelText {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
+}
+
+.labelTextPrimary {
+  font-weight: 500;
+}
+
+.labelTextSecondary {
+  font-size: var(--font-size-1);
 }
 
 .logoutRow {
   padding-top: var(--space-3);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

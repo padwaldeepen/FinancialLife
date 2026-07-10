@@ -9,6 +9,7 @@ import {
   IconButton,
   Dialog,
   Button,
+  Checkbox,
 } from '@radix-ui/themes'
 import { Search, Trash2, Pencil, X, Calendar } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
@@ -162,7 +163,6 @@ export const Activity = (): JSX.Element => {
   const handleDelete = async (id: number) => {
     deleteTx(id)
     toast.success('Transaction deleted', { id: `del-${id}` })
-    // revert on failure is handled inside the store action
   }
 
   const openDetail = (t: Transaction) => {
@@ -210,9 +210,9 @@ export const Activity = (): JSX.Element => {
     const sign = t.transaction_type === 'income' ? '+' : '-'
     const color = t.transaction_type === 'income' ? 'green' : 'red'
     return (
-      <Text size="3" weight="bold" color={color}>
+      <span className={styles.txAmount} style={{ color: `var(--${color}-11)` }}>
         {sign}${t.amount.toFixed(2)}
-      </Text>
+      </span>
     )
   }
 
@@ -228,9 +228,12 @@ export const Activity = (): JSX.Element => {
 
   return (
     <Box className={styles.page}>
-      <Text size="6" weight="bold" mb="4">
-        Activity
-      </Text>
+      <Flex className={styles.pageHeader} direction="column">
+        <span className={styles.pageTitle}>Activity</span>
+        <span className={styles.pageSubtitle}>
+          {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+        </span>
+      </Flex>
 
       <TextField.Root
         className={styles.searchInput}
@@ -244,9 +247,9 @@ export const Activity = (): JSX.Element => {
         </TextField.Slot>
       </TextField.Root>
 
-      <Flex gap="2" mb="3" wrap="wrap" align="center">
+      <Flex className={styles.filterBar} mb="4" wrap="wrap">
         <Select.Root value={typeFilter} onValueChange={setTypeFilter}>
-          <Select.Trigger placeholder="All types" />
+          <Select.Trigger className={styles.filterBarSelect} placeholder="All types" />
           <Select.Content>
             <Select.Item value="">All types</Select.Item>
             <Select.Item value="income">Income</Select.Item>
@@ -255,7 +258,7 @@ export const Activity = (): JSX.Element => {
         </Select.Root>
 
         <Select.Root value={categoryFilter} onValueChange={setCategoryFilter}>
-          <Select.Trigger placeholder="All categories" />
+          <Select.Trigger className={styles.filterBarSelect} placeholder="All categories" />
           <Select.Content>
             <Select.Item value="">All categories</Select.Item>
             {categories.map((c) => (
@@ -267,7 +270,7 @@ export const Activity = (): JSX.Element => {
         </Select.Root>
 
         <Select.Root value={merchantFilter} onValueChange={setMerchantFilter}>
-          <Select.Trigger placeholder="All merchants" />
+          <Select.Trigger className={styles.filterBarSelect} placeholder="All merchants" />
           <Select.Content>
             <Select.Item value="">All merchants</Select.Item>
             {merchants.map((m) => (
@@ -306,24 +309,20 @@ export const Activity = (): JSX.Element => {
       </Flex>
 
       {loading && transactions.length === 0 ? (
-        <Text color="gray">Loading...</Text>
+        <Flex className={styles.emptyState}>
+          <Text color="gray">Loading...</Text>
+        </Flex>
       ) : transactions.length === 0 ? (
-        <Flex direction="column" align="center" gap="2" py="8">
-          <Text size="4" weight="medium">
-            No transactions yet
-          </Text>
-          <Text size="2" color="gray">
-            Add one using the quick-add feature
-          </Text>
+        <Flex className={styles.emptyState} direction="column">
+          <span className={styles.emptyTitle}>No transactions yet</span>
+          <span className={styles.emptyHint}>Add one using the quick-add feature</span>
         </Flex>
       ) : (
         <Box>
           {(Object.entries(grouped) as [DateGroup, Transaction[]][]).map(([group, items]) =>
             items.length > 0 ? (
               <Box key={group} mb="4">
-                <Text size="2" weight="bold" color="gray" mb="2" className={styles.groupHeader}>
-                  {groupLabel[group]}
-                </Text>
+                <div className={styles.groupHeader}>{groupLabel[group]}</div>
                 {items.map((t) => (
                   <Flex
                     key={t.id}
@@ -333,22 +332,20 @@ export const Activity = (): JSX.Element => {
                     onClick={() => openDetail(t)}
                   >
                     <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
-                      <Text size="2" weight="medium">
-                        {t.description}
-                      </Text>
-                      <Flex gap="2" align="center" wrap="wrap">
+                      <div className={styles.txDescription}>{t.description}</div>
+                      <Flex className={styles.txMeta} gap="2" align="center">
                         {t.merchant_name && (
                           <Text size="1" color="gray">
                             {t.merchant_name}
                           </Text>
                         )}
                         {t.category_name && (
-                          <Badge color={(t.category_color as any) || 'gray'}>
+                          <Badge color={(t.category_color as 'gray') || 'gray'} size="1">
                             {t.category_name}
                           </Badge>
                         )}
                         <Text size="1" color="gray">
-                          {format(parseISO(t.date), 'MMM d, yyyy')}
+                          {format(parseISO(t.date), 'MMM d')}
                         </Text>
                       </Flex>
                     </Flex>
@@ -373,11 +370,11 @@ export const Activity = (): JSX.Element => {
             ) : null,
           )}
           {loadingMore && (
-            <Flex justify="center" py="4">
+            <div className={styles.loadingMore}>
               <Text color="gray" size="2">
                 Loading more...
               </Text>
-            </Flex>
+            </div>
           )}
           <div ref={sentinelRef} style={{ height: 1 }} />
         </Box>
@@ -387,7 +384,7 @@ export const Activity = (): JSX.Element => {
         <Dialog.Content style={{ maxWidth: 480 }}>
           {selected && (
             <>
-              <Flex justify="between" align="center" mb="3">
+              <Flex justify="between" align="center" className={styles.detailHeader}>
                 <Dialog.Title style={{ margin: 0 }}>
                   {editing ? 'Edit Transaction' : selected.description}
                 </Dialog.Title>
@@ -399,9 +396,7 @@ export const Activity = (): JSX.Element => {
               {editing ? (
                 <Flex direction="column" gap="3">
                   <Flex direction="column" gap="1">
-                    <Text size="2" color="gray">
-                      Description
-                    </Text>
+                    <span className={styles.detailLabel}>Description</span>
                     <TextField.Root
                       value={editForm.description}
                       onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
@@ -409,9 +404,7 @@ export const Activity = (): JSX.Element => {
                   </Flex>
 
                   <Flex direction="column" gap="1">
-                    <Text size="2" color="gray">
-                      Amount
-                    </Text>
+                    <span className={styles.detailLabel}>Amount</span>
                     <TextField.Root
                       type="number"
                       step="0.01"
@@ -423,9 +416,7 @@ export const Activity = (): JSX.Element => {
                   </Flex>
 
                   <Flex direction="column" gap="1">
-                    <Text size="2" color="gray">
-                      Type
-                    </Text>
+                    <span className={styles.detailLabel}>Type</span>
                     <Select.Root
                       value={editForm.transaction_type}
                       onValueChange={(v) => setEditForm({ ...editForm, transaction_type: v })}
@@ -439,9 +430,7 @@ export const Activity = (): JSX.Element => {
                   </Flex>
 
                   <Flex direction="column" gap="1">
-                    <Text size="2" color="gray">
-                      Date
-                    </Text>
+                    <span className={styles.detailLabel}>Date</span>
                     <TextField.Root
                       type="date"
                       value={editForm.date}
@@ -450,9 +439,7 @@ export const Activity = (): JSX.Element => {
                   </Flex>
 
                   <Flex direction="column" gap="1">
-                    <Text size="2" color="gray">
-                      Category
-                    </Text>
+                    <span className={styles.detailLabel}>Category</span>
                     <Select.Root
                       value={editForm.category_id ? String(editForm.category_id) : ''}
                       onValueChange={(v) =>
@@ -472,9 +459,7 @@ export const Activity = (): JSX.Element => {
                   </Flex>
 
                   <Flex direction="column" gap="1">
-                    <Text size="2" color="gray">
-                      Merchant
-                    </Text>
+                    <span className={styles.detailLabel}>Merchant</span>
                     <Select.Root
                       value={editForm.merchant_id ? String(editForm.merchant_id) : ''}
                       onValueChange={(v) =>
@@ -494,9 +479,7 @@ export const Activity = (): JSX.Element => {
                   </Flex>
 
                   <Flex direction="column" gap="1">
-                    <Text size="2" color="gray">
-                      Account
-                    </Text>
+                    <span className={styles.detailLabel}>Account</span>
                     <Select.Root
                       value={String(editForm.account_id)}
                       onValueChange={(v) => setEditForm({ ...editForm, account_id: Number(v) })}
@@ -512,21 +495,21 @@ export const Activity = (): JSX.Element => {
                     </Select.Root>
                   </Flex>
 
-                  <Flex gap="3" align="center">
+                  <Flex gap="4" align="center">
                     <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={editForm.is_pending}
-                        onChange={(e) => setEditForm({ ...editForm, is_pending: e.target.checked })}
+                        onCheckedChange={(v) =>
+                          setEditForm({ ...editForm, is_pending: v === true })
+                        }
                       />
                       <Text size="2">Pending</Text>
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={editForm.is_recurring}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, is_recurring: e.target.checked })
+                        onCheckedChange={(v) =>
+                          setEditForm({ ...editForm, is_recurring: v === true })
                         }
                       />
                       <Text size="2">Recurring</Text>
@@ -545,62 +528,68 @@ export const Activity = (): JSX.Element => {
               ) : (
                 <Flex direction="column" gap="3">
                   <Flex justify="between" align="center">
-                    <Text
-                      size="5"
-                      weight="bold"
-                      color={selected.transaction_type === 'income' ? 'green' : 'red'}
+                    <span
+                      className={styles.detailAmount}
+                      style={{
+                        color:
+                          selected.transaction_type === 'income'
+                            ? 'var(--green-11)'
+                            : 'var(--red-11)',
+                      }}
                     >
                       {selected.transaction_type === 'income' ? '+' : '-'}$
                       {selected.amount.toFixed(2)}
-                    </Text>
+                    </span>
                     <Badge color={selected.transaction_type === 'income' ? 'green' : 'red'}>
                       {selected.transaction_type}
                     </Badge>
                   </Flex>
 
-                  <Flex direction="column" gap="1">
-                    <Text size="2" color="gray">
-                      Date
-                    </Text>
-                    <Text size="2">{format(parseISO(selected.date), 'EEEE, MMMM d, yyyy')}</Text>
-                  </Flex>
+                  <div className={styles.detailSection}>
+                    <div className={styles.detailLabel}>Date</div>
+                    <div className={styles.detailValue}>
+                      {format(parseISO(selected.date), 'EEEE, MMMM d, yyyy')}
+                    </div>
+                  </div>
 
                   {selected.merchant_name && (
-                    <Flex direction="column" gap="1">
-                      <Text size="2" color="gray">
-                        Merchant
-                      </Text>
-                      <Text size="2">{selected.merchant_name}</Text>
-                    </Flex>
+                    <div className={styles.detailSection}>
+                      <div className={styles.detailLabel}>Merchant</div>
+                      <div className={styles.detailValue}>{selected.merchant_name}</div>
+                    </div>
                   )}
 
                   {selected.category_name && (
-                    <Flex direction="column" gap="1">
-                      <Text size="2" color="gray">
-                        Category
-                      </Text>
-                      <Badge color={(selected.category_color as any) || 'gray'}>
+                    <div className={styles.detailSection}>
+                      <div className={styles.detailLabel}>Category</div>
+                      <Badge color={(selected.category_color as 'gray') || 'gray'}>
                         {selected.category_name}
                       </Badge>
-                    </Flex>
+                    </div>
                   )}
 
                   {selected.account_name && (
-                    <Flex direction="column" gap="1">
-                      <Text size="2" color="gray">
-                        Account
-                      </Text>
-                      <Text size="2">{selected.account_name}</Text>
-                    </Flex>
+                    <div className={styles.detailSection}>
+                      <div className={styles.detailLabel}>Account</div>
+                      <div className={styles.detailValue}>{selected.account_name}</div>
+                    </div>
                   )}
 
-                  {selected.is_pending && <Badge color="orange">Pending</Badge>}
-                  {selected.is_recurring && <Badge color="blue">Recurring</Badge>}
+                  <Flex gap="2">
+                    {selected.is_pending && (
+                      <Badge color="orange" variant="soft">
+                        Pending
+                      </Badge>
+                    )}
+                    {selected.is_recurring && (
+                      <Badge color="blue" variant="soft">
+                        Recurring
+                      </Badge>
+                    )}
+                  </Flex>
 
                   <Flex direction="column" gap="1">
-                    <Text size="2" color="gray">
-                      Notes
-                    </Text>
+                    <span className={styles.detailLabel}>Notes</span>
                     <TextField.Root
                       value={editNotes}
                       onChange={(e) => setEditNotes(e.target.value)}

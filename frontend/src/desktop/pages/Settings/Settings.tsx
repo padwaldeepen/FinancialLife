@@ -4,7 +4,6 @@ import {
   Box,
   Flex,
   Text,
-  Heading,
   Card,
   Switch,
   Button,
@@ -216,9 +215,7 @@ export const Settings = (): JSX.Element => {
 
   return (
     <Box className={styles.page}>
-      <Heading size="6" mb="4">
-        Settings
-      </Heading>
+      <span className={styles.pageTitle}>Settings</span>
 
       <Box className={styles.section}>
         <Text size="2" weight="bold" color="gray" className={styles.sectionTitle}>
@@ -251,14 +248,40 @@ export const Settings = (): JSX.Element => {
       </Box>
 
       <Box className={styles.section}>
-        <Flex align="center" justify="between" mb="2">
-          <Text size="2" weight="bold" color="gray" className={styles.sectionTitle}>
-            Accounts
-          </Text>
+        <div className={styles.sectionTitle}>Profile</div>
+        <Card className={styles.card}>
+          <Box className={styles.row}>
+            <Flex className={styles.labelGroup}>
+              <User size={18} />
+              <Box className={styles.labelText}>
+                <span className={styles.labelTextPrimary}>Name</span>
+                <span className={styles.labelTextSecondary}>
+                  {user?.name || 'Not set'}
+                </span>
+              </Box>
+            </Flex>
+          </Box>
+          <Box className={styles.row}>
+            <Flex className={styles.labelGroup}>
+              <Mail size={18} />
+              <Box className={styles.labelText}>
+                <span className={styles.labelTextPrimary}>Email</span>
+                <span className={styles.labelTextSecondary}>
+                  {user?.email}
+                </span>
+              </Box>
+            </Flex>
+          </Box>
+        </Card>
+      </Box>
+
+      <Box className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionTitle}>Accounts</div>
           <Button size="1" variant="soft" onClick={openCreate}>
             <Plus size={14} /> Add
           </Button>
-        </Flex>
+        </div>
         {accounts.length === 0 ? (
           <Text color="gray" size="2">
             No accounts yet
@@ -270,10 +293,10 @@ export const Settings = (): JSX.Element => {
                 <Flex className={styles.labelGroup}>
                   {accountIcons[account.type] || <Wallet size={18} />}
                   <Box className={styles.labelText}>
-                    <Text size="2">{account.name}</Text>
-                    <Text size="1" color="gray" style={{ textTransform: 'capitalize' }}>
+                    <span className={styles.labelTextPrimary}>{account.name}</span>
+                    <span className={styles.labelTextSecondary} style={{ textTransform: 'capitalize' }}>
                       {account.type} — ${account.balance.toFixed(2)}
-                    </Text>
+                    </span>
                   </Box>
                 </Flex>
                 <Flex gap="1">
@@ -302,14 +325,12 @@ export const Settings = (): JSX.Element => {
       </Box>
 
       <Box className={styles.section}>
-        <Flex align="center" justify="between" mb="2">
-          <Text size="2" weight="bold" color="gray" className={styles.sectionTitle}>
-            Budgets
-          </Text>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionTitle}>Budgets</div>
           <Button size="1" variant="soft" onClick={openBudgetCreate}>
             <Plus size={14} /> Add
           </Button>
-        </Flex>
+        </div>
         {budgets.length === 0 ? (
           <Text color="gray" size="2">
             No budgets yet
@@ -359,18 +380,16 @@ export const Settings = (): JSX.Element => {
       </Box>
 
       <Box className={styles.section}>
-        <Text size="2" weight="bold" color="gray" className={styles.sectionTitle}>
-          Appearance
-        </Text>
+        <div className={styles.sectionTitle}>Appearance</div>
         <Card className={styles.card}>
           <Box className={styles.row}>
             <Flex className={styles.labelGroup}>
               {dark ? <Moon size={18} /> : <Sun size={18} />}
               <Box className={styles.labelText}>
-                <Text size="2">Dark mode</Text>
-                <Text size="1" color="gray">
+                <span className={styles.labelTextPrimary}>Dark mode</span>
+                <span className={styles.labelTextSecondary}>
                   {dark ? 'On' : 'Off'}
-                </Text>
+                </span>
               </Box>
             </Flex>
             <Switch checked={dark} onCheckedChange={toggle} />
@@ -379,9 +398,7 @@ export const Settings = (): JSX.Element => {
       </Box>
 
       <Box className={styles.section}>
-        <Text size="2" weight="bold" color="gray" className={styles.sectionTitle}>
-          Account
-        </Text>
+        <div className={styles.sectionTitle}>Account</div>
         <Card className={styles.card}>
           <Box className={styles.logoutRow}>
             <Button variant="soft" color="red" onClick={handleLogout}>

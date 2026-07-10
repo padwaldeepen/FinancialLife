@@ -10,8 +10,8 @@
   justify-content: center;
   overflow: hidden;
   transition:
-    height 0.2s ease,
-    opacity 0.2s ease;
+    height var(--duration-normal) var(--ease-out),
+    opacity var(--duration-normal) var(--ease-out);
   color: var(--accent-9);
 }
 
@@ -35,15 +35,76 @@
 .balanceCard {
   text-align: center;
   padding: var(--space-5);
+  border-radius: var(--radius-section);
+  background: linear-gradient(135deg, var(--accent-9), var(--accent-10));
+  color: white;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: var(--space-4);
+}
+
+.balanceCard::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -30%;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.balanceLabel {
+  font-size: var(--font-size-2);
+  opacity: 0.85;
+  font-weight: 500;
 }
 
 .balanceAmount {
   margin: var(--space-2) 0;
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: white;
+}
+
+.balanceAccounts {
+  font-size: var(--font-size-1);
+  opacity: 0.7;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.sectionTitle {
+  font-weight: 600;
+  font-size: var(--font-size-3);
+  color: var(--gray-12);
+}
+
+.seeAll {
+  font-size: var(--font-size-2);
+  color: var(--accent-9);
+  cursor: pointer;
+  font-weight: 500;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
 }
 
 .accountCard {
   cursor: pointer;
   min-height: 56px;
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
 }
 
 .accountIcon {
@@ -52,26 +113,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--gray-3);
   border-radius: var(--radius-3);
   flex-shrink: 0;
 }
 
 .accountBalance {
   white-space: nowrap;
-}
-
-.seeAll {
-  cursor: pointer;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
+  font-weight: 700;
 }
 
 .transactionRow {
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--gray-5);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--gray-4);
   min-height: 48px;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.transactionRow:active {
+  background-color: var(--gray-3);
 }
 
 .transactionRow:last-child {
@@ -82,17 +141,39 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 500;
+}
+
+.txDate {
+  font-size: var(--font-size-1);
+  color: var(--gray-11);
+}
+
+.txAmount {
+  font-weight: 700;
 }
 
 .billRow {
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--gray-5);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--gray-4);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.billRow:active {
+  background-color: var(--gray-3);
 }
 
 .billRow:last-child {
   border-bottom: none;
 }
 
+.contentCard {
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
+  padding: var(--space-4);
+}
+
 .placeholderCard {
-  border: 1px dashed var(--gray-6);
+  border: 1px dashed var(--gray-5);
+  border-radius: var(--radius-card);
 }

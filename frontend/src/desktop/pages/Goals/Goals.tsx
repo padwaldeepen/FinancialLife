@@ -2,7 +2,6 @@ import { useState, useEffect, type JSX } from 'react'
 import {
   Box,
   Flex,
-  Heading,
   Text,
   Button,
   Card,
@@ -151,8 +150,8 @@ export const Goals = (): JSX.Element => {
 
   return (
     <Box className={styles.page}>
-      <Flex align="center" justify="between" mb="5">
-        <Heading size="6">Goals</Heading>
+      <Flex className={styles.pageHeader}>
+        <span className={styles.pageTitle}>Goals</span>
         <Dialog.Root open={open} onOpenChange={setOpen}>
           <Dialog.Trigger>
             <Button size="2">
@@ -222,13 +221,9 @@ export const Goals = (): JSX.Element => {
       {loading ? (
         <Text color="gray">Loading...</Text>
       ) : goals.length === 0 ? (
-        <Flex direction="column" align="center" gap="2" py="8">
-          <Text size="4" weight="medium">
-            No goals yet
-          </Text>
-          <Text size="2" color="gray">
-            Create your first goal to start tracking
-          </Text>
+        <Flex className={styles.emptyState} direction="column">
+          <span className={styles.emptyTitle}>No goals yet</span>
+          <span className={styles.emptyHint}>Create your first goal to start tracking</span>
         </Flex>
       ) : (
         <Flex direction="column" gap="3">
@@ -245,7 +240,9 @@ export const Goals = (): JSX.Element => {
                   <Flex align="center" justify="between">
                     <Flex align="center" gap="2">
                       {goalIcons[goal.type] || <Target size={18} />}
-                      <Heading size="3">{goal.name}</Heading>
+                      <Text size="3" weight="bold">
+                        {goal.name}
+                      </Text>
                       <Badge color={done ? 'green' : 'gray'} size="1">
                         {goalLabels[goal.type] || goal.type}
                       </Badge>

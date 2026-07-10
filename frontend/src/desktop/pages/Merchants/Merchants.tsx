@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, type JSX } from 'react'
 import {
   Box,
   Flex,
-  Heading,
   Text,
   Card,
   TextField,
@@ -157,8 +156,8 @@ export const Merchants = (): JSX.Element => {
 
   return (
     <Box className={styles.page}>
-      <Flex justify="between" align="center" mb="4">
-        <Heading size="6">Merchants</Heading>
+      <Flex className={styles.pageHeader}>
+        <span className={styles.pageTitle}>Merchants</span>
         <Button variant="soft" onClick={handleFetchSimilar}>
           <Merge size={16} /> Find Duplicates
         </Button>
@@ -221,7 +220,7 @@ export const Merchants = (): JSX.Element => {
         ))}
 
         {sorted.length === 0 && (
-          <Flex direction="column" align="center" gap="2" py="6">
+          <Flex className={styles.emptyState} direction="column">
             <Store size={32} />
             <Text color="gray">No merchants found</Text>
           </Flex>

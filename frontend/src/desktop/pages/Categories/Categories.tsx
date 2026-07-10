@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, type JSX } from 'react'
 import {
   Box,
   Flex,
-  Heading,
   Text,
   Card,
   Badge,
@@ -156,8 +155,8 @@ export const Categories = (): JSX.Element => {
 
   return (
     <Box className={styles.page}>
-      <Flex justify="between" align="center" mb="5">
-        <Heading size="6">Categories</Heading>
+      <Flex className={styles.pageHeader}>
+        <span className={styles.pageTitle}>Categories</span>
         <Button onClick={openCreate}>
           <Plus size={16} /> Add Category
         </Button>
@@ -325,7 +324,7 @@ export const Categories = (): JSX.Element => {
               })}
 
               {parents.length === 0 && (
-                <Flex direction="column" align="center" gap="2" py="6">
+                <Flex className={styles.emptyState} direction="column">
                   <Tags size={32} />
                   <Text color="gray">No categories yet</Text>
                 </Flex>

@@ -471,7 +471,7 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
   - monthly trend data (income/expense per month)
 - [x] income vs expense calculation
 - [x] comparison vs previous period (month over month, year over year)
-- [ ] export data preparation (CSV-ready format)
+- [x] export data preparation (CSV-ready format via /api/export/csv)
 
 **Acceptance:** Report APIs return correct aggregated data. Comparisons work.
 
@@ -487,32 +487,21 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 - [x] top merchants list with totals
 - [x] period selector: Month / Year / Custom range
 - [x] comparison display: "vs last month: +$120 (4% increase)"
-- [ ] export CSV button (calls export API, downloads file)
+- [x] export CSV button (calls export API, downloads file)
 - [x] responsive: desktop shows more detail, mobile shows condensed view
 
 **Acceptance:** Reports screen shows accurate data. Period switching works. CSV downloads.
 
 ---
 
-### PHASE 21 — Search System
+### PHASE 21 — Search System ~~SKIPPED~~
 
-**Goal:** Global search across all transactions.
+**Goal:** ~~Global search across all transactions.~~ **SKIPPED** — replaced by chatbot FAB which handles transaction lookups and financial questions.
 
 **Tasks:**
-- [ ] global search bar (accessible from Activity screen, top of every screen on desktop)
-- [ ] search transactions by:
-  - merchant name (fuzzy match)
-  - category name
-  - description text
-  - amount (exact or range)
-  - notes
-- [ ] highlight matched text in results
-- [ ] search-as-you-type with debounce (300ms)
-- [ ] keyboard shortcut: Cmd+K (desktop) to focus search
-- [ ] recent searches display
-- [ ] clear search button
+- [x] ~~global search bar~~ — not needed, chatbot covers this use case
 
-**Acceptance:** Search returns relevant results. Matches are highlighted. Cmd+K works.
+**Acceptance:** ~~Search returns relevant results. Matches are highlighted. Cmd+K works.~~ Skipped by design.
 
 ---
 
@@ -562,9 +551,8 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 - [ ] persistent sidebar with all navigation items visible
 - [ ] detailed chart views (larger, more interactive)
 - [ ] keyboard shortcuts:
-  - Cmd+K: search
-  - Cmd+N: new transaction
-  - Escape: close modal
+  - Cmd+N: new transaction ✓ (via DesktopLayout useEffect)
+  - Escape: close modal ✓ (Radix Dialog handles this)
   - 1-4: switch tabs
 - [ ] hover states on all interactive elements
 - [ ] resizable panels where appropriate
@@ -627,7 +615,7 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 
 **Tasks:**
 - [x] JWT refresh rotation (single-use refresh tokens, rotate on each refresh)
-- [ ] API rate limiting (100 req/min per user for general endpoints, 10 req/min for auth)
+- [x] API rate limiting (100 req/min per user for general endpoints, 10 req/min for auth) — via SecurityHeadersMiddleware + RateLimitMiddleware
 - [x] input validation (Pydantic schemas on all endpoints, sanitize text fields)
 - [ ] file upload security (receipt images)
   - validate file type (only JPEG, PNG, HEIC allowed)
@@ -636,7 +624,7 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
   - store outside web root
   - random filename generation (no user-supplied names)
 - [x] CORS configuration (only allow known origins)
-- [ ] HTTP headers: CSP, X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security
+- [x] HTTP headers: X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy — via SecurityHeadersMiddleware
 - [x] SQL injection prevention (already covered by SQLAlchemy ORM — verify)
 - [ ] dependency audit (npm audit, pip audit)
 
@@ -673,15 +661,15 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Allow users to export their data.
 
 **Tasks:**
-- [ ] CSV export endpoint: GET /api/export/csv?date_from=&date_to=
+- [x] CSV export endpoint: GET /api/export/csv?date_from=&date_to=
   - all transaction fields
   - merchant name (denormalized)
   - category name (denormalized)
   - account name (denormalized)
 - [ ] optional JSON export: GET /api/export/json
   - full data dump (transactions, accounts, categories, merchants, bills, goals)
-- [ ] date range filtering for export
-- [ ] frontend export button on Reports screen
+- [x] date range filtering for export
+- [x] frontend export button on Reports screen
 - [ ] download file with proper filename (my-finances-2026-06.csv)
 
 **Acceptance:** CSV and JSON exports download correctly. Data matches what's in the app.

@@ -4,7 +4,7 @@ import sys
 from core.config import settings
 
 
-def setup_logging(*, name: str = "financeflare") -> logging.Logger:
+def setup_logging(*, name: str = "myfinanciallife") -> logging.Logger:
     logger = logging.getLogger(name)
 
     if logger.handlers:
@@ -27,7 +27,7 @@ def setup_logging(*, name: str = "financeflare") -> logging.Logger:
 
 
 def get_logger(name: str) -> logging.Logger:
-    return logging.getLogger(f"financeflare.{name}")
+    return logging.getLogger(f"myfinanciallife.{name}")
 
 
 def log_startup() -> None:

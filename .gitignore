@@ -212,3 +212,4 @@ dump.rdb
 *.crt 
 test-results/
 .playwright-mcp/
+before-redesign-home.png

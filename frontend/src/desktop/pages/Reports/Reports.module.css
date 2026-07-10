@@ -112,3 +112,78 @@
     transform: translateY(0);
   }
 }
+
+.comparisonCard {
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+  background: var(--color-panel-solid);
+}
+
+.comparisonLabel {
+  font-size: var(--font-size-2);
+  color: var(--gray-11);
+  font-weight: 500;
+  margin-bottom: var(--space-3);
+}
+
+.comparisonRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--gray-4);
+}
+
+.comparisonRow:last-child {
+  border-bottom: none;
+}
+
+.comparisonFieldName {
+  font-size: var(--font-size-2);
+  color: var(--gray-11);
+  width: 80px;
+}
+
+.comparisonValues {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.comparisonCurrent {
+  font-size: var(--font-size-3);
+  font-weight: 600;
+  color: var(--gray-12);
+  min-width: 100px;
+  text-align: right;
+}
+
+.comparisonPrev {
+  font-size: var(--font-size-2);
+  color: var(--gray-10);
+  min-width: 100px;
+  text-align: right;
+}
+
+.comparisonChange {
+  font-size: var(--font-size-2);
+  font-weight: 600;
+  min-width: 70px;
+  text-align: right;
+}
+
+.changePositive {
+  color: var(--green-11);
+}
+
+.changeNegative {
+  color: var(--red-11);
+}
+
+.changeNeutral {
+  color: var(--gray-10);
+}

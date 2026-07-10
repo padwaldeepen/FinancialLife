@@ -57,13 +57,13 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Confirm everything works. Clean up unused code. Establish environment consistency.
 
 **Tasks:**
-- [ ] confirm existing FastAPI + React + SQLAlchemy setup runs locally
-- [ ] verify Alembic migrations are working (alembic upgrade head)
-- [ ] clean unused endpoints (budgets, dashboard summary — keep for now but mark deprecated)
-- [ ] define and document all environment variables (.env for backend + frontend)
-- [ ] ensure auth flow works end-to-end (login → register → me → logout)
-- [ ] run linter + formatter on both frontend and backend
-- [ ] verify Docker Compose builds and starts
+- [x] confirm existing FastAPI + React + SQLAlchemy setup runs locally
+- [x] verify Alembic migrations are working (alembic upgrade head)
+- [x] clean unused endpoints (budgets, dashboard summary — keep for now but mark deprecated)
+- [x] define and document all environment variables (.env for backend + frontend)
+- [x] ensure auth flow works end-to-end (login → register → me → logout)
+- [x] run linter + formatter on both frontend and backend
+- [x] verify Docker Compose builds and starts
 
 **Acceptance:** App starts. User can register, login, see empty state. Lint passes.
 
@@ -74,14 +74,14 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Restructure navigation to match the new information architecture. No backend changes.
 
 **Tasks:**
-- [ ] replace Dashboard route (`/`) → Home route (`/`)
-- [ ] replace Transactions route (`/transactions`) → Activity route (`/activity`)
-- [ ] remove AddTransaction page routing (no more `/add` route)
-- [ ] introduce modal-based Add flow (FAB opens modal/sheet instead of navigating)
-- [ ] implement mobile bottom tabs: Home | Activity | + (FAB) | Bills | More
-- [ ] implement desktop sidebar: Home | Activity | Bills | Merchants | Categories | Goals | Reports | Settings
-- [ ] update all internal navigation links
-- [ ] add redirects from old routes to new routes
+- [x] replace Dashboard route (`/`) → Home route (`/`)
+- [x] replace Transactions route (`/transactions`) → Activity route (`/activity`)
+- [x] remove AddTransaction page routing (no more `/add` route)
+- [x] introduce modal-based Add flow (FAB opens modal/sheet instead of navigating)
+- [x] implement mobile bottom tabs: Home | Activity | + (FAB) | Bills | More
+- [x] implement desktop sidebar: Home | Activity | Bills | Merchants | Categories | Goals | Reports | Settings
+- [x] update all internal navigation links
+- [x] add redirects from old routes to new routes
 
 **Acceptance:** Navigation matches the new structure. FAB opens modal. Old URLs redirect.
 
@@ -258,7 +258,7 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
   - rule-based parser works as fallback
   - app functions identically without any API keys
 - [x] add AI configuration to settings
-- [ ] document how to get free API keys
+- [x] document how to get free API keys
 
 **Acceptance:** AI parsing works with API keys. App works without them. Fallback to rule-based is seamless.
 
@@ -269,19 +269,19 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Use AI to parse natural language into structured transactions.
 
 **Tasks:**
-- [ ] parse "coffee 4.50" → structured result
+- [x] parse "coffee 4.50" → structured result
   - merchant: "Coffee Shop" (extracted or inferred)
   - amount: 4.50
   - category: "Food & Dining" (inferred)
   - type: expense
-- [ ] support variations:
+- [x] support variations:
   - "salary 3200" → Income, $3,200
   - "walmart 84.23" → Walmart, $84.23, Shopping
   - "netflix" → Netflix, (ask for amount), Entertainment
   - "amazon headphones 60" → Amazon, $60.00, Shopping
-- [ ] return structured transaction preview (client shows before save)
-- [ ] client-side parsing preferred (AI call only when needed)
-- [ ] fallback to rule-based parser if AI is unavailable
+- [x] return structured transaction preview (client shows before save)
+- [x] client-side parsing preferred (AI call only when needed)
+- [x] fallback to rule-based parser if AI is unavailable
 
 **Acceptance:** Typing natural text shows instant structured preview. Save creates correct transaction.
 
@@ -391,20 +391,20 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Create the Goal entity. Replace budgets entirely.
 
 **Tasks:**
-- [ ] create Goal table (SQLAlchemy model)
+- [x] create Goal table (SQLAlchemy model)
   - id, user_id (FK), name, target_amount, current_amount, monthly_contribution, type (save_up/pay_down/monthly_envelope), category_id (FK, nullable), deadline, icon, color, is_active, sort_order, created_at, updated_at
-- [ ] support three goal types:
+- [x] support three goal types:
   - save_up: accumulate money over time (vacation, emergency fund)
   - pay_down: debt payoff (credit card, loan)
   - monthly_envelope: monthly spending limit (replaces budgets)
-- [ ] create Goal router
+- [x] create Goal router
   - GET /api/goals/ (all goals with progress)
   - POST /api/goals/ (create)
   - PUT /api/goals/{id} (update)
   - DELETE /api/goals/{id} (deactivate)
   - POST /api/goals/{id}/contribute (add contribution)
-- [ ] mark old Budget model as deprecated
-- [ ] add Alembic migration
+- [x] mark old Budget model as deprecated
+- [x] add Alembic migration
 
 **Acceptance:** Goals CRUD works. Three types behave correctly. Old budgets untouched (deprecated).
 
@@ -415,24 +415,24 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Build the Goals screens.
 
 **Tasks:**
-- [ ] goals list screen (Desktop sidebar + Mobile More tab)
+- [x] goals list screen (Desktop sidebar + Mobile More tab)
   - progress cards: icon, name, progress bar, current/target amounts
   - show projected completion date based on monthly contribution
   - color-coded progress (green = on track, yellow = behind, red = off track)
-- [ ] goal detail view
+- [x] goal detail view
   - target amount, saved amount, remaining
   - progress over time (chart)
   - contribution history (list)
   - edit goal
-- [ ] contribution tracking
+- [x] contribution tracking
   - manual: "Add $X to goal"
   - from transaction: when recording, user can link to goal
   - "Save this amount to Vacation Fund?" prompt
-- [ ] create goal form
+- [x] create goal form
   - name, target amount, deadline (optional), icon, color, type
   - for envelopes: monthly limit + category
   - for pay_down: debt amount + interest rate (optional)
-- [ ] remove Budgets from navigation (keep data for migration reference)
+- [x] remove Budgets from navigation (keep data for migration reference)
 
 **Acceptance:** Goals list shows progress. Contributions work. Link from transactions works. Budgets replaced.
 
@@ -443,14 +443,14 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Build category analytics with Nivo charts.
 
 **Tasks:**
-- [ ] Nivo Pie chart: spending distribution by category
-- [ ] Nivo Bar chart: category comparison by month
-- [ ] category breakdown by month (sidebar/selector)
-- [ ] drill-down category view
+- [x] Nivo Pie chart: spending distribution by category
+- [x] Nivo Bar chart: category comparison by month
+- [x] category breakdown by month (sidebar/selector)
+- [x] drill-down category view
   - parent category → subcategories
   - top merchants in this category
-- [ ] toggle: current month / last month / custom date range
-- [ ] percentage labels + actual amounts
+- [x] toggle: current month / last month / custom date range
+- [x] percentage labels + actual amounts
 
 **Acceptance:** Category charts render correctly. Drill-down works. Date range selector works.
 
@@ -461,7 +461,7 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Create report generation APIs.
 
 **Tasks:**
-- [ ] monthly report API
+- [x] monthly report API
   - total income, total expenses, net savings
   - category breakdown with percentages
   - top 5 merchants by spending
@@ -469,8 +469,8 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 - [ ] yearly report API
   - same as monthly but aggregated by year
   - monthly trend data (income/expense per month)
-- [ ] income vs expense calculation
-- [ ] comparison vs previous period (month over month, year over year)
+- [x] income vs expense calculation
+- [x] comparison vs previous period (month over month, year over year)
 - [ ] export data preparation (CSV-ready format)
 
 **Acceptance:** Report APIs return correct aggregated data. Comparisons work.
@@ -482,13 +482,13 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Build the Reports screen.
 
 **Tasks:**
-- [ ] summary cards: Income, Expenses, Savings (with +/- change indicator)
-- [ ] category breakdown (horizontal bar chart or list with percentages)
-- [ ] top merchants list with totals
-- [ ] period selector: Month / Year / Custom range
-- [ ] comparison display: "vs last month: +$120 (4% increase)"
+- [x] summary cards: Income, Expenses, Savings (with +/- change indicator)
+- [x] category breakdown (horizontal bar chart or list with percentages)
+- [x] top merchants list with totals
+- [x] period selector: Month / Year / Custom range
+- [x] comparison display: "vs last month: +$120 (4% increase)"
 - [ ] export CSV button (calls export API, downloads file)
-- [ ] responsive: desktop shows more detail, mobile shows condensed view
+- [x] responsive: desktop shows more detail, mobile shows condensed view
 
 **Acceptance:** Reports screen shows accurate data. Period switching works. CSV downloads.
 
@@ -521,10 +521,10 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Ensure the app is fast at any scale.
 
 **Tasks:**
-- [ ] API pagination tuning (default 50 per page, max 100)
+- [x] API pagination tuning (default 50 per page, max 100)
 - [ ] caching for summary endpoints (accounts, bills upcoming, dashboard — cache 60s)
-- [ ] debounce search input (300ms, implemented in Phase 21)
-- [ ] optimize transaction queries
+- [x] debounce search input (300ms, implemented in Phase 21)
+- [x] optimize transaction queries
   - add database indexes: (user_id, date), (user_id, merchant_id), (user_id, category_id)
   - use selectinload for relationships instead of joinedload where appropriate
 - [ ] lazy load chart components (Nivo loaded only on Categories/Reports screens)
@@ -540,13 +540,13 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Make mobile the best experience.
 
 **Tasks:**
-- [ ] bottom sheet add flow (slides up from bottom, full keyboard support)
-- [ ] one-tap transaction entry (FAB → type → save, no extra steps)
+- [x] bottom sheet add flow (slides up from bottom, full keyboard support)
+- [x] one-tap transaction entry (FAB → type → save, no extra steps)
 - [ ] gesture-based navigation (swipe back, swipe to delete, pull to refresh)
-- [ ] reduce UI clutter (hide non-essential info, progressive disclosure)
-- [ ] touch targets minimum 44x44px
-- [ ] no horizontal scroll anywhere
-- [ ] bottom tab bar always visible (no hidden tabs)
+- [x] reduce UI clutter (hide non-essential info, progressive disclosure)
+- [x] touch targets minimum 44x44px
+- [x] no horizontal scroll anywhere
+- [x] bottom tab bar always visible (no hidden tabs)
 - [ ] safe area insets for notched devices
 
 **Acceptance:** Adding a transaction takes <5 seconds on mobile. No horizontal scroll. All touch targets accessible.
@@ -579,22 +579,22 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Create all necessary Zustand slices for the new architecture.
 
 **Tasks:**
-- [ ] accountsSlice
+- [x] accountsSlice
   - state: accounts[], activeAccountId, loading
   - actions: fetchAccounts, createAccount, updateAccount, deleteAccount
-- [ ] activitySlice
+- [x] activitySlice
   - state: transactions[], filters, searchQuery, pagination, loading
   - actions: fetchActivity, search, filter, setPage, deleteTransaction
-- [ ] billsSlice
+- [x] billsSlice
   - state: bills[], upcomingBills[], loading
   - actions: fetchBills, createBill, updateBill, deleteBill
-- [ ] merchantsSlice
+- [x] merchantsSlice
   - state: merchants[], activeMerchant, loading
   - actions: fetchMerchants, fetchMerchantDetail, mergeMerchants
-- [ ] goalsSlice
+- [x] goalsSlice
   - state: goals[], loading
   - actions: fetchGoals, createGoal, contributeToGoal
-- [ ] uiSlice
+- [x] uiSlice
   - state: sidebarOpen, activeModal, theme, searchOpen
   - actions: toggleSidebar, openModal, closeModal, toggleTheme
 
@@ -626,18 +626,18 @@ Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely i
 **Goal:** Secure the application against common vulnerabilities.
 
 **Tasks:**
-- [ ] JWT refresh rotation (single-use refresh tokens, rotate on each refresh)
+- [x] JWT refresh rotation (single-use refresh tokens, rotate on each refresh)
 - [ ] API rate limiting (100 req/min per user for general endpoints, 10 req/min for auth)
-- [ ] input validation (Pydantic schemas on all endpoints, sanitize text fields)
+- [x] input validation (Pydantic schemas on all endpoints, sanitize text fields)
 - [ ] file upload security (receipt images)
   - validate file type (only JPEG, PNG, HEIC allowed)
   - validate file size (<10MB)
   - scan for malware (basic check)
   - store outside web root
   - random filename generation (no user-supplied names)
-- [ ] CORS configuration (only allow known origins)
+- [x] CORS configuration (only allow known origins)
 - [ ] HTTP headers: CSP, X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security
-- [ ] SQL injection prevention (already covered by SQLAlchemy ORM — verify)
+- [x] SQL injection prevention (already covered by SQLAlchemy ORM — verify)
 - [ ] dependency audit (npm audit, pip audit)
 
 **Acceptance:** Security scan passes. Rate limiting works. File uploads are safe. No vulnerabilities.

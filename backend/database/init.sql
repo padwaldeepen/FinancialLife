@@ -1,3 +1,3 @@
--- Initial database setup for FinanceFlare
+-- Initial database setup for My Financial Life
 -- Tables are created by SQLAlchemy on startup
 -- This file exists to satisfy the docker-compose volume mount

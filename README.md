@@ -1,4 +1,4 @@
-# FinanceFlare
+# My Financial Life
 
 Free, open-source personal finance tracker. Track your expenses by typing "spent 15 on groceries" — zero friction, zero cost.
 
@@ -82,7 +82,7 @@ Then edit with your credentials. No OpenAI key needed — all AI features use fr
 ## Project Structure
 
 ```
-FinanceFlare/
+My Financial Life/
 ├── backend/
 │   ├── database/         SQLAlchemy models + session
 │   ├── routers/          FastAPI route handlers (thin)

@@ -1,5 +1,5 @@
 [project]
-name = "financeflare-backend"
+name = "myfinanciallife-backend"
 version = "1.0.0"
 requires-python = ">=3.12"
 

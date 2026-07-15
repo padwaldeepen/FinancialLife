@@ -115,7 +115,7 @@ Export CSV button on Activity page filter bar (desktop + mobile) with date range
 ### Phase 35 — Shared Utilities ✅
 Created `shared/utils/format.ts` with `formatCurrency`, `formatDate`, `formatDateFull`, `getAmountColor`. Replaced all `.toFixed(2)` across 20+ files, removed duplicate `formatDate` functions, centralized amount color logic.
 
-### ❌ Phase 38 — Bill–Transaction Linking UI
+### ✅ Phase 38 — Bill–Transaction Linking UI
 - Bill detail: show linked transactions, allow manual linking
 - Transaction detail: show linked bill, allow linking/unlinking
 - Wire up existing `suggestBillLink` and `linkTransactionToBill` actions
@@ -190,7 +190,7 @@ Current types: `checking`, `savings`, `credit`, `cash`, `investment`. User says 
 | 1 | Phase 28b — Bill Edit Dialog | Small ✅ |
 | 2 | Phase 39b — CSV Export UI | Small ✅ |
 | 3 | Phase 35 — Shared Utilities | Small ✅ |
-| 4 | Phase 38 — Bill-Transaction Linking | Medium |
+| 4 | Phase 38 — Bill-Transaction Linking | ✅ Done |
 | 5 | Phase 36 — Registration Improvements | Small |
 | 6 | Phase 30 — Inline Style Cleanup | Medium |
 | 7 | Phase 33 — Mobile Polish | Medium |

@@ -87,6 +87,7 @@ export type BillsSlice = {
     confidence: string
   } | null>
   linkTransactionToBill: (billId: number, transactionId: number) => Promise<void>
+  unlinkTransactionFromBill: (billId: number, transactionId: number) => Promise<void>
 }
 
 export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
@@ -191,5 +192,9 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
 
   linkTransactionToBill: async (billId: number, transactionId: number) => {
     await api.post(`/api/bills/${billId}/link/${transactionId}`)
+  },
+
+  unlinkTransactionFromBill: async (billId: number, transactionId: number) => {
+    await api.delete(`/api/bills/${billId}/link/${transactionId}`)
   },
 }))

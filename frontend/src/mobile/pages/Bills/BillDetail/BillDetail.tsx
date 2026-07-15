@@ -1,6 +1,18 @@
-import { useEffect, useRef, type JSX } from 'react'
-import { Box, Flex, Text, Heading, Badge, Separator } from '@radix-ui/themes'
+import { useEffect, useRef, useState, type JSX } from 'react'
+import {
+  Box,
+  Flex,
+  Text,
+  Heading,
+  Badge,
+  Separator,
+  Button,
+  Dialog,
+  TextField,
+} from '@radix-ui/themes'
+import { Link2, Unlink } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
+import toast from 'react-hot-toast'
 import { useBoundStore } from '../../../../store/useBoundStore.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { formatCurrency } from '../../../../shared/utils/format.ts'
@@ -39,13 +51,19 @@ const frequencyLabel = (f: string) => {
 }
 
 export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
-  const { billHistory, fetchBillHistory } = useBoundStore(
-    useShallow((s) => ({
-      billHistory: s.bills.billHistory,
-      fetchBillHistory: s.fetchBillHistory,
-    })),
-  )
+  const { billHistory, fetchBillHistory, linkTransactionToBill, unlinkTransactionFromBill } =
+    useBoundStore(
+      useShallow((s) => ({
+        billHistory: s.bills.billHistory,
+        fetchBillHistory: s.fetchBillHistory,
+        linkTransactionToBill: s.linkTransactionToBill,
+        unlinkTransactionFromBill: s.unlinkTransactionFromBill,
+      })),
+    )
+  const transactions = useBoundStore((s) => s.transactions.items)
   const fetched = useRef(false)
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [linkSearch, setLinkSearch] = useState('')
 
   useEffect(() => {
     if (!fetched.current) {
@@ -53,6 +71,34 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
       fetchBillHistory(bill.id)
     }
   }, [bill.id, fetchBillHistory])
+
+  const handleLink = async (transactionId: number) => {
+    try {
+      await linkTransactionToBill(bill.id, transactionId)
+      toast.success('Transaction linked')
+      setLinkOpen(false)
+      fetchBillHistory(bill.id)
+    } catch {
+      toast.error('Failed to link')
+    }
+  }
+
+  const handleUnlink = async (transactionId: number) => {
+    try {
+      await unlinkTransactionFromBill(bill.id, transactionId)
+      toast.success('Transaction unlinked')
+      fetchBillHistory(bill.id)
+    } catch {
+      toast.error('Failed to unlink')
+    }
+  }
+
+  const availableTx = (transactions as any[]).filter(
+    (t: any) =>
+      !t.bill_id &&
+      (t.description.toLowerCase().includes(linkSearch.toLowerCase()) ||
+        String(t.amount).includes(linkSearch)),
+  )
 
   return (
     <Box>
@@ -164,9 +210,20 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                       {tx.date}
                     </Text>
                   </Flex>
-                  <Text size="2" weight="bold" style={{ whiteSpace: 'nowrap' }}>
-                    {formatCurrency(Number(tx.amount))}
-                  </Text>
+                  <Flex align="center" gap="2">
+                    <Text size="2" weight="bold" style={{ whiteSpace: 'nowrap' }}>
+                      {formatCurrency(Number(tx.amount))}
+                    </Text>
+                    <Button
+                      size="1"
+                      variant="ghost"
+                      color="red"
+                      onClick={() => handleUnlink(tx.id)}
+                      aria-label="Unlink"
+                    >
+                      <Unlink size={12} />
+                    </Button>
+                  </Flex>
                 </Flex>
               ))}
             </Flex>
@@ -179,8 +236,52 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
               No payments linked to this bill yet
             </Text>
           )}
+          <Button size="1" variant="soft" mt="2" onClick={() => setLinkOpen(true)}>
+            <Link2 size={12} /> Link Transaction
+          </Button>
         </Box>
       </Flex>
+
+      <Dialog.Root open={linkOpen} onOpenChange={setLinkOpen}>
+        <Dialog.Content maxWidth="380px">
+          <Dialog.Title>Link Transaction</Dialog.Title>
+          <TextField.Root
+            placeholder="Search..."
+            value={linkSearch}
+            onChange={(e) => setLinkSearch(e.target.value)}
+            mt="3"
+            mb="3"
+          />
+          <Flex direction="column" gap="1" style={{ maxHeight: 300, overflowY: 'auto' }}>
+            {availableTx.length === 0 ? (
+              <Text size="2" color="gray">
+                No unlinked transactions
+              </Text>
+            ) : (
+              availableTx.slice(0, 20).map((tx: any) => (
+                <Flex
+                  key={tx.id}
+                  align="center"
+                  justify="between"
+                  className={styles.txRow}
+                  onClick={() => handleLink(tx.id)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <Flex direction="column" gap="1">
+                    <Text size="2">{tx.description}</Text>
+                    <Text size="1" color="gray">
+                      {tx.date}
+                    </Text>
+                  </Flex>
+                  <Text size="2" weight="bold">
+                    {formatCurrency(tx.amount)}
+                  </Text>
+                </Flex>
+              ))
+            )}
+          </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
     </Box>
   )
 }

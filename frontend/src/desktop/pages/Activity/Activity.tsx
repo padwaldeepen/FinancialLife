@@ -11,7 +11,7 @@ import {
   Button,
   Checkbox,
 } from '@radix-ui/themes'
-import { Search, Trash2, Pencil, X, Calendar, Download } from 'lucide-react'
+import { Search, Trash2, Pencil, X, Calendar, Download, Link2, Unlink } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
@@ -89,6 +89,10 @@ export const Activity = (): JSX.Element => {
   )
   const accounts = useBoundStore((s) => s.accounts.items)
   const fetchAccounts = useBoundStore((s) => s.fetchAccounts)
+  const bills = useBoundStore((s) => s.bills.items)
+  const fetchBills = useBoundStore((s) => s.fetchBills)
+  const linkTransactionToBill = useBoundStore((s) => s.linkTransactionToBill)
+  const unlinkTransactionFromBill = useBoundStore((s) => s.unlinkTransactionFromBill)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -112,11 +116,14 @@ export const Activity = (): JSX.Element => {
     notes: '',
   })
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const [linkBillOpen, setLinkBillOpen] = useState(false)
+  const [linkBillSearch, setLinkBillSearch] = useState('')
 
   useEffect(() => {
     fetchTxFilters()
     fetchAccounts()
-  }, [fetchTxFilters, fetchAccounts])
+    fetchBills()
+  }, [fetchTxFilters, fetchAccounts, fetchBills])
 
   useEffect(() => {
     fetchTransactions({
@@ -207,6 +214,34 @@ export const Activity = (): JSX.Element => {
     setSelected({ ...selected, ...editForm })
     setEditing(false)
   }
+
+  const handleLinkToBill = async (billId: number) => {
+    if (!selected) return
+    try {
+      await linkTransactionToBill(billId, selected.id)
+      toast.success('Linked to bill')
+      setSelected({ ...selected, bill_id: billId })
+      setLinkBillOpen(false)
+    } catch {
+      toast.error('Failed to link')
+    }
+  }
+
+  const handleUnlinkBill = async () => {
+    if (!selected || !selected.bill_id) return
+    try {
+      await unlinkTransactionFromBill(selected.bill_id, selected.id)
+      toast.success('Unlinked from bill')
+      setSelected({ ...selected, bill_id: null })
+    } catch {
+      toast.error('Failed to unlink')
+    }
+  }
+
+  const linkedBill = selected?.bill_id ? bills.find((b: any) => b.id === selected.bill_id) : null
+  const availableBills = (bills as any[]).filter((b: any) =>
+    b.name.toLowerCase().includes(linkBillSearch.toLowerCase()),
+  )
 
   const handleExport = async () => {
     try {
@@ -602,6 +637,22 @@ export const Activity = (): JSX.Element => {
                     </div>
                   )}
 
+                  <div className={styles.detailSection}>
+                    <div className={styles.detailLabel}>Bill</div>
+                    {linkedBill ? (
+                      <Flex align="center" gap="2">
+                        <div className={styles.detailValue}>{linkedBill.name}</div>
+                        <Button size="1" variant="ghost" color="red" onClick={handleUnlinkBill}>
+                          <Unlink size={12} />
+                        </Button>
+                      </Flex>
+                    ) : (
+                      <Button size="1" variant="soft" onClick={() => setLinkBillOpen(true)}>
+                        <Link2 size={12} /> Link to bill
+                      </Button>
+                    )}
+                  </div>
+
                   <Flex gap="2">
                     {selected.is_pending && (
                       <Badge color="orange" variant="soft">
@@ -639,6 +690,48 @@ export const Activity = (): JSX.Element => {
               )}
             </>
           )}
+        </Dialog.Content>
+      </Dialog.Root>
+
+      <Dialog.Root open={linkBillOpen} onOpenChange={setLinkBillOpen}>
+        <Dialog.Content maxWidth="400px">
+          <Dialog.Title>Link to Bill</Dialog.Title>
+          <TextField.Root
+            placeholder="Search bills..."
+            value={linkBillSearch}
+            onChange={(e) => setLinkBillSearch(e.target.value)}
+            mt="3"
+            mb="3"
+          >
+            <TextField.Slot side="left">
+              <Search size={14} />
+            </TextField.Slot>
+          </TextField.Root>
+          <Flex direction="column" gap="1" style={{ maxHeight: 300, overflowY: 'auto' }}>
+            {availableBills.length === 0 ? (
+              <Text size="2" color="gray">
+                No bills found
+              </Text>
+            ) : (
+              availableBills.map((bill: any) => (
+                <Flex
+                  key={bill.id}
+                  align="center"
+                  justify="between"
+                  className={styles.row}
+                  onClick={() => handleLinkToBill(bill.id)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <Text size="2" weight="medium">
+                    {bill.name}
+                  </Text>
+                  <Text size="2" color="gray">
+                    {formatCurrency(bill.amount)}
+                  </Text>
+                </Flex>
+              ))
+            )}
+          </Flex>
         </Dialog.Content>
       </Dialog.Root>
     </Box>

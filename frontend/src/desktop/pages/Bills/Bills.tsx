@@ -15,6 +15,7 @@ import { Plus, Trash2, Eye, Pencil } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { formatCurrency } from '../../../shared/utils/format.ts'
 import { BillDetail } from './BillDetail/BillDetail.tsx'
 import styles from './Bills.module.css'
 
@@ -286,7 +287,7 @@ export const Bills = (): JSX.Element => {
                       </Text>
                     </Flex>
                     <Text size="2" weight="bold">
-                      ${bill.amount.toFixed(2)}
+                      {formatCurrency(bill.amount)}
                     </Text>
                   </Flex>
                 ))}
@@ -323,7 +324,7 @@ export const Bills = (): JSX.Element => {
                   </Flex>
                   <Flex align="center" gap="3">
                     <Text size="3" weight="bold" style={{ whiteSpace: 'nowrap' }}>
-                      ${bill.amount.toFixed(2)}
+                      {formatCurrency(bill.amount)}
                     </Text>
                     <IconButton
                       variant="ghost"

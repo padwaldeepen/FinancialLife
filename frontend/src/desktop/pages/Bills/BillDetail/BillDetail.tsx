@@ -3,6 +3,7 @@ import { Box, Flex, Text, Heading, Badge, Separator, Tabs } from '@radix-ui/them
 import { ResponsiveBar } from '@nivo/bar'
 import { useBoundStore } from '../../../../store/useBoundStore.ts'
 import { useShallow } from 'zustand/react/shallow'
+import { formatCurrency } from '../../../../shared/utils/format.ts'
 import styles from './BillDetail.module.css'
 
 interface BillDetailProps {
@@ -66,11 +67,11 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
           <Flex align="center" gap="2">
             {bill.is_variable && <Badge color="orange">Variable</Badge>}
             <Text size="5" weight="bold">
-              ${bill.amount.toFixed(2)}
+              {formatCurrency(bill.amount)}
               {bill.is_variable && bill.amount_estimated && (
                 <Text size="1" color="gray">
                   {' '}
-                  (est. ${bill.amount_estimated.toFixed(2)})
+                  (est. {formatCurrency(bill.amount_estimated)})
                 </Text>
               )}
             </Text>
@@ -169,7 +170,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                       </Text>
                     </Flex>
                     <Text size="2" weight="bold">
-                      ${Number(tx.amount).toFixed(2)}
+                      {formatCurrency(Number(tx.amount))}
                     </Text>
                   </Flex>
                 ))}

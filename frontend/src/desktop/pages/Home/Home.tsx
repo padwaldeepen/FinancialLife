@@ -4,6 +4,7 @@ import { Box, Flex, Text, Card } from '@radix-ui/themes'
 import { Wallet, PiggyBank, CreditCard, TrendingUp } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { formatCurrency, formatDate } from '../../../shared/utils/format.ts'
 import styles from './Home.module.css'
 
 interface Transaction {
@@ -79,17 +80,6 @@ export const Home = (): JSX.Element => {
   const recentTx = transactions.slice(0, 5) as Transaction[]
   const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0)
 
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr)
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-
-    if (d.toDateString() === today.toDateString()) return 'Today'
-    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
-
   if (loading) {
     return (
       <Flex direction="column" gap="4">
@@ -107,7 +97,7 @@ export const Home = (): JSX.Element => {
           {/* Balance Hero */}
           <Card className={styles.balanceCard}>
             <Text className={styles.balanceLabel}>Total Balance</Text>
-            <div className={styles.balanceAmount}>${totalBalance.toFixed(2)}</div>
+            <div className={styles.balanceAmount}>{formatCurrency(totalBalance)}</div>
             <Text className={styles.balanceAccounts}>
               {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
             </Text>
@@ -140,7 +130,7 @@ export const Home = (): JSX.Element => {
                         <div className={styles.accountName}>{account.name}</div>
                         <div className={styles.accountType}>{account.type}</div>
                       </Box>
-                      <div className={styles.accountBalance}>${account.balance.toFixed(2)}</div>
+                      <div className={styles.accountBalance}>{formatCurrency(account.balance)}</div>
                     </Flex>
                   </Card>
                 ))}
@@ -185,7 +175,8 @@ export const Home = (): JSX.Element => {
                           t.transaction_type === 'income' ? 'var(--green-11)' : 'var(--gray-12)',
                       }}
                     >
-                      {t.transaction_type === 'income' ? '+' : '-'}${t.amount.toFixed(2)}
+                      {t.transaction_type === 'income' ? '+' : '-'}
+                      {formatCurrency(t.amount)}
                     </div>
                   </Flex>
                 ))}
@@ -229,7 +220,8 @@ export const Home = (): JSX.Element => {
                       weight="bold"
                       style={{ color: bill.has_paid ? 'var(--green-11)' : undefined }}
                     >
-                      {bill.has_paid ? '✓ ' : ''}${bill.amount.toFixed(2)}
+                      {bill.has_paid ? '✓ ' : ''}
+                      {formatCurrency(bill.amount)}
                     </Text>
                   </Flex>
                 ))}

@@ -32,6 +32,7 @@ import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useAppTheme } from '../../../theme.tsx'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { formatCurrency } from '../../../shared/utils/format.ts'
 import styles from './Settings.module.css'
 
 const accountIcons: Record<string, JSX.Element> = {
@@ -272,7 +273,7 @@ export const Settings = (): JSX.Element => {
                   <Box className={styles.labelText}>
                     <Text size="2">{account.name}</Text>
                     <Text size="1" color="gray" style={{ textTransform: 'capitalize' }}>
-                      {account.type} — ${account.balance.toFixed(2)}
+                      {account.type} — {formatCurrency(account.balance)}
                     </Text>
                   </Box>
                 </Flex>

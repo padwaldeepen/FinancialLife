@@ -17,6 +17,7 @@ import { Tags, ChevronRight, PieChart, Plus, Pencil, Trash2 } from 'lucide-react
 import { ResponsivePie } from '@nivo/pie'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { formatCurrency } from '../../../shared/utils/format.ts'
 import styles from './Categories.module.css'
 
 const COLOR_OPTIONS = [
@@ -221,7 +222,7 @@ export const Categories = (): JSX.Element => {
                       {s.name}
                     </Text>
                     <Text size="2" weight="medium">
-                      ${s.total.toFixed(2)}
+                      {formatCurrency(s.total)}
                     </Text>
                     <Text size="1" color="gray" style={{ width: 40, textAlign: 'right' }}>
                       {s.percentage}%

@@ -4,6 +4,7 @@ import { PieChart } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { formatCurrency } from '../../../shared/utils/format.ts'
 import styles from './Reports.module.css'
 
 export const Reports = (): JSX.Element => {
@@ -54,7 +55,7 @@ export const Reports = (): JSX.Element => {
                 Income (30d)
               </Text>
               <Heading size="4" className={styles.incomeText}>
-                ${summary.total_income.toFixed(2)}
+                {formatCurrency(summary.total_income)}
               </Heading>
             </Flex>
           </Card>
@@ -64,7 +65,7 @@ export const Reports = (): JSX.Element => {
                 Expenses (30d)
               </Text>
               <Heading size="4" className={styles.expenseText}>
-                ${summary.total_expense.toFixed(2)}
+                {formatCurrency(summary.total_expense)}
               </Heading>
             </Flex>
           </Card>
@@ -74,7 +75,7 @@ export const Reports = (): JSX.Element => {
                 Net
               </Text>
               <Heading size="4" color={summary.net >= 0 ? undefined : 'red'}>
-                ${summary.net.toFixed(2)}
+                {formatCurrency(summary.net)}
               </Heading>
             </Flex>
           </Card>
@@ -89,7 +90,7 @@ export const Reports = (): JSX.Element => {
               </Text>
               {summary.top_category_amount && (
                 <Text size="2" color="gray">
-                  ${summary.top_category_amount.toFixed(2)}
+                  {formatCurrency(summary.top_category_amount)}
                 </Text>
               )}
             </Flex>
@@ -122,7 +123,7 @@ export const Reports = (): JSX.Element => {
                 </Text>
                 <Flex align="center" gap="2">
                   <Text size="2" weight="medium">
-                    ${row.current.toFixed(2)}
+                    {formatCurrency(row.current)}
                   </Text>
                   <Text
                     size="1"
@@ -192,7 +193,7 @@ export const Reports = (): JSX.Element => {
                   {cat.transaction_count}
                 </Badge>
                 <Text size="2" weight="medium">
-                  ${cat.total.toFixed(2)}
+                  {formatCurrency(cat.total)}
                 </Text>
                 <Text size="1" color="gray" style={{ width: 36, textAlign: 'right' }}>
                   {cat.percentage}%

@@ -1,6 +1,7 @@
 import { useState, type JSX } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Box, Flex, Heading, Text, Button, Card, TextField } from '@radix-ui/themes'
+import { Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Login.module.css'
@@ -13,6 +14,7 @@ export const Login = (): JSX.Element => {
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
 
   const validate = () => {
@@ -97,7 +99,7 @@ export const Login = (): JSX.Element => {
                 <TextField.Root
                   color={errors.password ? 'red' : undefined}
                   id="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => {
@@ -106,7 +108,19 @@ export const Login = (): JSX.Element => {
                   }}
                   autoComplete="current-password"
                   className={styles.input}
-                />
+                >
+                  <TextField.Slot side="right">
+                    <Button
+                      variant="ghost"
+                      size="1"
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </Button>
+                  </TextField.Slot>
+                </TextField.Root>
                 {errors.password && (
                   <Text size="1" color="red">
                     {errors.password}

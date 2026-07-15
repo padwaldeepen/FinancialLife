@@ -17,11 +17,10 @@ export const createAuthSlice = namespaceSlice('auth', (set, _get) => ({
     set({ token: access_token, user: { id: user_id, email: userEmail, is_admin } })
   },
 
-  register: async (email: string, password: string, name?: string) => {
-    const username = email.split('@')[0]
+  register: async (email: string, password: string, name?: string, username?: string) => {
     const response = await api.post('/api/auth/register', {
       email,
-      username,
+      username: username || email.split('@')[0],
       password,
       full_name: name,
     })

@@ -10,11 +10,12 @@ import {
   Dialog,
   Button,
 } from '@radix-ui/themes'
-import { Search, Trash2, Pencil, X, Calendar } from 'lucide-react'
+import { Search, Trash2, Pencil, X, Calendar, Download } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import api from '../../../auth/api.ts'
 import styles from './Activity.module.css'
 
 type Transaction = {
@@ -208,6 +209,29 @@ export const Activity = (): JSX.Element => {
     setEditing(false)
   }
 
+  const handleExport = async () => {
+    try {
+      const params: Record<string, string> = {}
+      if (startDate) params.date_from = startDate
+      if (endDate) params.date_to = endDate
+      const res = await api.get('/api/export/csv', { params, responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute(
+        'download',
+        `my-financial-life-${new Date().toISOString().slice(0, 10)}.csv`,
+      )
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Export downloaded')
+    } catch {
+      toast.error('Export failed')
+    }
+  }
+
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0]!.clientX
   }
@@ -318,6 +342,10 @@ export const Activity = (): JSX.Element => {
               style={{ flex: 1 }}
             />
           </Flex>
+          <Button variant="outline" size="2" onClick={handleExport}>
+            <Download size={14} />
+            Export CSV
+          </Button>
         </Flex>
       )}
 

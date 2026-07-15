@@ -2,6 +2,7 @@ import { useEffect, useRef, type JSX } from 'react'
 import { Box, Flex, Text, Heading, Badge, Separator } from '@radix-ui/themes'
 import { ResponsiveBar } from '@nivo/bar'
 import { useBoundStore } from '../../../../store/useBoundStore.ts'
+import { useShallow } from 'zustand/react/shallow'
 import styles from './BillDetail.module.css'
 
 interface BillDetailProps {
@@ -37,10 +38,12 @@ const frequencyLabel = (f: string) => {
 }
 
 export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
-  const { billHistory, fetchBillHistory } = useBoundStore((s) => ({
-    billHistory: s.bills.billHistory,
-    fetchBillHistory: s.fetchBillHistory,
-  }))
+  const { billHistory, fetchBillHistory } = useBoundStore(
+    useShallow((s) => ({
+      billHistory: s.bills.billHistory,
+      fetchBillHistory: s.fetchBillHistory,
+    })),
+  )
   const fetched = useRef(false)
 
   useEffect(() => {

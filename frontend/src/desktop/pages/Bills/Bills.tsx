@@ -11,7 +11,7 @@ import {
   IconButton,
   Checkbox,
 } from '@radix-ui/themes'
-import { Plus, Trash2, Eye } from 'lucide-react'
+import { Plus, Trash2, Eye, Pencil } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -19,18 +19,27 @@ import { BillDetail } from './BillDetail/BillDetail.tsx'
 import styles from './Bills.module.css'
 
 export const Bills = (): JSX.Element => {
-  const { bills, upcoming, loading, fetchBills, fetchUpcomingBills, createBill, deleteBill } =
-    useBoundStore(
-      useShallow((s) => ({
-        bills: s.bills.items as any[],
-        upcoming: s.bills.upcoming as any[],
-        loading: s.bills.loading,
-        fetchBills: s.fetchBills,
-        fetchUpcomingBills: s.fetchUpcomingBills,
-        createBill: s.createBill,
-        deleteBill: s.deleteBill,
-      })),
-    )
+  const {
+    bills,
+    upcoming,
+    loading,
+    fetchBills,
+    fetchUpcomingBills,
+    createBill,
+    updateBill,
+    deleteBill,
+  } = useBoundStore(
+    useShallow((s) => ({
+      bills: s.bills.items as any[],
+      upcoming: s.bills.upcoming as any[],
+      loading: s.bills.loading,
+      fetchBills: s.fetchBills,
+      fetchUpcomingBills: s.fetchUpcomingBills,
+      createBill: s.createBill,
+      updateBill: s.updateBill,
+      deleteBill: s.deleteBill,
+    })),
+  )
   const accounts = useBoundStore((s) => s.accounts.items) as any[]
   const fetchAccounts = useBoundStore((s) => s.fetchAccounts)
 
@@ -43,6 +52,14 @@ export const Bills = (): JSX.Element => {
   const [isVariable, setIsVariable] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selectedBill, setSelectedBill] = useState<any | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editBillAmount, setEditBillAmount] = useState('')
+  const [editFrequency, setEditFrequency] = useState('monthly')
+  const [editDueDay, setEditDueDay] = useState('1')
+  const [editAccountId, setEditAccountId] = useState('')
+  const [editIsVariable, setEditIsVariable] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   useEffect(() => {
     fetchBills()
@@ -85,6 +102,41 @@ export const Bills = (): JSX.Element => {
       toast.success('Bill deleted')
     } catch {
       toast.error('Failed to delete bill')
+    }
+  }
+
+  const openEdit = () => {
+    if (!selectedBill) return
+    setEditName(selectedBill.name)
+    setEditBillAmount(String(selectedBill.amount))
+    setEditFrequency(selectedBill.frequency)
+    setEditDueDay(String(selectedBill.due_day))
+    setEditAccountId(String(selectedBill.account_id))
+    setEditIsVariable(selectedBill.is_variable)
+    setEditOpen(true)
+  }
+
+  const handleUpdate = async () => {
+    if (!selectedBill || !editName.trim() || !editBillAmount || !editAccountId || !editDueDay)
+      return
+    setSavingEdit(true)
+    try {
+      await updateBill(selectedBill.id, {
+        name: editName.trim(),
+        amount: parseFloat(editBillAmount),
+        frequency: editFrequency,
+        due_day: parseInt(editDueDay, 10),
+        account_id: parseInt(editAccountId, 10),
+        is_variable: editIsVariable,
+      })
+      toast.success('Bill updated')
+      await fetchUpcomingBills()
+      setEditOpen(false)
+      setSelectedBill(null)
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to update bill')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -305,8 +357,105 @@ export const Bills = (): JSX.Element => {
 
           <Dialog.Root open={!!selectedBill} onOpenChange={(o) => !o && setSelectedBill(null)}>
             <Dialog.Content maxWidth="520px">
-              <Dialog.Title>Bill Details</Dialog.Title>
+              <Flex align="center" justify="between">
+                <Dialog.Title>Bill Details</Dialog.Title>
+                <IconButton variant="soft" size="2" onClick={openEdit} aria-label="Edit bill">
+                  <Pencil size={16} />
+                </IconButton>
+              </Flex>
               {selectedBill && <BillDetail bill={selectedBill} />}
+            </Dialog.Content>
+          </Dialog.Root>
+
+          <Dialog.Root open={editOpen} onOpenChange={setEditOpen}>
+            <Dialog.Content maxWidth="400px">
+              <Dialog.Title>Edit Bill</Dialog.Title>
+              <Flex direction="column" gap="3" mt="3">
+                <Flex direction="column" gap="1">
+                  <Text size="2" weight="medium">
+                    Name
+                  </Text>
+                  <TextField.Root
+                    placeholder="e.g. Rent"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                  />
+                </Flex>
+                <Flex direction="column" gap="1">
+                  <Text size="2" weight="medium">
+                    Amount
+                  </Text>
+                  <TextField.Root
+                    type="number"
+                    placeholder="1200"
+                    value={editBillAmount}
+                    onChange={(e) => setEditBillAmount(e.target.value)}
+                  >
+                    <TextField.Slot side="left">$</TextField.Slot>
+                  </TextField.Root>
+                </Flex>
+                <Flex direction="column" gap="1">
+                  <Text size="2" weight="medium">
+                    Account
+                  </Text>
+                  <Select.Root value={editAccountId} onValueChange={setEditAccountId}>
+                    <Select.Trigger placeholder="Select account" />
+                    <Select.Content>
+                      {accounts.map((a) => (
+                        <Select.Item key={a.id} value={String(a.id)}>
+                          {a.name}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                </Flex>
+                <Flex gap="3">
+                  <Box style={{ flex: 1 }}>
+                    <Flex direction="column" gap="1">
+                      <Text size="2" weight="medium">
+                        Frequency
+                      </Text>
+                      <Select.Root value={editFrequency} onValueChange={setEditFrequency}>
+                        <Select.Trigger />
+                        <Select.Content>
+                          <Select.Item value="weekly">Weekly</Select.Item>
+                          <Select.Item value="biweekly">Biweekly</Select.Item>
+                          <Select.Item value="monthly">Monthly</Select.Item>
+                          <Select.Item value="quarterly">Quarterly</Select.Item>
+                          <Select.Item value="yearly">Yearly</Select.Item>
+                        </Select.Content>
+                      </Select.Root>
+                    </Flex>
+                  </Box>
+                  <Box style={{ width: 100 }}>
+                    <Flex direction="column" gap="1">
+                      <Text size="2" weight="medium">
+                        Due Day
+                      </Text>
+                      <TextField.Root
+                        type="number"
+                        min={1}
+                        max={31}
+                        placeholder="1"
+                        value={editDueDay}
+                        onChange={(e) => setEditDueDay(e.target.value)}
+                      />
+                    </Flex>
+                  </Box>
+                </Flex>
+                <Text as="label" size="2">
+                  <Flex align="center" gap="2">
+                    <Checkbox
+                      checked={editIsVariable}
+                      onCheckedChange={(v) => setEditIsVariable(v === true)}
+                    />
+                    <Text>Variable amount (estimated)</Text>
+                  </Flex>
+                </Text>
+                <Button onClick={handleUpdate} loading={savingEdit} size="3" mt="2">
+                  Save Changes
+                </Button>
+              </Flex>
             </Dialog.Content>
           </Dialog.Root>
         </>

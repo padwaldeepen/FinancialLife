@@ -60,6 +60,20 @@ export type BillsSlice = {
     is_variable?: boolean
     notes?: string | null
   }) => Promise<void>
+  updateBill: (
+    id: number,
+    data: {
+      name?: string
+      amount?: number
+      frequency?: string
+      due_day?: number
+      account_id?: number
+      category_id?: number | null
+      is_variable?: boolean
+      is_active?: boolean
+      notes?: string | null
+    },
+  ) => Promise<void>
   deleteBill: (id: number) => Promise<void>
   suggestBillLink: (data: {
     description: string
@@ -127,6 +141,25 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
     notes?: string | null
   }) => {
     await api.post('/api/bills/', data)
+    const res = await api.get('/api/bills/')
+    set({ items: res.data })
+  },
+
+  updateBill: async (
+    id: number,
+    data: {
+      name?: string
+      amount?: number
+      frequency?: string
+      due_day?: number
+      account_id?: number
+      category_id?: number | null
+      is_variable?: boolean
+      is_active?: boolean
+      notes?: string | null
+    },
+  ) => {
+    await api.put(`/api/bills/${id}`, data)
     const res = await api.get('/api/bills/')
     set({ items: res.data })
   },

@@ -120,6 +120,13 @@ Created `shared/utils/format.ts` with `formatCurrency`, `formatDate`, `formatDat
 - Transaction detail: show linked bill, allow linking/unlinking
 - Wire up existing `suggestBillLink` and `linkTransactionToBill` actions
 
+### ❌ Phase 37 — CSV Import
+- ✅ Backend: `POST /api/transactions/import` bulk endpoint accepting mapped transactions
+- ✅ Frontend: CSV file upload, client-side parsing with papaparse
+- ✅ Column mapping UI (auto-detect common formats, manual override)
+- ✅ Preview table before import
+- ✅ Account/category matching by name
+
 ### ❌ Phase 36 — Registration Improvements
 - Add `username` field to Register page
 - Add password confirmation field
@@ -191,7 +198,8 @@ Current types: `checking`, `savings`, `credit`, `cash`, `investment`. User says 
 | 2 | Phase 39b — CSV Export UI | Small ✅ |
 | 3 | Phase 35 — Shared Utilities | Small ✅ |
 | 4 | Phase 38 — Bill-Transaction Linking | ✅ Done |
-| 5 | Phase 36 — Registration Improvements | Small |
+| 5 | Phase 37 — CSV Import | ✅ Done |
+| 6 | Phase 36 — Registration Improvements | Small |
 | 6 | Phase 30 — Inline Style Cleanup | Medium |
 | 7 | Phase 33 — Mobile Polish | Medium |
 | 8 | Phase 34 — Desktop Polish | Medium |

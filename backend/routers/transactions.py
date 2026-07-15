@@ -683,3 +683,63 @@ async def quick_add_transaction(
         ai_categorized=transaction.ai_categorized,
         created_at=transaction.created_at,
     )
+
+
+class TransactionImport(BaseModel):
+    amount: float
+    description: str
+    transaction_type: str = "expense"
+    account_id: int
+    category_id: int | None = None
+    merchant_id: int | None = None
+    date: datetime
+    notes: str | None = None
+
+
+class ImportRequest(BaseModel):
+    transactions: list[TransactionImport]
+
+
+class ImportResponse(BaseModel):
+    imported: int
+    errors: list[str]
+
+
+@router.post("/import", response_model=ImportResponse, status_code=status.HTTP_201_CREATED)
+async def import_transactions(
+    request: ImportRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    imported = 0
+    errors: list[str] = []
+
+    for i, tx in enumerate(request.transactions):
+        try:
+            merchant_id = tx.merchant_id
+            if merchant_id is None:
+                merchant_name = extract_merchant_from_description(tx.description)
+                if merchant_name:
+                    merchant = await find_or_create_merchant(current_user.id, merchant_name, db)
+                    merchant_id = merchant.id if merchant else None
+
+            db_tx = Transaction(
+                amount=tx.amount,
+                description=tx.description,
+                transaction_type=tx.transaction_type,
+                account_id=tx.account_id,
+                category_id=tx.category_id,
+                merchant_id=merchant_id,
+                user_id=current_user.id,
+                date=tx.date,
+                notes=tx.notes,
+            )
+            db.add(db_tx)
+            imported += 1
+        except Exception as e:
+            errors.append(f"Row {i + 1}: {e}")
+
+    if imported > 0:
+        await db.commit()
+
+    return ImportResponse(imported=imported, errors=errors)

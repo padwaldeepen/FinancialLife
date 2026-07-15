@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type JSX } from 'react'
+import { useState, useEffect, useRef, useCallback, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -10,7 +10,8 @@ import {
   Dialog,
   Button,
 } from '@radix-ui/themes'
-import { Search, Trash2, Pencil, X, Calendar, Download, Link2, Unlink } from 'lucide-react'
+import { Search, Trash2, Pencil, X, Calendar, Download, Link2, Unlink, Upload } from 'lucide-react'
+import Papa from 'papaparse'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
@@ -120,6 +121,22 @@ export const Activity = (): JSX.Element => {
   const [endDate, setEndDate] = useState('')
   const sentinelRef = useRef<HTMLDivElement>(null)
   const touchStartX = useRef(0)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importStep, setImportStep] = useState<'upload' | 'map' | 'preview'>('upload')
+  const [importCsvHeaders, setImportCsvHeaders] = useState<string[]>([])
+  const [importCsvRows, setImportCsvRows] = useState<Record<string, string>[]>([])
+  const [importMapping, setImportMapping] = useState<Record<string, string>>({
+    date: '',
+    description: '',
+    amount: '',
+    type: '',
+    category: '',
+    merchant: '',
+    account: '',
+    notes: '',
+  })
+  const [importing, setImporting] = useState(false)
+  const importFileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchTxFilters()
@@ -270,6 +287,144 @@ export const Activity = (): JSX.Element => {
     }
   }
 
+  const autoDetectMapping = useCallback((headers: string[]) => {
+    const lower = headers.map((h) => h.toLowerCase().trim())
+    const mapping: Record<string, string> = {
+      date: '',
+      description: '',
+      amount: '',
+      type: '',
+      category: '',
+      merchant: '',
+      account: '',
+      notes: '',
+    }
+    const patterns: Record<string, string[]> = {
+      date: ['date', 'trans date', 'transaction date', 'posted date'],
+      description: ['description', 'desc', 'payee', 'memo', 'name', 'narrative'],
+      amount: ['amount', 'debit', 'credit', 'value', 'sum'],
+      type: ['type', 'transaction type', 'debit/credit'],
+      category: ['category', 'cat', 'group'],
+      merchant: ['merchant', 'payee', 'vendor'],
+      account: ['account', 'account name', 'acct'],
+      notes: ['notes', 'note', 'memo', 'comment'],
+    }
+    for (const [field, keywords] of Object.entries(patterns)) {
+      for (const kw of keywords) {
+        const idx = lower.findIndex((h) => h === kw || h.includes(kw))
+        if (idx !== -1) {
+          mapping[field] = headers[idx] || ''
+          break
+        }
+      }
+    }
+    return mapping
+  }, [])
+
+  const handleImportFile = useCallback(
+    (file: File) => {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.errors.length > 0) {
+            toast.error('CSV parse error: ' + (results.errors[0]?.message || 'Unknown error'))
+            return
+          }
+          const data = results.data as Record<string, string>[]
+          if (data.length === 0) {
+            toast.error('CSV is empty')
+            return
+          }
+          const headers = results.meta.fields || (data[0] ? Object.keys(data[0]) : [])
+          setImportCsvHeaders(headers)
+          setImportCsvRows(data)
+          setImportMapping(autoDetectMapping(headers))
+          setImportStep('map')
+        },
+      })
+    },
+    [autoDetectMapping],
+  )
+
+  const handleImportConfirm = async () => {
+    if (!importMapping.date || !importMapping.description || !importMapping.amount) {
+      toast.error('Date, Description, and Amount columns are required')
+      return
+    }
+    const defaultAccount = accounts[0]
+    if (!defaultAccount) {
+      toast.error('No accounts found — create one first')
+      return
+    }
+    setImporting(true)
+    try {
+      const transactions = importCsvRows.map((row) => {
+        const amtCol = importMapping.amount || ''
+        const typeCol = importMapping.type || ''
+        const dateCol = importMapping.date || ''
+        const descCol = importMapping.description || ''
+        const notesCol = importMapping.notes || ''
+        const rawAmount = parseFloat((row[amtCol] || '0').replace(/[^0-9.-]/g, ''))
+        const rawType = (row[typeCol] || '').toLowerCase()
+        let txType = 'expense'
+        if (rawType.includes('income') || rawType.includes('credit')) {
+          txType = 'income'
+        } else if (!rawType.includes('expense') && !rawType.includes('debit')) {
+          txType = rawAmount < 0 ? 'expense' : 'income'
+        }
+        const amount = Math.abs(rawAmount)
+        const dateStr = row[dateCol] || ''
+        const parsed = new Date(dateStr)
+        const date = isNaN(parsed.getTime()) ? new Date() : parsed
+        return {
+          amount,
+          description: row[descCol] || 'Imported transaction',
+          transaction_type: txType,
+          account_id: defaultAccount.id,
+          date: date.toISOString(),
+          notes: notesCol ? row[notesCol] || null : null,
+        }
+      })
+      const res = await api.post('/api/transactions/import', { transactions })
+      toast.success(`Imported ${res.data.imported} transactions`)
+      if (res.data.errors?.length > 0) {
+        toast.error(`${res.data.errors.length} rows failed`)
+      }
+      setImportOpen(false)
+      resetImport()
+      fetchTransactions({
+        reset: true,
+        search,
+        typeFilter,
+        categoryFilter,
+        merchantFilter,
+        startDate,
+        endDate,
+      })
+    } catch {
+      toast.error('Import failed')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const resetImport = () => {
+    setImportStep('upload')
+    setImportCsvHeaders([])
+    setImportCsvRows([])
+    setImportMapping({
+      date: '',
+      description: '',
+      amount: '',
+      type: '',
+      category: '',
+      merchant: '',
+      account: '',
+      notes: '',
+    })
+  }
+
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0]!.clientX
   }
@@ -383,6 +538,10 @@ export const Activity = (): JSX.Element => {
           <Button variant="outline" size="2" onClick={handleExport}>
             <Download size={14} />
             Export CSV
+          </Button>
+          <Button variant="outline" size="2" onClick={() => setImportOpen(true)}>
+            <Upload size={14} />
+            Import CSV
           </Button>
         </Flex>
       )}
@@ -782,6 +941,145 @@ export const Activity = (): JSX.Element => {
               ))
             )}
           </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
+
+      <Dialog.Root
+        open={importOpen}
+        onOpenChange={(open) => {
+          setImportOpen(open)
+          if (!open) resetImport()
+        }}
+      >
+        <Dialog.Content maxWidth="380px">
+          <Dialog.Title>Import CSV</Dialog.Title>
+          {importStep === 'upload' && (
+            <Flex direction="column" gap="4" py="4" align="center">
+              <Text size="2" color="gray">
+                Upload a CSV file with your transactions
+              </Text>
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleImportFile(file)
+                }}
+              />
+              <Button variant="soft" onClick={() => importFileRef.current?.click()}>
+                <Upload size={14} /> Choose CSV file
+              </Button>
+            </Flex>
+          )}
+
+          {importStep === 'map' && (
+            <Flex direction="column" gap="3" py="3">
+              <Text size="2" color="gray">
+                Map CSV columns (* required)
+              </Text>
+              {(
+                [
+                  'date',
+                  'description',
+                  'amount',
+                  'type',
+                  'category',
+                  'merchant',
+                  'account',
+                  'notes',
+                ] as const
+              ).map((field) => (
+                <Flex key={field} align="center" gap="2">
+                  <Text size="2" style={{ width: 90, flexShrink: 0 }}>
+                    {field === 'date' || field === 'description' || field === 'amount'
+                      ? `${field}*`
+                      : field}
+                  </Text>
+                  <Select.Root
+                    value={importMapping[field]}
+                    onValueChange={(v) => setImportMapping({ ...importMapping, [field]: v })}
+                  >
+                    <Select.Trigger style={{ flex: 1 }} />
+                    <Select.Content>
+                      <Select.Item value="">— Skip —</Select.Item>
+                      {importCsvHeaders.map((h) => (
+                        <Select.Item key={h} value={h}>
+                          {h}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                </Flex>
+              ))}
+              <Flex gap="2" justify="end" mt="2">
+                <Button
+                  variant="soft"
+                  onClick={() => {
+                    setImportStep('upload')
+                    resetImport()
+                  }}
+                >
+                  Back
+                </Button>
+                <Button onClick={() => setImportStep('preview')}>Preview</Button>
+              </Flex>
+            </Flex>
+          )}
+
+          {importStep === 'preview' && (
+            <Flex direction="column" gap="3" py="3">
+              <Text size="2" color="gray">
+                Preview — {importCsvRows.length} rows found
+              </Text>
+              <Flex direction="column" gap="1" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                {importCsvRows.slice(0, 10).map((row, i) => {
+                  const amtCol = importMapping.amount || ''
+                  const typeCol = importMapping.type || ''
+                  const dateCol = importMapping.date || ''
+                  const descCol = importMapping.description || ''
+                  const rawAmount = parseFloat((row[amtCol] || '0').replace(/[^0-9.-]/g, ''))
+                  const rawType = (row[typeCol] || '').toLowerCase()
+                  const txType = rawType.includes('income')
+                    ? 'income'
+                    : rawAmount < 0
+                      ? 'expense'
+                      : 'income'
+                  return (
+                    <Flex
+                      key={i}
+                      align="center"
+                      justify="between"
+                      py="1"
+                      style={{ borderBottom: '1px solid var(--gray-4)' }}
+                    >
+                      <Flex direction="column" gap="1">
+                        <Text size="2">{row[descCol]}</Text>
+                        <Text size="1" color="gray">
+                          {row[dateCol]}
+                        </Text>
+                      </Flex>
+                      <Flex align="center" gap="2">
+                        <Text size="2" weight="bold">
+                          {formatCurrency(Math.abs(rawAmount))}
+                        </Text>
+                        <Badge color={txType === 'income' ? 'green' : 'red'}>{txType}</Badge>
+                      </Flex>
+                    </Flex>
+                  )
+                })}
+              </Flex>
+              <Flex gap="2" justify="end" mt="2">
+                <Button variant="soft" onClick={() => setImportStep('map')}>
+                  Back
+                </Button>
+                <Button onClick={handleImportConfirm} disabled={importing}>
+                  {importing ? 'Importing...' : `Import ${importCsvRows.length}`}
+                </Button>
+              </Flex>
+            </Flex>
+          )}
         </Dialog.Content>
       </Dialog.Root>
     </Box>

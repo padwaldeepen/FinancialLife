@@ -16,6 +16,7 @@ import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import api from '../../../auth/api.ts'
+import { formatCurrency } from '../../../shared/utils/format.ts'
 import styles from './Activity.module.css'
 
 type Transaction = {
@@ -246,10 +247,10 @@ export const Activity = (): JSX.Element => {
 
   const formatAmount = (t: Transaction) => {
     const sign = t.transaction_type === 'income' ? '+' : '-'
-    const color = t.transaction_type === 'income' ? 'green' : 'red'
     return (
-      <Text size="2" weight="bold" color={color}>
-        {sign}${t.amount.toFixed(2)}
+      <Text size="2" weight="bold" color={t.transaction_type === 'income' ? 'green' : 'red'}>
+        {sign}
+        {formatCurrency(t.amount)}
       </Text>
     )
   }
@@ -602,8 +603,8 @@ export const Activity = (): JSX.Element => {
                       weight="bold"
                       color={selected.transaction_type === 'income' ? 'green' : 'red'}
                     >
-                      {selected.transaction_type === 'income' ? '+' : '-'}$
-                      {selected.amount.toFixed(2)}
+                      {selected.transaction_type === 'income' ? '+' : '-'}
+                      {formatCurrency(selected.amount)}
                     </Text>
                     <Badge color={selected.transaction_type === 'income' ? 'green' : 'red'}>
                       {selected.transaction_type}

@@ -4,6 +4,7 @@ import { Box, Flex, Heading, Text, Card } from '@radix-ui/themes'
 import { Wallet, PiggyBank, CreditCard, TrendingUp, RefreshCw } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { formatCurrency, formatDate } from '../../../shared/utils/format.ts'
 import styles from './Home.module.css'
 
 interface Transaction {
@@ -115,16 +116,6 @@ export const Home = (): JSX.Element => {
     setPullDistance(0)
   }
 
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr)
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    if (d.toDateString() === today.toDateString()) return 'Today'
-    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
-
   if (loading) {
     return <Text color="gray">Loading...</Text>
   }
@@ -157,7 +148,7 @@ export const Home = (): JSX.Element => {
             Total Balance
           </Text>
           <Heading size="7" className={styles.balanceAmount}>
-            ${totalBalance.toFixed(2)}
+            {formatCurrency(totalBalance)}
           </Heading>
           <Text size="1" color="gray">
             {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
@@ -187,7 +178,7 @@ export const Home = (): JSX.Element => {
                     </Text>
                   </Box>
                   <Text size="4" weight="bold" className={styles.accountBalance}>
-                    ${account.balance.toFixed(2)}
+                    {formatCurrency(account.balance)}
                   </Text>
                 </Flex>
               </Card>
@@ -226,7 +217,8 @@ export const Home = (): JSX.Element => {
                     weight="bold"
                     color={t.transaction_type === 'income' ? 'green' : 'red'}
                   >
-                    {t.transaction_type === 'income' ? '+' : '-'}${t.amount.toFixed(2)}
+                    {t.transaction_type === 'income' ? '+' : '-'}
+                    {formatCurrency(t.amount)}
                   </Text>
                 </Flex>
               ))}
@@ -260,7 +252,8 @@ export const Home = (): JSX.Element => {
                     </Text>
                   </Flex>
                   <Text size="2" weight="bold" color={bill.has_paid ? 'green' : undefined}>
-                    {bill.has_paid ? '✓ ' : ''}${bill.amount.toFixed(2)}
+                    {bill.has_paid ? '✓ ' : ''}
+                    {formatCurrency(bill.amount)}
                   </Text>
                 </Flex>
               ))}

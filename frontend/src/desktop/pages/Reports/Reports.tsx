@@ -5,6 +5,7 @@ import { ResponsiveBar } from '@nivo/bar'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import api from '../../../auth/api.ts'
+import { formatCurrency } from '../../../shared/utils/format.ts'
 import styles from './Reports.module.css'
 
 export const Reports = (): JSX.Element => {
@@ -79,7 +80,7 @@ export const Reports = (): JSX.Element => {
             <Flex align="center" gap="2">
               <TrendingUp size={18} className={styles.incomeIcon} />
               <span className={`${styles.statValue} ${styles.incomeText}`}>
-                ${summary.total_income.toFixed(2)}
+                {formatCurrency(summary.total_income)}
               </span>
             </Flex>
           </Card>
@@ -88,7 +89,7 @@ export const Reports = (): JSX.Element => {
             <Flex align="center" gap="2">
               <TrendingDown size={18} className={styles.expenseIcon} />
               <span className={`${styles.statValue} ${styles.expenseText}`}>
-                ${summary.total_expense.toFixed(2)}
+                {formatCurrency(summary.total_expense)}
               </span>
             </Flex>
           </Card>
@@ -100,7 +101,7 @@ export const Reports = (): JSX.Element => {
                 className={styles.statValue}
                 style={{ color: summary.net >= 0 ? 'var(--green-11)' : 'var(--red-11)' }}
               >
-                ${summary.net.toFixed(2)}
+                {formatCurrency(summary.net)}
               </span>
             </Flex>
           </Card>
@@ -111,7 +112,7 @@ export const Reports = (): JSX.Element => {
               <span className={styles.statValue}>{summary.top_category || 'N/A'}</span>
               {summary.top_category_amount && (
                 <Text size="2" color="gray">
-                  ${summary.top_category_amount.toFixed(2)}
+                  {formatCurrency(summary.top_category_amount)}
                 </Text>
               )}
             </Flex>
@@ -145,8 +146,8 @@ export const Reports = (): JSX.Element => {
             <div key={row.field} className={styles.comparisonRow}>
               <span className={styles.comparisonFieldName}>{row.field}</span>
               <div className={styles.comparisonValues}>
-                <span className={styles.comparisonCurrent}>${row.current.toFixed(2)}</span>
-                <span className={styles.comparisonPrev}>${row.prev.toFixed(2)}</span>
+                <span className={styles.comparisonCurrent}>{formatCurrency(row.current)}</span>
+                <span className={styles.comparisonPrev}>{formatCurrency(row.prev)}</span>
                 <span
                   className={`${styles.comparisonChange} ${
                     row.pct === null
@@ -219,7 +220,7 @@ export const Reports = (): JSX.Element => {
                   {cat.transaction_count} tx
                 </Badge>
                 <Text size="2" weight="medium" style={{ width: 80, textAlign: 'right' }}>
-                  ${cat.total.toFixed(2)}
+                  {formatCurrency(cat.total)}
                 </Text>
                 <Text size="1" color="gray" style={{ width: 44, textAlign: 'right' }}>
                   {cat.percentage}%

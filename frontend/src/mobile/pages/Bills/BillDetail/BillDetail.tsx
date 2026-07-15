@@ -3,6 +3,7 @@ import { Box, Flex, Text, Heading, Badge, Separator } from '@radix-ui/themes'
 import { ResponsiveBar } from '@nivo/bar'
 import { useBoundStore } from '../../../../store/useBoundStore.ts'
 import { useShallow } from 'zustand/react/shallow'
+import { formatCurrency } from '../../../../shared/utils/format.ts'
 import styles from './BillDetail.module.css'
 
 interface BillDetailProps {
@@ -70,7 +71,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
               </Badge>
             )}
             <Text size="4" weight="bold">
-              ${bill.amount.toFixed(2)}
+              {formatCurrency(bill.amount)}
             </Text>
           </Flex>
         </Flex>
@@ -164,7 +165,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                     </Text>
                   </Flex>
                   <Text size="2" weight="bold" style={{ whiteSpace: 'nowrap' }}>
-                    ${Number(tx.amount).toFixed(2)}
+                    {formatCurrency(Number(tx.amount))}
                   </Text>
                 </Flex>
               ))}

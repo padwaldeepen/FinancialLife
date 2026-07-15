@@ -16,6 +16,7 @@ import { Sparkles, Check, Camera, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { formatCurrency } from '../../../shared/utils/format.ts'
 import api from '../../../auth/api.ts'
 import { extractTextFromImage, cleanOcrText } from '../../../utils/ocr.ts'
 import styles from './AddTransactionModal.module.css'
@@ -199,7 +200,7 @@ export const AddTransactionModal = (): JSX.Element => {
                       {parsed.description}
                     </Text>
                     <Text weight="bold" size="4">
-                      ${parsed.amount?.toFixed(2)}
+                      {formatCurrency(parsed.amount || 0)}
                     </Text>
                   </Flex>
 

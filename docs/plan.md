@@ -106,21 +106,14 @@ JWT refresh rotation. API rate limiting (100 req/min general, 10 req/min auth). 
 
 ## Remaining Work
 
-### ❌ Phase 28b — Bill Edit Dialog
-- Add `updateBill` action to `billsSlice`
-- Add edit dialog to Bills page (name, amount, frequency, due day, account, category, variable flag)
-- Backend already supports PUT /api/bills/{id}
+### Phase 28b — Bill Edit Dialog ✅
+Added `updateBill` to `billsSlice`, edit dialog (name, amount, account, frequency, due day, variable) on desktop + mobile Bills pages, edit button in Bill Detail.
 
-### ❌ Phase 39b — CSV Export Frontend UI
-- Export button on Activity page (applies current date filters)
-- Export button on Reports page
-- Date range picker for custom exports
-- Download via blob + anchor click
+### Phase 39b — CSV Export Frontend UI ✅
+Export CSV button on Activity page filter bar (desktop + mobile) with date range support. Reports page already had export.
 
-### ❌ Phase 35 — Shared Utilities
-- Currency formatter (replace inline `.toFixed(2)`)
-- Date formatting utilities (replace duplicate `formatDate` functions)
-- Amount color helper (income = green, expense = red)
+### Phase 35 — Shared Utilities ✅
+Created `shared/utils/format.ts` with `formatCurrency`, `formatDate`, `formatDateFull`, `getAmountColor`. Replaced all `.toFixed(2)` across 20+ files, removed duplicate `formatDate` functions, centralized amount color logic.
 
 ### ❌ Phase 38 — Bill–Transaction Linking UI
 - Bill detail: show linked transactions, allow manual linking
@@ -154,6 +147,19 @@ JWT refresh rotation. API rate limiting (100 req/min general, 10 req/min auth). 
 
 ---
 
+## Research Notes
+
+### Receipt Scanning Approaches
+- **Tesseract.js (already in app)**: Client-side OCR, extracts raw text from receipt images. Limited accuracy on complex layouts.
+- **LLM Vision (GPT-4o, Gemini)**: Send image → structured JSON (merchant, items, total, date). Most accurate but requires API key. App already has AI abstraction layer.
+- **Google Lens API**: Good for product/barcode recognition, less ideal for full receipt parsing.
+- **Recommendation**: Keep Tesseract.js as free default. Add optional LLM vision parsing via existing AI provider abstraction (Groq/Gemini free tiers support vision).
+
+### Account Types for Bills
+Current types: `checking`, `savings`, `credit`, `cash`, `investment`. User says bills should be paid from: cash, credit card, debit card, bank account — not checking/savings labels. Consider renaming `checking` → `bank account`, `savings` → `savings` (keep). Or add a `debit` type.
+
+---
+
 ## Skipped (Not Needed)
 
 | Phase | Reason |
@@ -181,9 +187,9 @@ JWT refresh rotation. API rate limiting (100 req/min general, 10 req/min auth). 
 
 | # | Phase | Effort |
 |---|-------|--------|
-| 1 | Phase 28b — Bill Edit Dialog | Small |
-| 2 | Phase 39b — CSV Export UI | Small |
-| 3 | Phase 35 — Shared Utilities | Small |
+| 1 | Phase 28b — Bill Edit Dialog | Small ✅ |
+| 2 | Phase 39b — CSV Export UI | Small ✅ |
+| 3 | Phase 35 — Shared Utilities | Small ✅ |
 | 4 | Phase 38 — Bill-Transaction Linking | Medium |
 | 5 | Phase 36 — Registration Improvements | Small |
 | 6 | Phase 30 — Inline Style Cleanup | Medium |

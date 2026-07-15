@@ -18,6 +18,7 @@ import { ResponsiveBar } from '@nivo/bar'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { formatCurrency } from '../../../shared/utils/format.ts'
 import styles from './Merchants.module.css'
 
 export const Merchants = (): JSX.Element => {
@@ -198,7 +199,7 @@ export const Merchants = (): JSX.Element => {
                 </Text>
               </Box>
               <Text size="2" weight="bold" color="red">
-                ${merchant.total_spent.toFixed(2)}
+                {formatCurrency(merchant.total_spent)}
               </Text>
             </Flex>
           </Card>
@@ -228,7 +229,7 @@ export const Merchants = (): JSX.Element => {
                       Total Spent
                     </Text>
                     <Text size="4" weight="bold" color="red">
-                      ${detail.total_spent.toFixed(2)}
+                      {formatCurrency(detail.total_spent)}
                     </Text>
                   </Box>
                   <Box>
@@ -323,7 +324,7 @@ export const Merchants = (): JSX.Element => {
                             <Text size="2">{c.category_name}</Text>
                           </Flex>
                           <Text size="2">
-                            ${c.total.toFixed(2)} ({c.count}x)
+                            {formatCurrency(c.total)} ({c.count}x)
                           </Text>
                         </Flex>
                       ))}
@@ -350,7 +351,8 @@ export const Merchants = (): JSX.Element => {
                               weight="bold"
                               color={tx.transaction_type === 'expense' ? 'red' : 'green'}
                             >
-                              {tx.transaction_type === 'expense' ? '-' : '+'}${tx.amount.toFixed(2)}
+                              {tx.transaction_type === 'expense' ? '-' : '+'}
+                              {formatCurrency(tx.amount)}
                             </Text>
                           </Flex>
                           <Text size="1" color="gray">

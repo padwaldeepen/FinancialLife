@@ -15,6 +15,7 @@ import { Plus, Trash2, Target, PiggyBank, TrendingDown, Pencil } from 'lucide-re
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { formatCurrency } from '../../../shared/utils/format.ts'
 import styles from './Goals.module.css'
 
 const goalIcons: Record<string, JSX.Element> = {
@@ -266,7 +267,7 @@ export const Goals = (): JSX.Element => {
                       {goal.progress_pct}% complete
                     </Text>
                     <Text size="2" weight="medium" color={done ? 'green' : undefined}>
-                      ${goal.current_amount.toFixed(2)} / ${goal.target_amount.toFixed(2)}
+                      {formatCurrency(goal.current_amount)} / {formatCurrency(goal.target_amount)}
                     </Text>
                   </Flex>
 
@@ -314,8 +315,8 @@ export const Goals = (): JSX.Element => {
                               Progress
                             </Text>
                             <Text size="2" weight="medium">
-                              ${detailGoal.current_amount.toFixed(2)} / $
-                              {detailGoal.target_amount.toFixed(2)}
+                              {formatCurrency(detailGoal.current_amount)} /{' '}
+                              {formatCurrency(detailGoal.target_amount)}
                             </Text>
                           </Flex>
                           <Box className={styles.barOuter}>
@@ -338,7 +339,9 @@ export const Goals = (): JSX.Element => {
                               <Text size="2" color="gray">
                                 Monthly contribution
                               </Text>
-                              <Text size="2">${detailGoal.monthly_contribution.toFixed(2)}</Text>
+                              <Text size="2">
+                                {formatCurrency(detailGoal.monthly_contribution)}
+                              </Text>
                             </Flex>
                           )}
                           {detailGoal.deadline && (

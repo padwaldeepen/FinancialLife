@@ -128,10 +128,10 @@ Created `shared/utils/format.ts` with `formatCurrency`, `formatDate`, `formatDat
 - ✅ Account/category matching by name
 
 ### ❌ Phase 36 — Registration Improvements
-- Add `username` field to Register page
-- Add password confirmation field
-- Client-side validation (password strength, email format)
-- Show/hide password toggle
+- ✅ Add `username` field to Register page
+- ✅ Add password confirmation field
+- ✅ Show/hide password toggle (Register + Login)
+- ✅ Client-side validation (password strength, email format)
 
 ### ❌ Phase 30 — Inline Style Cleanup
 - Remove all `style={{ }}` occurrences across TSX files
@@ -199,7 +199,7 @@ Current types: `checking`, `savings`, `credit`, `cash`, `investment`. User says 
 | 3 | Phase 35 — Shared Utilities | Small ✅ |
 | 4 | Phase 38 — Bill-Transaction Linking | ✅ Done |
 | 5 | Phase 37 — CSV Import | ✅ Done |
-| 6 | Phase 36 — Registration Improvements | Small |
+| 6 | Phase 36 — Registration Improvements | ✅ Done |
 | 6 | Phase 30 — Inline Style Cleanup | Medium |
 | 7 | Phase 33 — Mobile Polish | Medium |
 | 8 | Phase 34 — Desktop Polish | Medium |

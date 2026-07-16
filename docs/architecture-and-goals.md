@@ -1,222 +1,234 @@
 # My Financial Life — Architecture & Goals
 
-> This is a personal finance app running on localhost.
-> Goal: Understand where my money goes and get advice on saving more.
+> Last updated: 2026-07-16
+> Companion to `plan.md` (roadmap) and `design-system.md` (UI).
+> This file describes how the system is built and where the design is going.
 
 ---
 
-## What Exists Today
+## Goal
 
-### Data Model
-- **Users** — single user (me), JWT auth
-- **Accounts** — checking, savings, credit, cash, investment with balances
-- **Transactions** — amount, description, type (income/expense), date, linked to account/category/merchant
-- **Categories** — hierarchical (parent/child), system + user-created, with colors/icons
-- **Merchants** — auto-extracted from transactions, deduplication, merge support
-- **Bills** — recurring expenses with frequency, due dates, variable amounts, auto-linking to transactions
-- **Goals** — save_up, pay_down, monthly_envelope with progress tracking
-- **Budgets** — per-category or total, monthly/weekly/yearly periods
-
-### What the App Does
-1. Log transactions via natural language ("coffee 4.50" → structured transaction)
-2. Show spending by category (pie charts), by merchant, by month
-3. Track bills and auto-detect when they're paid
-4. Track savings goals with progress
-5. Generate monthly reports (income, expenses, net, breakdown)
-6. Export data to CSV
-7. AI chatbot for questions (optional, works without API keys)
-
-### Tech Stack
-- **Frontend**: React 19, TypeScript, Vite, CSS Modules, Radix UI, Nivo charts, Zustand
-- **Backend**: FastAPI, SQLAlchemy 2.x, PostgreSQL, Alembic, JWT auth
-- **AI**: Rule-based parsing + optional Gemini/Groq (free APIs only)
-- **Infrastructure**: Docker Compose, localhost only
+A privacy-first personal financial advisor on localhost. Not just tracking — the app should
+tell me where I'm spending monthly/annually, which bills recur, what's coming (forecast),
+and what to do about it. Multi-currency (USD, INR, CAD) because life spans the USA, India,
+and Canada.
 
 ---
 
-## What's Broken (From Code Review)
+## System Overview
 
-### Data Integrity (Must Fix)
-- Money columns use `Float` → rounding errors. Should be `Numeric(12,2)`.
-- `bill_id`/`goal_id` on Transaction have no ForeignKey → any integer accepted.
-- `account_type`, `transaction_type`, `frequency` accept any string → typos corrupt reports.
-- `compute_upcoming` doesn't await db.execute() → bills always show as "paid".
-- No `amount > 0` validation → negative amounts accepted.
+```
+Capture                    Understand                    Advise
+───────                    ──────────                    ──────
+quick-add (NL text)   →                                  monthly/annual reports
+CSV import            →    dedup gate → transactions →   recurring bills list
+document scan/upload  →    (extract → review → save)     cash-flow forecast
+manual entry          →                                  safe-to-spend
+```
 
-### UI (Should Fix)
-- Dark mode broken on mobile (undefined CSS variables).
-- Two floating add buttons on mobile.
-- `window.confirm()` instead of Radix Dialog.
-- ChatBot uses raw `<div>`s instead of Radix components.
-
-### Security (Nice to Fix for Localhost)
-- `/api/transactions/parse` has no auth.
-- SECRET_KEY defaults to empty string.
-- No password strength requirements.
+- **Backend**: FastAPI (async), SQLAlchemy 2.x, PostgreSQL, Alembic, JWT auth
+- **Frontend**: React 19 + TypeScript + Vite, Radix UI Themes, CSS Modules, Zustand, Nivo
+- **AI tiers**: (1) rules/statistics — always on; (2) local LLM via Ollama — private
+  document understanding; (3) **Gemini free tier** (the single cloud provider — text +
+  vision) — per-user **opt-in only**, off by default
+- **External calls when idle**: exactly one — Frankfurter (ECB exchange rates), cached daily
 
 ---
 
-## The Goal: From Tracker to Advisor
+## Data Model
 
-### What I Want
-I want to open this app and immediately understand:
-1. **Where is my money going?** → Category breakdown, merchant analysis
-2. **How much am I earning vs spending?** → Income vs expense trends
-3. **Where can I save money?** → Spending analysis, subscription detection
-4. **Am I on track?** → Goal progress, budget status
-5. **What should I do next?** → Personalized recommendations
+### Today (v1 — implemented)
+`users`, `accounts`, `categories` (hierarchical), `transactions`, `merchants`,
+`bills` + `transaction_bill_links`, `goals`, `budgets`.
+Integrity is sound: `Numeric(12,2)` money, FKs everywhere, unique constraints,
+indexes on `(user_id, date)`, `(user_id, merchant_id)`, `(user_id, category_id)`.
 
-### What's Missing
+### v2 — planned changes (Phase D)
 
-#### Insight Layer (Know What's Happening)
-- **Recurring expense detection**: Find charges that repeat monthly (subscriptions, bills)
-- **Spending anomaly detection**: "Your food spending jumped 40% this month"
-- **Trend analysis**: "Your entertainment spending has increased 3 months in a row"
-- **Category drift**: "You budgeted $200 for dining, you've spent $340"
+> **Migration strategy**: no real data exists yet, so v2 goes directly into the models
+> and Alembic gets **squashed to one clean initial migration**. Incremental migrations
+> resume the day real data goes in.
 
-#### Recommendation Layer (Know What to Do)
-- **Savings opportunities**: "You could save $85/month by cutting these 3 subscriptions"
-- **Bill optimization**: "Your phone bill increased 15% — shop around?"
-- **Budget adjustments**: "Based on your income, here's a realistic budget"
-- **Goal pacing**: "At current rate, you'll reach your emergency fund goal in 8 months"
+**Transaction — new columns**
+| Column | Type | Why |
+|---|---|---|
+| `currency` | `String(3)`, default user base | INR/CAD support; every aggregation converts to base currency |
+| `source` | enum: `manual, quick_add, csv_import, document_scan` | provenance — trust and debugging |
+| `import_hash` | `String`, indexed | exact-dedup key: `sha256(user, account, date, amount, normalized_desc)` |
+| `document_id` | FK → `documents`, nullable | tap a transaction, see the bill/receipt it came from |
 
-#### Forecasting Layer (Know What's Coming)
-- **Cash flow forecast**: "Based on income and upcoming bills, you'll have $1,200 left this month"
-- **Safe-to-spend**: "You have $450 left for discretionary spending this week"
-- **Bill impact**: "Adding this $50/month subscription leaves $200 buffer"
+**New tables**
+```
+documents         (id, user_id, kind[receipt|bill|statement|other], file_path,
+                   mime_type, status[pending|reviewed|rejected], extracted_json,
+                   uploaded_at)
+exchange_rates    (id, date, base, quote, rate)  UNIQUE(date, base, quote)
+                   -- fed by Frankfurter, one fetch/day, works offline afterwards
+balance_snapshots (id, account_id, date, balance, currency)   -- "Later" phase, net worth
+insights          (id, user_id, kind, payload_json, period, dismissed, created_at)
+                   -- optional cache for Phase I results; engines are pure functions first
+```
+
+**User**: add `base_currency` (default USD). `is_admin` already exists — admin panel gates on it.
+
+**Per-user isolation**: every user has their own separate dashboard and data. All tables
+carry `user_id` and every query filters on the authenticated user — insights, forecasts,
+documents, and reports are computed per user, never shared. Admin role manages the system
+(users, system categories, AI settings, backups) but has **no access to other users'
+financial data**.
+
+### Deduplication design (the "same bill twice" problem)
+
+Every import path (CSV, statement scan, receipt scan) runs through one gate:
+
+1. **Exact**: `import_hash` already exists → skip silently, count as "duplicate skipped".
+2. **Fuzzy**: same amount ± 0.00, date within ±3 days, merchant similarity (normalized name)
+   → flag as *possible duplicate*, show side-by-side in the review screen:
+   **merge** (attach document to existing transaction) / **skip** / **keep both**.
+3. Nothing auto-commits from a document. Extract → review screen → dedup → save.
+
+This is what makes "scan the credit-card bill AND import the bank CSV" safe.
+
+### Multi-country = multi-currency (deliberate simplification)
+
+"Supporting USA, India, Canada" concretely means: transactions in USD/INR/CAD, reports in
+base currency. It does **not** mean country-specific planning
+engines — that's content layered on later, and nothing in this schema blocks it.
 
 ---
 
-## Architecture for Intelligence
+## Backend Architecture
 
-### Current State
 ```
-User Input → Transaction → Database → Reports (manual)
-                                     → Chatbot (reactive)
-```
-
-### Target State
-```
-User Input → Transaction → Database → Insight Engine → Dashboard Cards
-                                          ↓
-                                     Recommendation Engine → Advice Panel
-                                          ↓
-                                     Forecasting Engine → Cash Flow View
+backend/
+├── core/          config, security, middleware
+├── database/      models, session, alembic
+├── routers/       thin HTTP handlers only        ← rule: no business logic here
+├── services/      business logic (testable, no HTTP)
+│   ├── insights/  recurring.py, trends.py, forecast.py, safe_to_spend.py   [Phase I]
+│   ├── ingest/    dedup.py, csv_import.py, document_extract.py             [Phase S]
+│   └── fx.py      exchange-rate fetch + conversion                          [Phase D]
+└── tests/         pytest — money paths are mandatory                        [Phase T]
 ```
 
-### What Needs to Be Built
+Known debt: `routers/transactions.py` is ~750 lines of inline logic. Rule going forward:
+**any logic an insight engine will also need lives in a service, not a router.** Extract
+opportunistically while building Phase I, not as a big-bang refactor.
 
-#### 1. Insight Engine (Backend Service)
-A service that analyzes transaction data and produces insights:
-- `analyze_spending_patterns(user_id)` → category trends, anomalies
-- `detect_recurring_charges(user_id)` → subscription list
-- `compare_periods(user_id, period1, period2)` → month-over-month changes
-- Returns structured insight objects with evidence
+The intelligence engines are **pure functions** (`list[Transaction] → list[Insight]`):
+trivially testable, no DB coupling, cacheable later via the `insights` table if needed.
 
-#### 2. Recommendation Engine (Backend Service)
-Takes insights and produces actionable recommendations:
-- `generate_recommendations(user_id, insights)` → savings suggestions
-- `score_recommendation(recommendation)` → priority/confidence
-- Rule-based first, AI-enhanced later
+### Recurring detection (Phase I core)
+Group by merchant → check amount consistency (exact = subscription; ±20% = utility) and
+interval consistency (gaps ≈ 7/14/30/90/365 days ± tolerance) → 3+ matches = recurring
+→ emit predicted next date + amount. Feeds the bills list, the forecast, and reminders.
 
-#### 3. Forecasting Engine (Backend Service)
-Projects future balances based on patterns:
-- `forecast_cash_flow(user_id, months_ahead)` → projected income/expenses
-- `calculate_safe_to_spend(user_id)` → discretionary budget
-- `project_goal_completion(user_id, goal_id)` → estimated completion date
-
-#### 4. Advisor Dashboard (Frontend)
-New UI elements that surface intelligence:
-- **Insight cards** on Home screen (top 3-5 insights)
-- **Recommendations panel** with dismiss/act actions
-- **Forecast view** with projected balances
-- **Spending health score** (simple 0-100 metric)
+### Forecast (Phase I core)
+Day-by-day simulation, 60–90 days out: start from current balance; add income on expected
+paydays; subtract recurring bills on predicted dates; subtract average daily discretionary
+spend. Outputs: balance curve, crunch-point warnings, and **safe-to-spend** =
+today's balance − obligations before next payday.
 
 ---
 
-## Recommended Build Order
+## Frontend Architecture
 
-### Phase A: Fix Data Integrity (2-3 days)
-Make the data reliable before building intelligence on top of it.
-1. Float → Numeric migration
-2. ForeignKey fixes
-3. Enum validation
-4. Bill bug fix
+Desktop and mobile stay **separate trees with separate roles**, organized by the
+question-shaped page map in `design-system.md` §3:
 
-### Phase B: Fix UI (1-2 days)
-Make the app pleasant to use daily.
-1. Dark mode fix
-2. Duplicate FAB removal
-3. Radix Dialog for confirmations
+- **Desktop — 5 pages**: Home (am I okay?), Activity (what happened?), Recurring
+  (what repeats?), Insights (where does money go?), Manage (fix/configure + admin).
+  Database tables get maintenance tabs inside Manage, never top-level pages.
+- **Mobile — 3 tabs + capture**: Home, Activity, Capture (scan / NL quick-add).
+  Management screens deliberately don't exist on mobile.
 
-### Phase C: Insight Engine (1-2 weeks)
-The most valuable addition. Start with:
-1. Recurring charge detection (find repeats)
-2. Monthly spending comparison ("this month vs last month")
-3. Category trend analysis (3-month moving average)
-4. Anomaly detection (spending > 2x average)
+Phase U is a **rebuild to that map, not a restyle**: the shell (auth flow, routing,
+axios interceptor, store infrastructure, theme) is kept; pages are built fresh; the old
+8-section trees are deleted as their contents are absorbed.
 
-### Phase D: Recommendations (1 week)
-Turn insights into advice:
-1. "You can save $X by cutting Y" suggestions
-2. Budget adherence warnings
-3. Goal pacing advice
+### Target folder structure
 
-### Phase E: Forecasting (1 week)
-Project the future:
-1. Cash flow projection (income - known expenses)
-2. Safe-to-spend calculation
-3. Goal completion timeline
+Today non-visual code is scattered across three homes (`src/auth/`, `src/hooks/`,
+`src/utils/` **and** `src/shared/utils/`). Target — one rule: **`desktop/` and `mobile/`
+contain only `.tsx` + `.module.css`; anything without JSX lives in `shared/` or `store/`.**
 
-### Phase F: Polish (ongoing)
-Make it all beautiful:
-1. Insight cards on dashboard
-2. Recommendation dismiss/act UI
-3. Forecast visualization
-4. Spending health score
+```
+frontend/src/
+├── desktop/            # UI only: pages/ (Home, Activity, Recurring, Insights, Manage),
+│   ├── pages/          #   components/, layouts/ — .tsx + .module.css, nothing else
+│   ├── components/
+│   └── layouts/
+├── mobile/             # UI only: pages/ (Home, Activity, Capture), components/, layouts/
+├── shared/             # everything non-visual, used by both trees
+│   ├── api/            # axios client + endpoint functions (absorbs src/auth api client)
+│   ├── hooks/          # data hooks (absorbs src/hooks)
+│   ├── types/          # single source of truth for API types — no local page copies
+│   └── utils/          # format, dates (absorbs src/utils)
+├── store/              # zustand slices (authSlice absorbs src/auth state logic)
+├── styles/             # design-tokens.css, global css
+└── theme.tsx           # the one theme file — all color defined here + design-tokens.css
+```
+
+Cross-imports between `desktop/` and `mobile/` stay banned; both import freely from
+`shared/` and `store/`.
+
+State: Zustand slices (existing pattern). Styling: Radix UI + CSS Modules, tokens defined
+once in `styles/design-tokens.css` per `design-system.md`.
 
 ---
 
-## AI Strategy
+## Privacy Architecture
 
-### Free-Only Approach
-All intelligence should work without paid APIs:
-1. **Rule-based first**: Pattern matching, statistical analysis, threshold checks
-2. **Free AI second**: Gemini/Groq for natural language summaries of insights
-3. **Optional enhancement**: User can add API keys for richer analysis
+| Tier | What | Where data goes | Default |
+|---|---|---|---|
+| 1 | Rules + statistics (parsing, insights, forecast) | nowhere | always on |
+| 2 | Ollama local LLM (chat, document understanding) | localhost | on if Ollama installed |
+| 3 | Gemini free tier (sole cloud provider; NVIDIA/Groq removed in T5) | Google | **off**; per-user opt-in with warning |
 
-### Example: Recurring Charge Detection (Rule-Based)
-```python
-# Group transactions by merchant + similar amount
-# If same merchant + amount ±10% appears 3+ times in 3 months
-# → Mark as recurring, calculate monthly cost
-```
+### AI task allocation — what runs where (decided)
 
-### Example: Savings Recommendation (Rule-Based)
-```python
-# Find recurring charges
-# Rank by amount (highest first)
-# Flag charges with increasing trend
-# Generate: "Your top 3 subscriptions cost $X/month. 
-#            #2 increased 15% last quarter."
-```
+**The rule: private by default, cloud by informed choice.** Every AI feature works
+without any cloud call (rules, or Ollama if installed). Cloud providers (Gemini/Groq/
+NVIDIA free tiers — capable, and "free" because free-tier prompts may be used to train
+their models) are a **per-user opt-in**: a settings toggle with an explicit "your
+financial data will be sent to third-party AI services" warning. Toggle off (default) =
+nothing ever leaves the machine. Toggle on = cloud becomes the fallback when local can't
+do the job. One user enabling it never affects another user's data.
 
-### Example: Cash Flow Forecast (Statistical)
-```python
-# Average income (last 3 months) - Average expenses (last 3 months)
-# Subtract known upcoming bills
-# Add goal contributions
-# = Projected end-of-month balance
-```
+| Task | Runs on | Why |
+|---|---|---|
+| NL quick-add parsing (`coffee 4.50`) | **Rules first, local AI fallback** | Rules handle common shapes; typo'd merchants fixed by fuzzy matching (deterministic, not AI); Ollama parses only what rules can't — preview always shown before save; never cloud |
+| Recurring/subscription detection | **Rules** | Pure statistics (merchant + amount + interval) |
+| Trends, anomalies, MoM/YoY comparisons | **Rules** | Arithmetic over the DB |
+| Cash-flow forecast, safe-to-spend | **Rules** | Day-by-day simulation, no AI needed |
+| Duplicate detection on import | **Rules** | Hashing + fuzzy matching |
+| Category suggestion for known merchants | **Rules** | History lookup (Walmart → groceries last 10 times) |
+| Receipt/bill photo understanding | **Local AI; cloud if opted in** | Ollama vision by default; Gemini vision allowed as fallback only when the user's toggle is on |
+| Bank/credit-card statement parsing | **Local AI; cloud if opted in** | Most sensitive document type — the opt-in warning names it explicitly |
+| Ambiguous transaction categorization | **Local AI; cloud if opted in** | Sees descriptions + history |
+| Chat over MY data ("where did my money go?") | **Local AI; cloud if opted in** | Engines compute the numbers (tier 1); the model (local or cloud) only narrates |
+| Insight wording/summaries | **Templates first, local AI optional** | A sentence template is often better than a model |
+| Savings recommendations & advice ("cut X, save $Y/mo") | **Rules generate, local AI words it** | The advice itself comes from deterministic rules over real numbers (rank recurring charges, flag increases, budget drift) so it's always explainable and never hallucinated; local AI may only rephrase, never invent |
+| Generic finance questions ("what is APR?") | **Local AI or cloud** | No personal data in the prompt — safe either way |
+| OCR fallback with no Ollama and toggle OFF | **Tesseract (local, no AI)** | Degrade locally — never *silently* route to cloud |
+
+What this means concretely: **with the toggle off (the default), external AI receives
+nothing — ever.** With the toggle on, cloud may serve any AI task as a fallback, but
+only via the shared AI provider layer that checks the per-user toggle on every call —
+no code path may call a cloud API directly. Silent fallback is banned: routing to cloud
+because Ollama is missing, without the user having opted in, is a bug.
+
+Everything else is local: Postgres in Docker, files on disk, exchange rates cached after
+one daily fetch. Backups are the user's responsibility but scheduled by the app's scripts
+(`DEVELOPMENT.md` §Backups).
 
 ---
 
-## Key Principle: Simplicity
+## Quality Bar
 
-This is a personal app, not a SaaS product. The intelligence should be:
-- **Simple**: One-line insights, not complex dashboards
-- **Actionable**: "Cancel subscription X" not "Your spending patterns suggest..."
-- **Honest**: "I don't have enough data yet" instead of guessing
-- **Local**: All analysis runs on my machine, no data leaves
-
-The goal is to open the app once a week, glance at the dashboard, and know exactly where I stand and what to do.
+- **Tests**: money math is never merged untested (parser, aggregations, dedup, fx
+  conversion, recurring detection, forecast). UI polish doesn't need tests; arithmetic does.
+- **Migrations**: every schema change ships with an Alembic migration, up and down.
+- **Review**: every change is checked against `rules/code-review.md` before commit.
+- **Docs**: `plan.md` checkboxes updated with each phase; this file updated when the
+  architecture actually changes. Stale analysis reports go to `docs/archive/`, not here.

@@ -1,46 +1,61 @@
 # My Financial Life
 
-Free, open-source personal finance application.
+Privacy-first personal finance app on localhost. Tracks spending across USD/INR/CAD and
+advises: monthly/annual breakdowns, recurring-bill detection, cash-flow forecast,
+safe-to-spend, document (bill/receipt/statement) scanning with dedup.
+
+**Read before working:** `docs/plan.md` (roadmap + definition of done) and
+**`docs/backlog.md` (the ticket file — all implementation work comes from here: pick the
+lowest open ticket whose dependencies are done, stay inside its scope, never invent
+work)**. Reference specs: `docs/architecture-and-goals.md` (system + data model + AI
+allocation), `docs/design-system.md` (3-color UI rules + page map). Stale analysis
+reports live in `docs/archive/` — ignore them.
 
 ## Tech Stack
 
-- **Frontend**: React 19, TypeScript, Vite, CSS Modules, Radix UI, Nivo charts
-- **State**: Zustand (all state — client + API data via slice actions)
-- **Backend**: FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL, JWT auth
-- **AI**: Rule-based + optional Groq/Gemini (free APIs only)
+- **Frontend**: React 19, TypeScript, Vite, CSS Modules, Radix UI Themes, Nivo charts
+- **State**: Zustand slices (client + API data via slice actions)
+- **Backend**: FastAPI (async), SQLAlchemy 2.x, Alembic, PostgreSQL, JWT auth
+- **AI tiers**: rules/statistics always; Ollama (local) for document understanding;
+  cloud free APIs are opt-in only and OFF by default
 
 ## Project Structure
 
-- `backend/` — FastAPI app (database, routers, services, alembic)
-- `frontend/` — React app (shared, desktop, mobile as separate apps)
-- `rules/` — opencode instruction files
-- `docs/` — planning documents
+- `backend/` — FastAPI app (`core/`, `database/`, `routers/`, `services/`, `tests/`)
+- `frontend/src/` — `desktop/` and `mobile/` (separate trees), `shared/`, `store/`, `styles/`
+- `rules/` — coding rules (wired into opencode.json; apply in any tool)
+- `docs/` — the four living docs above
 
 ## Key Conventions
 
-- Every component → `Name.tsx` + `Name.module.css`
-- No Tailwind, no inline styles, no CSS-in-JS
-- Radix UI for behavior/accessibility; CSS Modules for all visuals
-- Desktop and mobile have completely separate components and layouts
-- Backend routers are thin; business logic goes in services
-- Every DB schema change requires an Alembic migration
-- Always use SQLAlchemy ORM, never raw SQL
+- Routers are thin; business logic lives in `services/` (pure functions where possible)
+- Every DB schema change ships with an Alembic migration
+- SQLAlchemy ORM only, never raw SQL
+- Money math requires tests (`backend/tests/`, pytest)
+- Every component: `Name.tsx` + `Name.module.css`; no Tailwind, no inline styles
+- Colors: Radix tokens only, per `docs/design-system.md` (slate + orange + money
+  green/red on amounts only — no other hues)
+- Desktop = analyze/manage (full features + admin), mobile = capture/glance (trimmed);
+  layouts never shared, logic/hooks always shared
+- Cloud AI calls must stay behind the opt-in settings toggle
 
 ## Required After Every Change
 
-- Frontend: `npm run lint:fix && npm run format:fix` (from `frontend/`)
-- Backend: `ruff check . && ruff format .` (from `backend/`)
-- Always run both before committing
+1. Frontend: `npm run lint:fix && npm run format:fix` (from `frontend/`)
+2. Backend: `ruff check . && ruff format .` (from `backend/`)
+3. Backend tests: `pytest` (from `backend/`)
+4. Self-review the diff against `rules/code-review.md` before committing
+   (in Claude Code: run the `/finance-review` skill, defined in `.claude/skills/`)
 
 ## Commands
 
-- `uvicorn main:app --reload` — start backend
-- `alembic upgrade head` — run migrations
-- `npm run dev` — start frontend
-- `npm run build` — build frontend
-- `pip-compile requirements.in` — lock dependencies
+- `docker compose up -d` — run everything
+- `uvicorn main:app --reload` — backend dev (from `backend/`)
+- `alembic upgrade head` / `alembic revision --autogenerate -m "desc"` — migrations
+- `npm run dev` / `npm run build` — frontend (from `frontend/`)
 
-## MCP Tools Available
+## MCP Tools
 
-- `chrome-devtools` — browser debugging, screenshots, console, network, Lighthouse
-- `playwright` — browser automation, form filling, E2E testing
+Configured for opencode in `opencode.json` and for Claude Code in `.mcp.json` (same servers):
+- `playwright` — browser automation, E2E flows
+- `chrome-devtools` — debugging, screenshots, console, network

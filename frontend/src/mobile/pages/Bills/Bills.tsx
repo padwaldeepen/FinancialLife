@@ -202,7 +202,7 @@ export const Bills = (): JSX.Element => {
                 </Select.Root>
               </Flex>
               <Flex gap="3">
-                <Box style={{ flex: 1 }}>
+                <Box className={styles.flex1}>
                   <Flex direction="column" gap="1">
                     <Text size="2" weight="medium">
                       Frequency
@@ -219,7 +219,7 @@ export const Bills = (): JSX.Element => {
                     </Select.Root>
                   </Flex>
                 </Box>
-                <Box style={{ width: 100 }}>
+                <Box className={styles.colWidth100}>
                   <Flex direction="column" gap="1">
                     <Text size="2" weight="medium">
                       Due Day
@@ -271,7 +271,7 @@ export const Bills = (): JSX.Element => {
                 key={bill.id}
                 size="2"
                 onClick={() => setSelectedBill(bill)}
-                style={{ cursor: 'pointer' }}
+                className={styles.clickable}
               >
                 <Flex direction="column" gap="2">
                   <Flex align="center" justify="between">
@@ -367,7 +367,7 @@ export const Bills = (): JSX.Element => {
                   </Select.Root>
                 </Flex>
                 <Flex gap="3">
-                  <Box style={{ flex: 1 }}>
+                  <Box className={styles.flex1}>
                     <Flex direction="column" gap="1">
                       <Text size="2" weight="medium">
                         Frequency
@@ -384,7 +384,7 @@ export const Bills = (): JSX.Element => {
                       </Select.Root>
                     </Flex>
                   </Box>
-                  <Box style={{ width: 100 }}>
+                  <Box className={styles.colWidth100}>
                     <Flex direction="column" gap="1">
                       <Text size="2" weight="medium">
                         Due Day

@@ -26,6 +26,18 @@
   padding: var(--space-8) var(--space-4);
 }
 
+.flex1 {
+  flex: 1;
+}
+
+.colWidth100 {
+  width: 100px;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

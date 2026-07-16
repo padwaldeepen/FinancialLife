@@ -43,6 +43,7 @@
   height: 16px;
   border-radius: 50%;
   flex-shrink: 0;
+  background-color: var(--swatch-color);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
@@ -51,11 +52,16 @@
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+  background-color: var(--swatch-color);
 }
 
 .chevron {
   transition: transform var(--duration-normal) var(--ease-out);
   color: var(--gray-9);
+}
+
+.chevronExpanded {
+  transform: rotate(90deg);
 }
 
 .childrenList {
@@ -96,6 +102,9 @@
   height: 28px;
   border-radius: 50%;
   cursor: pointer;
+  background-color: var(--swatch-color);
+  outline: var(--swatch-outline, none);
+  outline-offset: 2;
   transition:
     transform var(--duration-fast) var(--ease-out),
     box-shadow var(--duration-fast) var(--ease-out);
@@ -105,6 +114,23 @@
 .colorSwatch:hover {
   transform: scale(1.15);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.flex1 {
+  flex: 1;
+}
+
+.colRight {
+  width: 48px;
+  text-align: right;
+}
+
+.dialogWide {
+  max-width: 420px;
+}
+
+.dialogNarrow {
+  max-width: 380px;
 }
 
 @keyframes fadeIn {

@@ -199,7 +199,7 @@ export const Merchants = (): JSX.Element => {
               <Box className={styles.icon}>
                 <Store size={18} />
               </Box>
-              <Box style={{ flex: 1 }}>
+              <Box className={styles.flex1}>
                 <Text size="3" weight="bold">
                   {merchant.name}
                 </Text>
@@ -232,7 +232,7 @@ export const Merchants = (): JSX.Element => {
         open={!!selected && !!detail}
         onOpenChange={(open) => !open && setSelected(null)}
       >
-        <Dialog.Content style={{ maxWidth: 700, maxHeight: '85vh', overflowY: 'auto' }}>
+        <Dialog.Content className={styles.dialogContent}>
           {selected && detail && (
             <>
               <Dialog.Title>{detail.name}</Dialog.Title>
@@ -296,9 +296,9 @@ export const Merchants = (): JSX.Element => {
                   <Tabs.Trigger value="history">Transaction History</Tabs.Trigger>
                 </Tabs.List>
 
-                <Tabs.Content value="spending" style={{ paddingTop: 'var(--space-3)' }}>
+                <Tabs.Content value="spending" className={styles.sectionPadding}>
                   {detail.monthly_spending.length > 0 ? (
-                    <Box style={{ height: 250 }}>
+                    <Box className={styles.chartHeight250}>
                       <ResponsiveBar
                         data={detail.monthly_spending}
                         keys={['amount']}
@@ -320,19 +320,16 @@ export const Merchants = (): JSX.Element => {
                       />
                     </Box>
                   ) : (
-                    <Text
-                      color="gray"
-                      style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
-                    >
+                    <Text color="gray" className={styles.sectionPadY}>
                       No spending data
                     </Text>
                   )}
                 </Tabs.Content>
 
-                <Tabs.Content value="categories" style={{ paddingTop: 'var(--space-3)' }}>
+                <Tabs.Content value="categories" className={styles.sectionPadding}>
                   {detail.category_breakdown.length > 0 ? (
                     <Flex gap="4" direction={{ initial: 'column', sm: 'row' }}>
-                      <Box style={{ height: 200, width: 200 }}>
+                      <Box className={styles.chartHeight200}>
                         <ResponsivePie
                           data={detail.category_breakdown.map((c) => ({
                             id: c.category_name,
@@ -347,17 +344,13 @@ export const Merchants = (): JSX.Element => {
                           enableArcLinkLabels={false}
                         />
                       </Box>
-                      <Flex direction="column" gap="1" style={{ flex: 1 }}>
+                      <Flex direction="column" gap="1" className={styles.flex1}>
                         {detail.category_breakdown.map((c) => (
                           <Flex key={c.category_name} justify="between" align="center">
                             <Flex align="center" gap="2">
                               <Box
-                                style={{
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: '50%',
-                                  backgroundColor: c.color,
-                                }}
+                                className={styles.categoryDot}
+                                style={{ '--dot-color': c.color } as React.CSSProperties}
                               />
                               <Text size="2">{c.category_name}</Text>
                             </Flex>
@@ -369,21 +362,18 @@ export const Merchants = (): JSX.Element => {
                       </Flex>
                     </Flex>
                   ) : (
-                    <Text
-                      color="gray"
-                      style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
-                    >
+                    <Text color="gray" className={styles.sectionPadY}>
                       No category data
                     </Text>
                   )}
                 </Tabs.Content>
 
-                <Tabs.Content value="history" style={{ paddingTop: 'var(--space-3)' }}>
+                <Tabs.Content value="history" className={styles.sectionPadding}>
                   {detail.recent_transactions.length > 0 ? (
                     <Flex direction="column" gap="1">
                       {detail.recent_transactions.map((tx) => (
                         <Flex key={tx.id} justify="between" align="center" className={styles.txRow}>
-                          <Flex direction="column" gap="1" style={{ flex: 1 }}>
+                          <Flex direction="column" gap="1" className={styles.flex1}>
                             <Text size="2">{tx.description}</Text>
                             <Text size="1" color="gray">
                               {new Date(tx.date).toLocaleDateString()}
@@ -402,10 +392,7 @@ export const Merchants = (): JSX.Element => {
                       ))}
                     </Flex>
                   ) : (
-                    <Text
-                      color="gray"
-                      style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
-                    >
+                    <Text color="gray" className={styles.sectionPadY}>
                       No transactions
                     </Text>
                   )}
@@ -436,7 +423,7 @@ export const Merchants = (): JSX.Element => {
 
       {/* Rename Dialog */}
       <Dialog.Root open={renameOpen} onOpenChange={setRenameOpen}>
-        <Dialog.Content style={{ maxWidth: 380 }}>
+        <Dialog.Content className={styles.renameDialog}>
           <Dialog.Title>Rename Merchant</Dialog.Title>
           <Flex direction="column" gap="3" mt="3">
             <Text size="2" color="gray">
@@ -468,7 +455,7 @@ export const Merchants = (): JSX.Element => {
           if (!o) setDeleteConfirmId(null)
         }}
       >
-        <Dialog.Content style={{ maxWidth: 380 }}>
+        <Dialog.Content className={styles.renameDialog}>
           <Dialog.Title>Delete Merchant</Dialog.Title>
           <Text size="2" mt="2">
             Are you sure you want to delete this merchant? This action cannot be undone.
@@ -486,7 +473,7 @@ export const Merchants = (): JSX.Element => {
       </Dialog.Root>
 
       <Dialog.Root open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
-        <Dialog.Content style={{ maxWidth: 500 }}>
+        <Dialog.Content className={styles.mergeDialog}>
           <Dialog.Title>Merge Duplicate Merchants</Dialog.Title>
           {similarPairs.length === 0 ? (
             <Text color="gray">No similar merchants found</Text>
@@ -495,7 +482,7 @@ export const Merchants = (): JSX.Element => {
               {similarPairs.map((pair, i) => (
                 <Card key={i}>
                   <Flex justify="between" align="center" gap="3">
-                    <Box style={{ flex: 1 }}>
+                    <Box className={styles.flex1}>
                       <Text size="2" weight="bold">
                         {pair.merchant_a.name}
                       </Text>
@@ -506,7 +493,7 @@ export const Merchants = (): JSX.Element => {
                     <Text size="1" color="gray">
                       {Math.round(pair.similarity * 100)}% match
                     </Text>
-                    <Box style={{ flex: 1 }}>
+                    <Box className={styles.flex1}>
                       <Text size="2" weight="bold">
                         {pair.merchant_b.name}
                       </Text>

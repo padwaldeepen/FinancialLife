@@ -228,14 +228,17 @@ export const Categories = (): JSX.Element => {
                 </Text>
                 {spending.map((s) => (
                   <Flex key={s.id} align="center" gap="3" className={styles.spendingRow}>
-                    <Box className={styles.colorDot} style={{ backgroundColor: s.color }} />
-                    <Text size="2" style={{ flex: 1 }}>
+                    <Box
+                      className={styles.colorDot}
+                      style={{ '--swatch-color': s.color } as React.CSSProperties}
+                    />
+                    <Text size="2" className={styles.flex1}>
                       {s.name}
                     </Text>
                     <Text size="2" weight="medium">
                       {formatCurrency(s.total)}
                     </Text>
-                    <Text size="1" color="gray" style={{ width: 48, textAlign: 'right' }}>
+                    <Text size="1" color="gray" className={styles.colRight}>
                       {s.percentage}%
                     </Text>
                   </Flex>
@@ -272,8 +275,11 @@ export const Categories = (): JSX.Element => {
                       className={styles.parentRow}
                       onClick={() => children.length > 0 && toggleExpand(parent.id)}
                     >
-                      <Box className={styles.colorDot} style={{ backgroundColor: parent.color }} />
-                      <Box style={{ flex: 1 }}>
+                      <Box
+                        className={styles.colorDot}
+                        style={{ '--swatch-color': parent.color } as React.CSSProperties}
+                      />
+                      <Box className={styles.flex1}>
                         <Flex align="center" gap="2">
                           <Text size="3" weight="bold">
                             {parent.name}
@@ -291,8 +297,7 @@ export const Categories = (): JSX.Element => {
                       {renderCategoryActions(parent)}
                       {children.length > 0 && (
                         <Box
-                          className={styles.chevron}
-                          style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                          className={`${styles.chevron} ${isExpanded ? styles.chevronExpanded : ''}`}
                         >
                           <ChevronRight size={16} />
                         </Box>
@@ -305,9 +310,9 @@ export const Categories = (): JSX.Element => {
                           <Flex key={child.id} align="center" gap="3" className={styles.childRow}>
                             <Box
                               className={styles.colorDotSmall}
-                              style={{ backgroundColor: child.color }}
+                              style={{ '--swatch-color': child.color } as React.CSSProperties}
                             />
-                            <Text size="2" style={{ flex: 1 }}>
+                            <Text size="2" className={styles.flex1}>
                               {child.name}
                             </Text>
                             {child.is_system && (
@@ -337,7 +342,7 @@ export const Categories = (): JSX.Element => {
 
       {/* Create/Edit Dialog */}
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
-        <Dialog.Content style={{ maxWidth: 420 }}>
+        <Dialog.Content className={styles.dialogWide}>
           <Dialog.Title>{editId !== null ? 'Edit Category' : 'Add Category'}</Dialog.Title>
           <Flex direction="column" gap="3" mt="3">
             <Box>
@@ -359,11 +364,12 @@ export const Categories = (): JSX.Element => {
                   <Box
                     key={c}
                     className={styles.colorSwatch}
-                    style={{
-                      backgroundColor: c,
-                      outline: form.color === c ? '2px solid var(--accent-9)' : undefined,
-                      outlineOffset: 2,
-                    }}
+                    style={
+                      {
+                        '--swatch-color': c,
+                        '--swatch-outline': form.color === c ? '2px solid var(--accent-9)' : 'none',
+                      } as React.CSSProperties
+                    }
                     onClick={() => setForm({ ...form, color: c })}
                   />
                 ))}

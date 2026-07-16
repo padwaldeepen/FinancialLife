@@ -83,9 +83,9 @@ export const Home = (): JSX.Element => {
   if (loading) {
     return (
       <Flex direction="column" gap="4">
-        <div className={`${styles.balanceCard} ${styles.skeleton}`} style={{ height: 180 }} />
-        <div className="skeleton" style={{ height: 60 }} />
-        <div className="skeleton" style={{ height: 60 }} />
+        <div className={`${styles.balanceCard} ${styles.skeleton} ${styles.chartArea}`} />
+        <div className={`skeleton ${styles.miniChart}`} />
+        <div className={`skeleton ${styles.miniChart}`} />
       </Flex>
     )
   }
@@ -119,10 +119,12 @@ export const Home = (): JSX.Element => {
                     <Flex align="center" gap="3">
                       <Box
                         className={styles.accountIcon}
-                        style={{
-                          background: `${accountColors[account.type] || 'var(--gray-9)'}18`,
-                          color: accountColors[account.type] || 'var(--gray-9)',
-                        }}
+                        style={
+                          {
+                            '--account-bg': `${accountColors[account.type] || 'var(--gray-9)'}18`,
+                            '--account-color': accountColors[account.type] || 'var(--gray-9)',
+                          } as React.CSSProperties
+                        }
                       >
                         {accountIcons[account.type] || <Wallet size={22} />}
                       </Box>
@@ -164,16 +166,18 @@ export const Home = (): JSX.Element => {
                     justify="between"
                     gap="3"
                   >
-                    <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
+                    <Flex direction="column" gap="1" className={styles.flex1}>
                       <div className={styles.txDescription}>{t.description}</div>
                       <div className={styles.txDate}>{formatDate(t.date)}</div>
                     </Flex>
                     <div
                       className={styles.txAmount}
-                      style={{
-                        color:
-                          t.transaction_type === 'income' ? 'var(--green-11)' : 'var(--gray-12)',
-                      }}
+                      style={
+                        {
+                          '--tx-color':
+                            t.transaction_type === 'income' ? 'var(--green-11)' : 'var(--gray-12)',
+                        } as React.CSSProperties
+                      }
                     >
                       {t.transaction_type === 'income' ? '+' : '-'}
                       {formatCurrency(t.amount)}
@@ -202,7 +206,7 @@ export const Home = (): JSX.Element => {
               <Flex direction="column" gap="2" className={styles.billList}>
                 {upcomingBills.slice(0, 5).map((bill) => (
                   <Flex key={bill.id} align="center" justify="between" className={styles.billRow}>
-                    <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
+                    <Flex direction="column" gap="1" className={styles.flex1}>
                       <Text size="2" weight="medium">
                         {bill.name}
                       </Text>
@@ -218,7 +222,12 @@ export const Home = (): JSX.Element => {
                     <Text
                       size="2"
                       weight="bold"
-                      style={{ color: bill.has_paid ? 'var(--green-11)' : undefined }}
+                      className={styles.billAmount}
+                      style={
+                        {
+                          '--bill-color': bill.has_paid ? 'var(--green-11)' : undefined,
+                        } as React.CSSProperties
+                      }
                     >
                       {bill.has_paid ? '✓ ' : ''}
                       {formatCurrency(bill.amount)}

@@ -217,14 +217,14 @@ export const Categories = (): JSX.Element => {
                 </Text>
                 {spending.map((s) => (
                   <Flex key={s.id} align="center" gap="3" className={styles.spendingRow}>
-                    <Box className={styles.colorDot} style={{ backgroundColor: s.color }} />
-                    <Text size="2" style={{ flex: 1 }}>
+                    <Box className={styles.colorDot} style={{ '--swatch-color': s.color } as React.CSSProperties} />
+                    <Text size="2" className={styles.flex1}>
                       {s.name}
                     </Text>
                     <Text size="2" weight="medium">
                       {formatCurrency(s.total)}
                     </Text>
-                    <Text size="1" color="gray" style={{ width: 40, textAlign: 'right' }}>
+                    <Text size="1" color="gray" className={styles.colRight}>
                       {s.percentage}%
                     </Text>
                   </Flex>
@@ -261,8 +261,8 @@ export const Categories = (): JSX.Element => {
                       className={styles.parentRow}
                       onClick={() => children.length > 0 && toggleExpand(parent.id)}
                     >
-                      <Box className={styles.colorDot} style={{ backgroundColor: parent.color }} />
-                      <Box style={{ flex: 1, minWidth: 0 }}>
+                      <Box className={styles.colorDot} style={{ '--swatch-color': parent.color } as React.CSSProperties} />
+                      <Box className={styles.flex1MinWidth}>
                         <Flex align="center" gap="2" wrap="wrap">
                           <Text size="2" weight="bold">
                             {parent.name}

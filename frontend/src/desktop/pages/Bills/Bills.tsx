@@ -210,7 +210,7 @@ export const Bills = (): JSX.Element => {
                 </Select.Root>
               </Flex>
               <Flex gap="3">
-                <Box style={{ flex: 1 }}>
+                <Box className={styles.flex1}>
                   <Flex direction="column" gap="1">
                     <Text size="2" weight="medium">
                       Frequency
@@ -227,7 +227,7 @@ export const Bills = (): JSX.Element => {
                     </Select.Root>
                   </Flex>
                 </Box>
-                <Box style={{ width: 100 }}>
+                <Box className={styles.colWidth100}>
                   <Flex direction="column" gap="1">
                     <Text size="2" weight="medium">
                       Due Day
@@ -275,7 +275,7 @@ export const Bills = (): JSX.Element => {
               <Flex direction="column" gap="2">
                 {upcoming.map((bill: any) => (
                   <Flex key={bill.id} align="center" justify="between" className={styles.billRow}>
-                    <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
+                    <Flex direction="column" gap="1" className={styles.flex1Min0}>
                       <Text size="2" weight="medium">
                         {bill.name}
                       </Text>
@@ -303,10 +303,9 @@ export const Bills = (): JSX.Element => {
                 size="2"
                 className={styles.billCard}
                 onClick={() => setSelectedBill(bill)}
-                style={{ cursor: 'pointer' }}
               >
                 <Flex align="center" justify="between">
-                  <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
+                  <Flex direction="column" gap="1" className={styles.flex1Min0}>
                     <Flex align="center" gap="2">
                       <Text size="3" weight="bold">
                         {bill.name}
@@ -323,7 +322,7 @@ export const Bills = (): JSX.Element => {
                     </Text>
                   </Flex>
                   <Flex align="center" gap="3">
-                    <Text size="3" weight="bold" style={{ whiteSpace: 'nowrap' }}>
+                    <Text size="3" weight="bold" className={styles.nowrap}>
                       {formatCurrency(bill.amount)}
                     </Text>
                     <IconButton
@@ -411,7 +410,7 @@ export const Bills = (): JSX.Element => {
                   </Select.Root>
                 </Flex>
                 <Flex gap="3">
-                  <Box style={{ flex: 1 }}>
+                  <Box className={styles.flex1}>
                     <Flex direction="column" gap="1">
                       <Text size="2" weight="medium">
                         Frequency
@@ -428,7 +427,7 @@ export const Bills = (): JSX.Element => {
                       </Select.Root>
                     </Flex>
                   </Box>
-                  <Box style={{ width: 100 }}>
+                  <Box className={styles.colWidth100}>
                     <Flex direction="column" gap="1">
                       <Text size="2" weight="medium">
                         Due Day

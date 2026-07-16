@@ -98,8 +98,9 @@ export const Reports = (): JSX.Element => {
             <Flex align="center" gap="2">
               <DollarSign size={18} color={summary.net >= 0 ? 'var(--green-9)' : 'var(--red-9)'} />
               <span
-                className={styles.statValue}
-                style={{ color: summary.net >= 0 ? 'var(--green-11)' : 'var(--red-11)' }}
+                className={`${styles.statValue} ${
+                  summary.net >= 0 ? styles.netPositive : styles.netNegative
+                }`}
               >
                 {formatCurrency(summary.net)}
               </span>
@@ -212,17 +213,20 @@ export const Reports = (): JSX.Element => {
           <Flex direction="column" gap="2">
             {categories.map((cat) => (
               <Flex key={cat.category_name} align="center" gap="3" className={styles.catRow}>
-                <Box className={styles.colorDot} style={{ backgroundColor: cat.category_color }} />
-                <Text size="2" style={{ flex: 1 }}>
+                <Box
+                  className={styles.colorDot}
+                  style={{ '--cat-color': cat.category_color } as React.CSSProperties}
+                />
+                <Text size="2" className={styles.flex1}>
                   {cat.category_name}
                 </Text>
                 <Badge size="1" color="gray">
                   {cat.transaction_count} tx
                 </Badge>
-                <Text size="2" weight="medium" style={{ width: 80, textAlign: 'right' }}>
+                <Text size="2" weight="medium" className={styles.colAmount}>
                   {formatCurrency(cat.total)}
                 </Text>
-                <Text size="1" color="gray" style={{ width: 44, textAlign: 'right' }}>
+                <Text size="1" color="gray" className={styles.colCount}>
                   {cat.percentage}%
                 </Text>
               </Flex>

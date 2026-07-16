@@ -1,444 +1,222 @@
-# Financial Life — Architecture & Advisor Roadmap
+# My Financial Life — Architecture & Goals
 
-## Executive Summary
-
-**Status:** Version 1.0 complete and tested. ✅ Ready for use as an expense tracker.
-
-Financial Life is a well-built personal finance tracker that successfully solves frictionless expense logging. It has all the foundational features needed for financial visibility.
-
-**What it does:** Tracks spending with natural language, organizes by category/merchant, manages bills and goals, and provides monthly reports.
-
-**What's missing:** Proactive financial advising. To become a true financial coach, it needs an insight engine that detects patterns, recommends cost cuts, and forecasts cash flow.
-
-This document outlines the current architecture and the roadmap to add advisor capabilities.
+> This is a personal finance app running on localhost.
+> Goal: Understand where my money goes and get advice on saving more.
 
 ---
 
-## 2. What the Current App Already Does Well
+## What Exists Today
 
-### Core product capabilities already implemented
+### Data Model
+- **Users** — single user (me), JWT auth
+- **Accounts** — checking, savings, credit, cash, investment with balances
+- **Transactions** — amount, description, type (income/expense), date, linked to account/category/merchant
+- **Categories** — hierarchical (parent/child), system + user-created, with colors/icons
+- **Merchants** — auto-extracted from transactions, deduplication, merge support
+- **Bills** — recurring expenses with frequency, due dates, variable amounts, auto-linking to transactions
+- **Goals** — save_up, pay_down, monthly_envelope with progress tracking
+- **Budgets** — per-category or total, monthly/weekly/yearly periods
 
-The current system already covers several important building blocks:
+### What the App Does
+1. Log transactions via natural language ("coffee 4.50" → structured transaction)
+2. Show spending by category (pie charts), by merchant, by month
+3. Track bills and auto-detect when they're paid
+4. Track savings goals with progress
+5. Generate monthly reports (income, expenses, net, breakdown)
+6. Export data to CSV
+7. AI chatbot for questions (optional, works without API keys)
 
-- Authentication and secure access
-- Transaction creation and editing
-- Category and merchant tracking
-- Bill management and upcoming bill visibility
-- Goal tracking and contribution flow
-- Reports and monthly summaries
-- Natural-language transaction entry
-- AI-assisted chat and parsing
-- Receipt OCR support
-- CSV import/export support
-
-### What this means in practice
-
-The app can already help users:
-
-- log spending quickly,
-- see balances and recent activity,
-- understand category-level spending,
-- track recurring obligations such as bills,
-- save toward specific goals,
-- and get lightweight AI feedback from their transaction history.
-
-That is already useful and solves a major problem: reducing friction in financial tracking.
+### Tech Stack
+- **Frontend**: React 19, TypeScript, Vite, CSS Modules, Radix UI, Nivo charts, Zustand
+- **Backend**: FastAPI, SQLAlchemy 2.x, PostgreSQL, Alembic, JWT auth
+- **AI**: Rule-based parsing + optional Gemini/Groq (free APIs only)
+- **Infrastructure**: Docker Compose, localhost only
 
 ---
 
-## 3. Current Architecture Overview
+## What's Broken (From Code Review)
 
-### Frontend architecture
+### Data Integrity (Must Fix)
+- Money columns use `Float` → rounding errors. Should be `Numeric(12,2)`.
+- `bill_id`/`goal_id` on Transaction have no ForeignKey → any integer accepted.
+- `account_type`, `transaction_type`, `frequency` accept any string → typos corrupt reports.
+- `compute_upcoming` doesn't await db.execute() → bills always show as "paid".
+- No `amount > 0` validation → negative amounts accepted.
 
-The frontend is built with:
+### UI (Should Fix)
+- Dark mode broken on mobile (undefined CSS variables).
+- Two floating add buttons on mobile.
+- `window.confirm()` instead of Radix Dialog.
+- ChatBot uses raw `<div>`s instead of Radix components.
 
-- React 19
-- TypeScript
-- Vite
-- CSS Modules
-- Radix UI
-- Zustand state management
-- Separate desktop and mobile experiences
-
-This is a good fit because it allows:
-
-- a modern UX,
-- separate layouts for different device contexts,
-- accessibility-friendly UI components,
-- and a clean state model for app-level data.
-
-### Backend architecture
-
-The backend is built with:
-
-- FastAPI
-- SQLAlchemy 2.x
-- Alembic migrations
-- routers and services separation
-- JWT authentication
-- rate limiting and security middleware
-
-This is a solid foundation for a scalable finance platform because it separates:
-
-- API routing,
-- business logic,
-- persistence,
-- and AI features.
-
-### Data model direction
-
-The app already has a strong domain model around:
-
-- User
-- Account
-- Category
-- Transaction
-- Merchant
-- Bill
-- Goal
-- TransactionBillLink
-
-This is much better than a simple one-table expense tracker because it enables:
-
-- account-based financial views,
-- merchant-level analysis,
-- bill lifecycle tracking,
-- and goal-based planning.
+### Security (Nice to Fix for Localhost)
+- `/api/transactions/parse` has no auth.
+- SECRET_KEY defaults to empty string.
+- No password strength requirements.
 
 ---
 
-## 4. Current Strengths vs. Advisor Expectations
+## The Goal: From Tracker to Advisor
 
-### What is already solving real problems
+### What I Want
+I want to open this app and immediately understand:
+1. **Where is my money going?** → Category breakdown, merchant analysis
+2. **How much am I earning vs spending?** → Income vs expense trends
+3. **Where can I save money?** → Spending analysis, subscription detection
+4. **Am I on track?** → Goal progress, budget status
+5. **What should I do next?** → Personalized recommendations
 
-The current app is already solving four important use cases:
+### What's Missing
 
-1. Faster transaction logging
-   - Natural language parsing allows users to add expenses quickly.
-   - This reduces friction and helps daily usage.
+#### Insight Layer (Know What's Happening)
+- **Recurring expense detection**: Find charges that repeat monthly (subscriptions, bills)
+- **Spending anomaly detection**: "Your food spending jumped 40% this month"
+- **Trend analysis**: "Your entertainment spending has increased 3 months in a row"
+- **Category drift**: "You budgeted $200 for dining, you've spent $340"
 
-2. Visible financial organization
-   - Categories, merchants, bills, and goals create structure.
-   - This helps users understand their financial life more clearly.
+#### Recommendation Layer (Know What to Do)
+- **Savings opportunities**: "You could save $85/month by cutting these 3 subscriptions"
+- **Bill optimization**: "Your phone bill increased 15% — shop around?"
+- **Budget adjustments**: "Based on your income, here's a realistic budget"
+- **Goal pacing**: "At current rate, you'll reach your emergency fund goal in 8 months"
 
-3. Better recurring-obligation visibility
-   - Bills and upcoming bill tracking help users avoid missing payments.
-   - This reduces financial stress and late fees.
-
-4. Basic AI assistance
-   - The chat flow and AI parsing support a conversational experience.
-   - This is the right foundation for an advisor-style layer.
-
-### What is still missing for an advisor experience
-
-The current app does not yet fully do the following:
-
-- analyze receipts and bank statements deeply,
-- detect subscriptions and recurring waste,
-- explain spending behavior with recommendations,
-- suggest exact actions to improve savings,
-- forecast upcoming cash flow,
-- identify risk areas like overdraft or debt buildup,
-- or act like a real personal finance coach.
+#### Forecasting Layer (Know What's Coming)
+- **Cash flow forecast**: "Based on income and upcoming bills, you'll have $1,200 left this month"
+- **Safe-to-spend**: "You have $450 left for discretionary spending this week"
+- **Bill impact**: "Adding this $50/month subscription leaves $200 buffer"
 
 ---
 
-## 5. Research Summary from the Web
+## Architecture for Intelligence
 
-To compare with the market, I reviewed major finance-product positioning from Rocket Money, Monarch, and YNAB.
+### Current State
+```
+User Input → Transaction → Database → Reports (manual)
+                                     → Chatbot (reactive)
+```
 
-### What the best apps do well
+### Target State
+```
+User Input → Transaction → Database → Insight Engine → Dashboard Cards
+                                          ↓
+                                     Recommendation Engine → Advice Panel
+                                          ↓
+                                     Forecasting Engine → Cash Flow View
+```
 
-These products are strong because they focus on three things:
+### What Needs to Be Built
 
-- visibility
-- automation
-- proactive guidance
+#### 1. Insight Engine (Backend Service)
+A service that analyzes transaction data and produces insights:
+- `analyze_spending_patterns(user_id)` → category trends, anomalies
+- `detect_recurring_charges(user_id)` → subscription list
+- `compare_periods(user_id, period1, period2)` → month-over-month changes
+- Returns structured insight objects with evidence
 
-### Common patterns in strong finance apps
+#### 2. Recommendation Engine (Backend Service)
+Takes insights and produces actionable recommendations:
+- `generate_recommendations(user_id, insights)` → savings suggestions
+- `score_recommendation(recommendation)` → priority/confidence
+- Rule-based first, AI-enhanced later
 
-1. They make all financial data visible in one place
-   - accounts, transactions, bills, subscriptions, and goals appear together.
+#### 3. Forecasting Engine (Backend Service)
+Projects future balances based on patterns:
+- `forecast_cash_flow(user_id, months_ahead)` → projected income/expenses
+- `calculate_safe_to_spend(user_id)` → discretionary budget
+- `project_goal_completion(user_id, goal_id)` → estimated completion date
 
-2. They detect recurring expenses automatically
-   - subscriptions and regular charges are surfaced clearly.
-
-3. They give actionable insights
-   - not just charts, but suggestions such as cancel subscriptions or save more.
-
-4. They reduce cognitive load
-   - they turn raw transactions into simple guidance and reminders.
-
-### What this means for FinanceFlareAI
-
-FinanceFlareAI should aim for the same kind of experience, but with a more open-source, lightweight, and AI-first model.
-
-The project should not try to copy every premium app feature. Instead, it should focus on the best core value:
-
-- make money management easy,
-- make financial patterns obvious,
-- and make improvement suggestions practical.
-
----
-
-## 6. Product Goal: From Tracker to Advisor
-
-### North star
-
-FinanceFlareAI should become an AI-powered personal finance manager and advisor that helps users:
-
-- understand where their money is going,
-- identify recurring and wasteful spending,
-- reduce unnecessary expenses,
-- improve saving habits,
-- and make smarter financial decisions with less effort.
-
-### Core user promise
-
-A user should be able to upload receipts, bills, and bank statements and receive guidance like:
-
-- “You spent 18% more on food this month than last month.”
-- “You have 3 subscriptions that may be unnecessary.”
-- “Your utility and mobile bills are higher than the average of your last 3 months.”
-- “You are likely overspending on discretionary purchases this week.”
-- “You could improve your savings by redirecting $120/month from low-value spending.”
-
-That is the level of experience the project should target.
+#### 4. Advisor Dashboard (Frontend)
+New UI elements that surface intelligence:
+- **Insight cards** on Home screen (top 3-5 insights)
+- **Recommendations panel** with dismiss/act actions
+- **Forecast view** with projected balances
+- **Spending health score** (simple 0-100 metric)
 
 ---
 
-## 7. What Is Missing to Become a Real Financial Advisor
+## Recommended Build Order
 
-### A. Receipt, bill, and statement ingestion
+### Phase A: Fix Data Integrity (2-3 days)
+Make the data reliable before building intelligence on top of it.
+1. Float → Numeric migration
+2. ForeignKey fixes
+3. Enum validation
+4. Bill bug fix
 
-The biggest missing piece is deeper data ingestion.
+### Phase B: Fix UI (1-2 days)
+Make the app pleasant to use daily.
+1. Dark mode fix
+2. Duplicate FAB removal
+3. Radix Dialog for confirmations
 
-The app must support:
+### Phase C: Insight Engine (1-2 weeks)
+The most valuable addition. Start with:
+1. Recurring charge detection (find repeats)
+2. Monthly spending comparison ("this month vs last month")
+3. Category trend analysis (3-month moving average)
+4. Anomaly detection (spending > 2x average)
 
-- PDF bank statement parsing,
-- receipt OCR with structured extraction,
-- bill import from PDF/email/text,
-- and merchant normalization across sources.
+### Phase D: Recommendations (1 week)
+Turn insights into advice:
+1. "You can save $X by cutting Y" suggestions
+2. Budget adherence warnings
+3. Goal pacing advice
 
-Without this, the app stays mostly manual and cannot become a strong advisor.
+### Phase E: Forecasting (1 week)
+Project the future:
+1. Cash flow projection (income - known expenses)
+2. Safe-to-spend calculation
+3. Goal completion timeline
 
-### B. Spending intelligence
-
-The app needs more than raw transaction storage. It needs analysis layers such as:
-
-- recurring expense detection,
-- subscription detection,
-- merchant trend analysis,
-- category drift detection,
-- and anomaly detection.
-
-### C. Strong recommendations engine
-
-The app should provide suggestions based on the user’s own data. Examples:
-
-- “You are spending too much on subscriptions.”
-- “This monthly recurring cost increased by 25%.”
-- “Your food spending is 30% above your personal average.”
-- “You can save $80/month by reducing these categories.”
-
-### D. Forecasting and planning
-
-The app should help users think forward, not just backward. It should offer:
-
-- month-ahead cash-flow forecasting,
-- bill due planning,
-- savings pace tracking,
-- and “safe-to-spend” guidance.
-
-### E. Personalization and trust
-
-A financial advisor must be personal. The system should learn from:
-
-- user goals,
-- location,
-- salary patterns,
-- household context,
-- and spending behavior.
-
-The advice must be explainable, not vague.
+### Phase F: Polish (ongoing)
+Make it all beautiful:
+1. Insight cards on dashboard
+2. Recommendation dismiss/act UI
+3. Forecast visualization
+4. Spending health score
 
 ---
 
-## 8. Recommended Architecture Direction
+## AI Strategy
 
-### A. Data ingestion layer
+### Free-Only Approach
+All intelligence should work without paid APIs:
+1. **Rule-based first**: Pattern matching, statistical analysis, threshold checks
+2. **Free AI second**: Gemini/Groq for natural language summaries of insights
+3. **Optional enhancement**: User can add API keys for richer analysis
 
-Add a dedicated ingestion layer that can:
+### Example: Recurring Charge Detection (Rule-Based)
+```python
+# Group transactions by merchant + similar amount
+# If same merchant + amount ±10% appears 3+ times in 3 months
+# → Mark as recurring, calculate monthly cost
+```
 
-- parse PDFs,
-- read OCR text from receipts,
-- normalize merchant and amount values,
-- and create structured transactions or bills.
+### Example: Savings Recommendation (Rule-Based)
+```python
+# Find recurring charges
+# Rank by amount (highest first)
+# Flag charges with increasing trend
+# Generate: "Your top 3 subscriptions cost $X/month. 
+#            #2 increased 15% last quarter."
+```
 
-This should be a separate service layer from the main transaction engine.
-
-### B. Insight engine
-
-Build an insight engine that runs analyses periodically or on demand. Possible modules:
-
-- recurring expense detector,
-- anomaly detector,
-- trend analyzer,
-- savings opportunity analyzer,
-- debt-risk analyzer,
-- and cash-flow forecastor.
-
-### C. Recommendation engine
-
-Create a recommendation service that turns analysis into actionable advice.
-
-Examples:
-
-- suggest canceling subscriptions,
-- suggest moving money to savings,
-- suggest reducing discretionary categories,
-- suggest paying down debt faster,
-- or suggest increasing bill payment discipline.
-
-### D. Advisor assistant layer
-
-The current chat layer should become a true advisor interface.
-
-The assistant should be able to answer questions such as:
-
-- “What am I spending too much on?”
-- “How can I save more this month?”
-- “Which bills are likely to increase?”
-- “What should I change next?”
-
-### E. Explainability layer
-
-Every recommendation should be explainable.
-
-For example:
-
-- “This suggestion is based on 3 transactions from the last 2 months.”
-- “This is a recurring charge with a 12% increase versus the median.”
-
-That builds trust.
+### Example: Cash Flow Forecast (Statistical)
+```python
+# Average income (last 3 months) - Average expenses (last 3 months)
+# Subtract known upcoming bills
+# Add goal contributions
+# = Projected end-of-month balance
+```
 
 ---
 
-## 9. Recommended Product Roadmap
+## Key Principle: Simplicity
 
-### Phase 1 — Data ingestion foundation
+This is a personal app, not a SaaS product. The intelligence should be:
+- **Simple**: One-line insights, not complex dashboards
+- **Actionable**: "Cancel subscription X" not "Your spending patterns suggest..."
+- **Honest**: "I don't have enough data yet" instead of guessing
+- **Local**: All analysis runs on my machine, no data leaves
 
-- add structured bank statement upload support,
-- improve receipt parsing,
-- add bill import from PDFs/text,
-- standardize merchant extraction,
-- and improve transaction normalization.
-
-### Phase 2 — Spending insight engine
-
-- detect recurring expenses,
-- detect subscriptions,
-- detect unusual spending spikes,
-- highlight category drift,
-- and show monthly trend summaries.
-
-### Phase 3 — Advisor recommendations
-
-- create “savings opportunities” cards,
-- add “waste reduction” suggestions,
-- add “bill optimization” suggestions,
-- and provide simple recommendations based on past behavior.
-
-### Phase 4 — Forecasting and planning
-
-- monthly cash-flow forecast,
-- upcoming bill and savings planning,
-- “safe-to-spend” views,
-- and goal-based pacing advice.
-
-### Phase 5 — Trust and personalization
-
-- personal financial coaching style responses,
-- preference-based advice,
-- explainable recommendations,
-- and confidence scoring for AI suggestions.
-
----
-
-## 10. What Is Done vs. What Should Be Built Next
-
-### Already done
-
-- transaction logging
-- categories and merchants
-- bills and goals
-- reports and summaries
-- AI chat entry point
-- OCR-based input
-- CSV import/export
-- auth and security basics
-
-### Should be built next
-
-- bank statement ingestion
-- richer expense categorization and normalization
-- recurring charge and subscription detection
-- financial recommendations engine
-- savings optimization insights
-- risk alerts and anomaly detection
-- forecasting engine
-- personalized advisor experience
-
----
-
-## 11. What Claude and ChatGPT Can Help With
-
-Claude and ChatGPT are useful for reviewing the product direction, but they should be used as strategic assistants, not as a replacement for product thinking.
-
-### Good questions to ask them
-
-- “Review this app as a personal finance advisor. What is missing to make it feel like a real financial coach?”
-- “Compare this product to Rocket Money, Monarch, and YNAB. What features would create the most value for a free open-source finance app?”
-- “Suggest the best roadmap for turning this app from a transaction tracker into a savings and cost-reduction assistant.”
-- “What are the most important AI features for a personal finance assistant that works from receipts, bills, and statements?”
-- “How would you design an explainable recommendation engine for personal finance?”
-
-### What to look for in their answers
-
-The best responses should help with:
-
-- missing feature prioritization,
-- user experience improvements,
-- recommendation logic,
-- prompt design for the assistant,
-- and advice on how to make the system feel more intelligent and useful.
-
----
-
-## 12. Final Assessment
-
-FinanceFlareAI is already solving the problem of financial organization and friction reduction. That is a strong base.
-
-However, if the goal is to become a true financial manager or advisor, the next step is not just more tracking. The next step is intelligence.
-
-The project should evolve toward an app that can:
-
-- ingest financial documents,
-- detect patterns,
-- explain what matters,
-- and recommend practical ways to save and spend better.
-
-That is the real opportunity.
-
----
-
-## 13. Suggested Immediate Next Priorities
-
-1. Build a document ingestion pipeline for receipts and bank statements.
-2. Add recurring expense and subscription detection.
-3. Add AI-generated insight cards for the home screen.
-4. Add simple savings recommendations based on user behavior.
-5. Add a cash-flow forecast and “safe to spend” view.
-6. Make the assistant answer proactive questions instead of only passive chat.
-
-These steps will move the project much closer to the vision of a real financial advisor.
+The goal is to open the app once a week, glance at the dashboard, and know exactly where I stand and what to do.

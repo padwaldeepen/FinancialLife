@@ -1,6 +1,17 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -96,15 +107,15 @@ class Transaction(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    amount: Mapped[float] = mapped_column(Float)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))
     description: Mapped[str] = mapped_column(String)
     transaction_type: Mapped[str] = mapped_column(String)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     merchant_id: Mapped[int | None] = mapped_column(ForeignKey("merchants.id"), default=None)
-    bill_id: Mapped[int | None] = mapped_column(Integer, default=None)
-    goal_id: Mapped[int | None] = mapped_column(Integer, default=None)
+    bill_id: Mapped[int | None] = mapped_column(ForeignKey("bills.id"), default=None)
+    goal_id: Mapped[int | None] = mapped_column(ForeignKey("goals.id"), default=None)
     is_pending: Mapped[bool] = mapped_column(Boolean, default=False)
     is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
     date: Mapped[datetime] = mapped_column(DateTime)
@@ -127,7 +138,7 @@ class Budget(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String)
-    amount: Mapped[float] = mapped_column(Float)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))
     period: Mapped[str] = mapped_column(String)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
@@ -140,6 +151,8 @@ class Budget(Base):
     user: Mapped[User] = relationship(back_populates="budgets")
     category: Mapped[Category | None] = relationship(back_populates="budgets")
 
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_budget_user_name"),)
+
 
 class Bill(Base):
     __tablename__ = "bills"
@@ -147,8 +160,8 @@ class Bill(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String)
-    amount: Mapped[float] = mapped_column(Float)
-    amount_estimated: Mapped[float | None] = mapped_column(Float, default=None)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))
+    amount_estimated: Mapped[float | None] = mapped_column(Numeric(12, 2), default=None)
     frequency: Mapped[str] = mapped_column(String)
     due_day: Mapped[int] = mapped_column(Integer)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
@@ -172,6 +185,10 @@ class Bill(Base):
 class TransactionBillLink(Base):
     __tablename__ = "transaction_bill_links"
 
+    __table_args__ = (
+        UniqueConstraint("transaction_id", "bill_id", name="uq_transaction_bill_link"),
+    )
+
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     transaction_id: Mapped[int] = mapped_column(ForeignKey("transactions.id"), index=True)
     bill_id: Mapped[int] = mapped_column(ForeignKey("bills.id"), index=True)
@@ -190,9 +207,9 @@ class Goal(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String)
-    target_amount: Mapped[float] = mapped_column(Float)
-    current_amount: Mapped[float] = mapped_column(Float, default=0.0)
-    monthly_contribution: Mapped[float | None] = mapped_column(Float, default=None)
+    target_amount: Mapped[float] = mapped_column(Numeric(12, 2))
+    current_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    monthly_contribution: Mapped[float | None] = mapped_column(Numeric(12, 2), default=None)
     type: Mapped[str] = mapped_column(String)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
     deadline: Mapped[datetime | None] = mapped_column(DateTime, default=None)

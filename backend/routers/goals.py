@@ -1,7 +1,8 @@
 from datetime import date, datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import User
@@ -14,10 +15,10 @@ router = APIRouter()
 
 class GoalCreate(BaseModel):
     name: str
-    target_amount: float
-    type: str
-    current_amount: float = 0.0
-    monthly_contribution: float | None = None
+    target_amount: float = Field(gt=0)
+    type: Literal["save_up", "pay_down", "monthly_envelope"]
+    current_amount: float = Field(default=0.0, ge=0)
+    monthly_contribution: float | None = Field(default=None, gt=0)
     category_id: int | None = None
     deadline: date | None = None
     icon: str | None = None
@@ -26,10 +27,10 @@ class GoalCreate(BaseModel):
 
 class GoalUpdate(BaseModel):
     name: str | None = None
-    target_amount: float | None = None
-    current_amount: float | None = None
-    monthly_contribution: float | None = None
-    type: str | None = None
+    target_amount: float | None = Field(default=None, gt=0)
+    current_amount: float | None = Field(default=None, ge=0)
+    monthly_contribution: float | None = Field(default=None, gt=0)
+    type: Literal["save_up", "pay_down", "monthly_envelope"] | None = None
     category_id: int | None = None
     deadline: date | None = None
     icon: str | None = None

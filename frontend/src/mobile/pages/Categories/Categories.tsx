@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type JSX } from 'react'
+import { useState, useEffect, useCallback, useRef, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -13,7 +13,7 @@ import {
   Select,
   IconButton,
 } from '@radix-ui/themes'
-import { Tags, ChevronRight, PieChart, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Tags, ChevronRight, PieChart, Plus, Pencil, Trash2, RefreshCw } from 'lucide-react'
 import { ResponsivePie } from '@nivo/pie'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -40,6 +40,8 @@ interface CategoryFormData {
 }
 
 const emptyForm = (): CategoryFormData => ({ name: '', color: '#6B7280', parent_id: null })
+
+const PULL_THRESHOLD = 80
 
 export const Categories = (): JSX.Element => {
   const {
@@ -74,11 +76,45 @@ export const Categories = (): JSX.Element => {
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [pullDistance, setPullDistance] = useState(0)
+  const touchStartY = useRef(0)
+  const isPulling = useRef(false)
 
   useEffect(() => {
     fetchCategories()
     fetchSpendingByCategory()
   }, [fetchCategories, fetchSpendingByCategory])
+
+  const fetchData = async () => {
+    setRefreshing(true)
+    await Promise.all([fetchCategories(), fetchSpendingByCategory()])
+    setRefreshing(false)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY > 0) return
+    touchStartY.current = e.touches[0]!.clientY
+    isPulling.current = true
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling.current || refreshing) return
+    const diff = e.touches[0]!.clientY - touchStartY.current
+    if (diff > 0) {
+      setPullDistance(Math.min(diff * 0.5, PULL_THRESHOLD * 1.5))
+    }
+  }
+
+  const handleTouchEnd = () => {
+    if (!isPulling.current) return
+    isPulling.current = false
+    if (pullDistance >= PULL_THRESHOLD && !refreshing) {
+      setPullDistance(PULL_THRESHOLD)
+      fetchData()
+    }
+    setPullDistance(0)
+  }
 
   const toggleExpand = (id: number) => {
     setExpanded((prev) => {
@@ -156,7 +192,29 @@ export const Categories = (): JSX.Element => {
   }
 
   return (
-    <Box className={styles.page}>
+    <Box
+      className={styles.page}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <Box
+        className={styles.pullIndicator}
+        style={
+          {
+            '--pull-height': `${pullDistance}px`,
+            '--pull-opacity': Math.min(pullDistance / PULL_THRESHOLD, 1),
+          } as React.CSSProperties
+        }
+      >
+        <RefreshCw
+          size={20}
+          className={
+            refreshing ? styles.spinning : pullDistance >= PULL_THRESHOLD ? styles.ready : ''
+          }
+        />
+      </Box>
+
       <Flex justify="between" align="center" mb="4">
         <Heading size="5">Categories</Heading>
         <Button size="1" onClick={openCreate}>
@@ -217,7 +275,10 @@ export const Categories = (): JSX.Element => {
                 </Text>
                 {spending.map((s) => (
                   <Flex key={s.id} align="center" gap="3" className={styles.spendingRow}>
-                    <Box className={styles.colorDot} style={{ '--swatch-color': s.color } as React.CSSProperties} />
+                    <Box
+                      className={styles.colorDot}
+                      style={{ '--swatch-color': s.color } as React.CSSProperties}
+                    />
                     <Text size="2" className={styles.flex1}>
                       {s.name}
                     </Text>
@@ -246,7 +307,24 @@ export const Categories = (): JSX.Element => {
       {tab === 'list' && (
         <>
           {loading ? (
-            <Text color="gray">Loading...</Text>
+            <Flex direction="column" gap="3" p="3">
+              <div
+                className="skeleton"
+                style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
+              />
+              <div
+                className="skeleton"
+                style={{ height: 20, width: '70%', borderRadius: 'var(--radius-2)' }}
+              />
+              <div
+                className="skeleton"
+                style={{ height: 20, width: '50%', borderRadius: 'var(--radius-2)' }}
+              />
+              <div
+                className="skeleton"
+                style={{ height: 20, width: '85%', borderRadius: 'var(--radius-2)' }}
+              />
+            </Flex>
           ) : (
             <Flex direction="column" gap="2">
               {parents.map((parent) => {
@@ -261,7 +339,10 @@ export const Categories = (): JSX.Element => {
                       className={styles.parentRow}
                       onClick={() => children.length > 0 && toggleExpand(parent.id)}
                     >
-                      <Box className={styles.colorDot} style={{ '--swatch-color': parent.color } as React.CSSProperties} />
+                      <Box
+                        className={styles.colorDot}
+                        style={{ '--swatch-color': parent.color } as React.CSSProperties}
+                      />
                       <Box className={styles.flex1MinWidth}>
                         <Flex align="center" gap="2" wrap="wrap">
                           <Text size="2" weight="bold">
@@ -280,8 +361,7 @@ export const Categories = (): JSX.Element => {
                       {renderCategoryActions(parent)}
                       {children.length > 0 && (
                         <Box
-                          className={styles.chevron}
-                          style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                          className={`${styles.chevron} ${isExpanded ? styles.chevronExpanded : ''}`}
                         >
                           <ChevronRight size={16} />
                         </Box>
@@ -294,9 +374,9 @@ export const Categories = (): JSX.Element => {
                           <Flex key={child.id} align="center" gap="3" className={styles.childRow}>
                             <Box
                               className={styles.colorDotSmall}
-                              style={{ backgroundColor: child.color }}
+                              style={{ '--swatch-color': child.color } as React.CSSProperties}
                             />
-                            <Text size="2" style={{ flex: 1 }}>
+                            <Text size="2" className={styles.flex1}>
                               {child.name}
                             </Text>
                             {child.is_system && (
@@ -326,7 +406,7 @@ export const Categories = (): JSX.Element => {
 
       {/* Create/Edit Dialog */}
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
-        <Dialog.Content style={{ maxWidth: 380 }}>
+        <Dialog.Content className={styles.dialogWide}>
           <Dialog.Title>{editId !== null ? 'Edit Category' : 'Add Category'}</Dialog.Title>
           <Flex direction="column" gap="3" mt="3">
             <Box>
@@ -348,11 +428,12 @@ export const Categories = (): JSX.Element => {
                   <Box
                     key={c}
                     className={styles.colorSwatch}
-                    style={{
-                      backgroundColor: c,
-                      outline: form.color === c ? '2px solid var(--accent-9)' : undefined,
-                      outlineOffset: 2,
-                    }}
+                    style={
+                      {
+                        '--swatch-color': c,
+                        '--swatch-outline': form.color === c ? '2px solid var(--accent-9)' : 'none',
+                      } as React.CSSProperties
+                    }
                     onClick={() => setForm({ ...form, color: c })}
                   />
                 ))}
@@ -405,7 +486,7 @@ export const Categories = (): JSX.Element => {
           if (!o) setDeleteId(null)
         }}
       >
-        <Dialog.Content style={{ maxWidth: 350 }}>
+        <Dialog.Content className={styles.dialogNarrow}>
           <Dialog.Title>Delete Category</Dialog.Title>
           <Text size="2" mt="2">
             Are you sure you want to delete this category? Transactions using it will be

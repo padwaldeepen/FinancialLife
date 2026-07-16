@@ -48,7 +48,22 @@ export const Reports = (): JSX.Element => {
   }
 
   if (loading) {
-    return <Text color="gray">Loading...</Text>
+    return (
+      <Flex direction="column" gap="3" p="4">
+        <div
+          className="skeleton"
+          style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
+        />
+        <div
+          className="skeleton"
+          style={{ height: 120, width: '100%', borderRadius: 'var(--radius-2)' }}
+        />
+        <div
+          className="skeleton"
+          style={{ height: 16, width: '60%', borderRadius: 'var(--radius-2)' }}
+        />
+      </Flex>
+    )
   }
 
   return (

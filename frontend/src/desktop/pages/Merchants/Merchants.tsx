@@ -152,7 +152,26 @@ export const Merchants = (): JSX.Element => {
   }, [merchants, search, sortBy])
 
   if (loading) {
-    return <Text color="gray">Loading...</Text>
+    return (
+      <Flex direction="column" gap="3" p="4">
+        <div
+          className="skeleton"
+          style={{ height: 16, width: '100%', borderRadius: 'var(--radius-2)' }}
+        />
+        <div
+          className="skeleton"
+          style={{ height: 16, width: '70%', borderRadius: 'var(--radius-2)' }}
+        />
+        <div
+          className="skeleton"
+          style={{ height: 16, width: '85%', borderRadius: 'var(--radius-2)' }}
+        />
+        <div
+          className="skeleton"
+          style={{ height: 16, width: '50%', borderRadius: 'var(--radius-2)' }}
+        />
+      </Flex>
+    )
   }
 
   return (

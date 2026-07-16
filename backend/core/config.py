@@ -22,12 +22,10 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "https://myfinanciallife.vercel.app",
     ]
     ALLOWED_HOSTS: list[str] = [
         "localhost",
         "127.0.0.1",
-        ".vercel.app",
     ]
 
     USE_AI: bool = False
@@ -39,3 +37,9 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if not settings.SECRET_KEY:
+    raise ValueError(
+        "SECRET_KEY is not set. Add SECRET_KEY to your .env file. "
+        'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
+    )

@@ -1,15 +1,54 @@
-# Financial Life — Development Plan
+# My Financial Life — Development Plan
 
-> Last updated: 2026-07-16 (tested and verified working)
-> ✅ = done & verified | ❌ = remaining | ⏭️ = skipped
+> Last updated: 2026-07-16
+> Context: Localhost-only personal finance app. Not deployed anywhere. One user (me).
+> Goal: Understand where my money goes, how much I earn, and get advice on saving more.
+> ✅ = done | 🔧 = needs fix from review | ❌ = remaining | ⏭️ = skipped
 
 ---
 
 ## What We're Building
 
-Free, open-source personal finance app. Core insight: typing `"coffee 4.50"` should be all it takes to log a transaction. No subscriptions, no bank-sync, no learning curve.
+A personal finance app that helps **me** understand my financial life. Type `"coffee 4.50"` and it's logged. See where money goes. Get advice on saving. Run entirely on localhost — no cloud, no subscriptions, no bank sync. My data stays on my machine.
 
 **Stack:** React 19 + TypeScript + Vite + Radix UI + Nivo charts + Zustand | FastAPI + SQLAlchemy 2.x + PostgreSQL + JWT
+
+---
+
+## Code Review Summary (July 2026)
+
+A full branch review was done across three perspectives: Technical Lead, UI/UX Expert, and Financial Manager. Key findings:
+
+### Critical Fixes Needed (before using the app seriously)
+
+| # | What | Why | Where |
+|---|------|-----|-------|
+| 1 | `Float` → `Numeric(12,2)` for money columns | Rounding errors on amounts | `models.py:99,130,150,194` |
+| 2 | Add auth to `/api/transactions/parse` | Public endpoint, anyone can hit it | `routers/transactions.py:533` |
+| 3 | Add `ForeignKey` on `bill_id`, `goal_id` | No referential integrity, any integer accepted | `models.py:106-107` |
+| 4 | Validate bill ownership in link/unlink | Can link transaction to another user's bill | `routers/bills.py:273-300` |
+| 5 | Validate enum fields (account_type, transaction_type, frequency) | Arbitrary strings corrupt reports | Multiple routers |
+| 6 | Fix `compute_upcoming` missing `await` | Bills always show as "paid" | `services/bill_service.py:284` |
+| 7 | Validate `amount > 0` | Negative/zero amounts accepted | Multiple routers |
+| 8 | Require non-empty `SECRET_KEY` | JWT signed with empty string if `.env` missing | `core/config.py:17` |
+
+### UI Fixes Needed
+
+| # | What | Why |
+|---|------|-----|
+| 1 | Define `--bg-deep` and `--bg-panel` CSS vars | Dark mode broken on mobile layout + mobile login |
+| 2 | Remove duplicate FAB on mobile | Two floating add buttons overlap |
+| 3 | Replace `window.confirm()` with Radix Dialog | Breaks polished design |
+| 4 | Refactor ChatBot to use Radix components | ~17 raw `<div>`s violate project rules |
+
+### Architecture Improvements (can wait)
+
+| What | Why |
+|------|-----|
+| Move business logic from routers to services | `transactions.py` is 745 lines of inline logic |
+| Add responsive breakpoints for desktop | Two-column layouts overflow at narrow widths |
+| Add `aria-expanded`, `role="dialog"` to ChatBot | Accessibility gap |
+| Implement refresh token rotation | Stolen refresh token usable for 7 days |
 
 ---
 
@@ -84,6 +123,24 @@ All Zustand slices: accountsSlice, activitySlice, billsSlice, merchantsSlice, go
 ### Phase 27 — Security Hardening ✅
 JWT refresh rotation. API rate limiting (100 req/min general, 10 req/min auth). Pydantic validation. CORS config. HTTP security headers. SQL injection prevention via SQLAlchemy ORM.
 
+### Phase 28b — Bill Edit Dialog ✅
+Edit dialog (name, amount, account, frequency, due day, variable) on desktop + mobile Bills pages, edit button in Bill Detail.
+
+### Phase 35 — Shared Utilities ✅
+Created `shared/utils/format.ts` with `formatCurrency`, `formatDate`, `formatDateFull`, `getAmountColor`. Replaced all `.toFixed(2)` across 20+ files.
+
+### Phase 36 — Registration Improvements ✅
+Username field, password confirmation, show/hide toggle, client-side validation.
+
+### Phase 37 — CSV Import ✅
+Backend bulk endpoint, frontend CSV upload with papaparse, column mapping UI, preview table, account/category matching.
+
+### Phase 38 — Bill–Transaction Linking UI ✅
+Bill detail: linked transactions, manual linking. Transaction detail: linked bill, linking/unlinking.
+
+### Phase 39b — CSV Export Frontend ✅
+Export CSV button on Activity page filter bar (desktop + mobile) with date range support.
+
 ---
 
 ## Bonus Features (Completed)
@@ -92,10 +149,8 @@ JWT refresh rotation. API rate limiting (100 req/min general, 10 req/min auth). 
 |---------|---------|
 | AI Chatbot | FAB on desktop, NVIDIA LLM + rule-based fallback, transaction detection |
 | Premium Fintech UI Redesign | Full redesign across all pages |
-| CSV Export Backend | GET /api/export/csv with date range filtering |
 | Settings Pages | Desktop + Mobile with account/category/budget/goal CRUD |
 | Transaction Filtering | Search, date range, category, merchant, type filters |
-| Budget Management | Full CRUD in Settings |
 | Account Management | CRUD with icons per type |
 | Category Management | CRUD + hierarchy + analytics tab |
 | Merchant Management | Rename, delete, hide, merge duplicates |
@@ -106,32 +161,35 @@ JWT refresh rotation. API rate limiting (100 req/min general, 10 req/min auth). 
 
 ## Remaining Work
 
-### Phase 28b — Bill Edit Dialog ✅
-Added `updateBill` to `billsSlice`, edit dialog (name, amount, account, frequency, due day, variable) on desktop + mobile Bills pages, edit button in Bill Detail.
+### Priority Order for Localhost Personal Use
 
-### Phase 39b — CSV Export Frontend UI ✅
-Export CSV button on Activity page filter bar (desktop + mobile) with date range support. Reports page already had export.
+Since this runs locally for one user (me), the priorities are:
+1. **Fix data integrity bugs** — so my financial data is accurate
+2. **Fix UI broken things** — so the app is pleasant to use
+3. **Polish** — nice-to-have improvements
 
-### Phase 35 — Shared Utilities ✅
-Created `shared/utils/format.ts` with `formatCurrency`, `formatDate`, `formatDateFull`, `getAmountColor`. Replaced all `.toFixed(2)` across 20+ files, removed duplicate `formatDate` functions, centralized amount color logic.
+### 🔧 Phase R1 — Data Integrity Fixes (Critical)
+Fix the bugs that make financial data unreliable:
+- [ ] Change `Float` → `Numeric(12,2)` for all money columns + Alembic migration
+- [ ] Add `ForeignKey` constraints on `bill_id`, `goal_id` on Transaction
+- [ ] Add `Literal` types for `account_type`, `transaction_type`, `frequency`, `period`
+- [ ] Validate `amount > 0` on create/update
+- [ ] Fix `compute_upcoming` to `await` the `db.execute()` call
+- [ ] Add `UniqueConstraint` on `TransactionBillLink`
+- [ ] Add ownership check on bill link/unlink endpoints
 
-### ✅ Phase 38 — Bill–Transaction Linking UI
-- Bill detail: show linked transactions, allow manual linking
-- Transaction detail: show linked bill, allow linking/unlinking
-- Wire up existing `suggestBillLink` and `linkTransactionToBill` actions
+### 🔧 Phase R2 — Security Fixes (Important for Localhost)
+These matter less on localhost but are still good practice:
+- [ ] Add auth to `/api/transactions/parse`
+- [ ] Require non-empty `SECRET_KEY` at startup
+- [ ] Add password strength validation (min 8 chars)
+- [ ] Add bulk limit on `/import` endpoint
 
-### ❌ Phase 37 — CSV Import
-- ✅ Backend: `POST /api/transactions/import` bulk endpoint accepting mapped transactions
-- ✅ Frontend: CSV file upload, client-side parsing with papaparse
-- ✅ Column mapping UI (auto-detect common formats, manual override)
-- ✅ Preview table before import
-- ✅ Account/category matching by name
-
-### ❌ Phase 36 — Registration Improvements
-- ✅ Add `username` field to Register page
-- ✅ Add password confirmation field
-- ✅ Show/hide password toggle (Register + Login)
-- ✅ Client-side validation (password strength, email format)
+### 🔧 Phase R3 — UI Fixes
+- [ ] Define `--bg-deep` and `--bg-panel` CSS variables (dark mode broken on mobile)
+- [ ] Remove duplicate FAB on mobile (keep BottomTabBar center button)
+- [ ] Replace `window.confirm()` with Radix Dialog in Settings
+- [ ] Refactor ChatBot to use Radix components (`<Box>`, `<Flex>`, `<Text>`)
 
 ### ❌ Phase 30 — Inline Style Cleanup
 - Remove all `style={{ }}` occurrences across TSX files
@@ -154,20 +212,7 @@ Created `shared/utils/format.ts` with `formatCurrency`, `formatDate`, `formatDat
 
 ---
 
-## Research Notes
-
-### Receipt Scanning Approaches
-- **Tesseract.js (already in app)**: Client-side OCR, extracts raw text from receipt images. Limited accuracy on complex layouts.
-- **LLM Vision (GPT-4o, Gemini)**: Send image → structured JSON (merchant, items, total, date). Most accurate but requires API key. App already has AI abstraction layer.
-- **Google Lens API**: Good for product/barcode recognition, less ideal for full receipt parsing.
-- **Recommendation**: Keep Tesseract.js as free default. Add optional LLM vision parsing via existing AI provider abstraction (Groq/Gemini free tiers support vision).
-
-### Account Types for Bills
-Current types: `checking`, `savings`, `credit`, `cash`, `investment`. User says bills should be paid from: cash, credit card, debit card, bank account — not checking/savings labels. Consider renaming `checking` → `bank account`, `savings` → `savings` (keep). Or add a `debit` type.
-
----
-
-## Skipped (Not Needed)
+## Skipped (Not Needed for Localhost)
 
 | Phase | Reason |
 |-------|--------|
@@ -178,44 +223,15 @@ Current types: `checking`, `savings`, `credit`, `cash`, `investment`. User says 
 | Phase 40 — Onboarding Flow | Not needed |
 | Phase 41 — Auth Improvements | Token refresh already works |
 | Phase 42 — Testing | Skip for now |
-| Phase 43 — DevOps (CI/CD) | Skip for now |
+| Phase 43 — DevOps (CI/CD) | Skip for now — localhost only |
 | Phase 44 — Notifications | Skip for now |
-| Phase 22b — Caching Layer | Not needed at current scale |
+| Phase 22b — Caching Layer | Not needed at localhost scale |
 | Phase 23b — Gesture Navigation | Swipe-to-delete + pull-to-refresh already done |
 | Phase 24b — Command Palette | Not needed |
 | Phase 26 — Data Integrity | SQLAlchemy ORM handles this |
 | Phase 28 — Offline/Sync | Not needed for localhost |
 | Phase 29b — JSON Export | CSV is sufficient |
 | Phase 30b — Statement Import | Not needed for MVP |
-
----
-
-## Sprint Order
-
-| # | Phase | Effort |
-|---|-------|--------|
-| 1 | Phase 28b — Bill Edit Dialog | Small ✅ |
-| 2 | Phase 39b — CSV Export UI | Small ✅ |
-| 3 | Phase 35 — Shared Utilities | Small ✅ |
-| 4 | Phase 38 — Bill-Transaction Linking | ✅ Done |
-| 5 | Phase 37 — CSV Import | ✅ Done |
-| 6 | Phase 36 — Registration Improvements | ✅ Done |
-| 6 | Phase 30 — Inline Style Cleanup | Medium |
-| 7 | Phase 33 — Mobile Polish | Medium |
-| 8 | Phase 34 — Desktop Polish | Medium |
-| 9 | Phase 31 — Skeleton Loading | Medium |
-
----
-
-## Final Feature Set (After All Phases)
-
-**Core:** Accounts, Transactions (CRUD + edit + filtering + infinite scroll), Categories (hierarchy + analytics + pie charts), Merchants (CRUD + merge + detail + spending charts), Bills (CRUD + auto-link + variable bills), Goals (CRUD + contribute + progress tracking), Budgets, Reports (monthly/summary/category + comparisons)
-
-**AI:** Chatbot (NVIDIA LLM + rule-based), NL transaction parsing, Receipt OCR (Tesseract.js)
-
-**UI:** Premium fintech redesign, desktop sidebar + mobile bottom tabs, dark mode, Settings pages, pull-to-refresh, swipe-to-delete, Nivo charts (pie + bar), CSV export
-
-**Backend:** JWT auth, rate limiting, security headers, DB indexes, auto-link bills, merchant auto-generation, rule-based + AI parsing
 
 ---
 
@@ -231,3 +247,4 @@ Current types: `checking`, `savings`, `credit`, `cash`, `investment`. User says 
 8. **Use Radix UI directly.** No custom wrappers.
 9. **Zustand for all global state.** useState for local form state only.
 10. **Every DB change needs an Alembic migration.**
+11. **This runs on localhost only.** No deployment, no CI/CD, no production concerns.

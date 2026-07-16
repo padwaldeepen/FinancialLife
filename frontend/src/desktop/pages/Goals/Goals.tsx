@@ -220,7 +220,24 @@ export const Goals = (): JSX.Element => {
       </Flex>
 
       {loading ? (
-        <Text color="gray">Loading...</Text>
+        <Flex direction="column" gap="3" p="4">
+          <div
+            className="skeleton"
+            style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
+          />
+          <div
+            className="skeleton"
+            style={{ height: 16, width: '60%', borderRadius: 'var(--radius-2)' }}
+          />
+          <div
+            className="skeleton"
+            style={{ height: 20, width: '85%', borderRadius: 'var(--radius-2)' }}
+          />
+          <div
+            className="skeleton"
+            style={{ height: 16, width: '40%', borderRadius: 'var(--radius-2)' }}
+          />
+        </Flex>
       ) : goals.length === 0 ? (
         <Flex className={styles.emptyState} direction="column">
           <span className={styles.emptyTitle}>No goals yet</span>
@@ -367,12 +384,17 @@ export const Goals = (): JSX.Element => {
                         </Flex>
 
                         <Flex gap="2" mt="3">
-                          <Button size="2" variant="soft" style={{ flex: 1 }} onClick={openEdit}>
+                          <Button
+                            size="2"
+                            variant="soft"
+                            className={styles.flex1}
+                            onClick={openEdit}
+                          >
                             <Pencil size={14} /> Edit
                           </Button>
                           <Button
                             size="2"
-                            style={{ flex: 1 }}
+                            className={styles.flex1}
                             onClick={() => setContributeOpen(true)}
                           >
                             <Plus size={14} /> Add Contribution

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type JSX } from 'react'
-import { Text, Button, TextField } from '@radix-ui/themes'
+import { Box, Flex, Text, Button, IconButton, TextField } from '@radix-ui/themes'
 import { MessageCircle, X, Send, Bot, User, Check } from 'lucide-react'
 import api from '../../../auth/api.ts'
 import styles from './ChatBot.module.css'
@@ -98,74 +98,96 @@ export const ChatBot = (): JSX.Element => {
   }
 
   return (
-    <div className={styles.container}>
+    <Box className={styles.container}>
       {open && (
-        <div className={styles.panel}>
-          <div className={styles.header}>
+        <Flex
+          direction="column"
+          className={styles.panel}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chat assistant"
+        >
+          <Flex align="center" gap="2" className={styles.header}>
             <Bot size={18} />
-            <span className={styles.headerTitle}>Assistant</span>
-            <button className={styles.closeBtn} onClick={() => setOpen(false)} type="button">
+            <Text size="2" weight="medium" className={styles.headerTitle}>
+              Assistant
+            </Text>
+            <IconButton
+              size="1"
+              variant="ghost"
+              onClick={() => setOpen(false)}
+              aria-label="Close chat"
+            >
               <X size={16} />
-            </button>
-          </div>
+            </IconButton>
+          </Flex>
 
-          <div className={styles.messages} ref={scrollRef}>
+          <Box className={styles.messages} ref={scrollRef}>
             {messages.map((msg, i) => (
-              <div
+              <Flex
                 key={i}
+                gap="2"
+                direction="column"
                 className={`${styles.message} ${msg.role === 'user' ? styles.userMsg : styles.botMsg}`}
               >
-                <div className={styles.msgIcon}>
-                  {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
-                </div>
-                <div className={styles.msgContent}>
-                  <div className={styles.msgBubble}>
-                    {msg.text.split('\n').map((line, j) => (
-                      <Text key={j} size="2" as="div">
-                        {line}
-                      </Text>
-                    ))}
-                  </div>
-                  {msg.transactionData && (
-                    <div className={styles.txPreview}>
-                      <div className={styles.txInfo}>
-                        <Text size="1" color="gray">
-                          Transaction detected
+                <Flex gap="2" align="start">
+                  <Box className={styles.msgIcon}>
+                    {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
+                  </Box>
+                  <Flex direction="column" gap="1" className={styles.msgContent}>
+                    <Box className={styles.msgBubble}>
+                      {msg.text.split('\n').map((line, j) => (
+                        <Text key={j} size="2" as="div">
+                          {line}
                         </Text>
-                        <Text size="2" weight="medium">
-                          {msg.transactionData.description} — $
-                          {msg.transactionData.amount.toFixed(2)}
-                        </Text>
-                        <Text size="1" color="gray">
-                          {msg.transactionData.type} · {msg.transactionData.category}
-                        </Text>
-                      </div>
-                      <Button size="1" onClick={() => handleSaveTransaction(msg.transactionData!)}>
-                        <Check size={12} />
-                        Save
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
+                      ))}
+                    </Box>
+                    {msg.transactionData && (
+                      <Flex direction="column" gap="1" className={styles.txPreview}>
+                        <Flex direction="column" gap="1">
+                          <Text size="1" color="gray">
+                            Transaction detected
+                          </Text>
+                          <Text size="2" weight="medium">
+                            {msg.transactionData.description} — $
+                            {msg.transactionData.amount.toFixed(2)}
+                          </Text>
+                          <Text size="1" color="gray">
+                            {msg.transactionData.type} · {msg.transactionData.category}
+                          </Text>
+                        </Flex>
+                        <Button
+                          size="1"
+                          onClick={() => handleSaveTransaction(msg.transactionData!)}
+                        >
+                          <Check size={12} />
+                          Save
+                        </Button>
+                      </Flex>
+                    )}
+                  </Flex>
+                </Flex>
+              </Flex>
             ))}
             {loading && (
-              <div className={`${styles.message} ${styles.botMsg}`}>
-                <div className={styles.msgIcon}>
-                  <Bot size={14} />
-                </div>
-                <div className={styles.msgContent}>
-                  <div className={styles.msgBubble}>
-                    <Text size="2" color="gray">
-                      Thinking...
-                    </Text>
-                  </div>
-                </div>
-              </div>
+              <Flex gap="2" direction="column" className={`${styles.message} ${styles.botMsg}`}>
+                <Flex gap="2" align="start">
+                  <Box className={styles.msgIcon}>
+                    <Bot size={14} />
+                  </Box>
+                  <Box className={styles.msgContent}>
+                    <Box className={styles.msgBubble}>
+                      <Text size="2" color="gray">
+                        Thinking...
+                      </Text>
+                    </Box>
+                  </Box>
+                </Flex>
+              </Flex>
             )}
-          </div>
+          </Box>
 
-          <div className={styles.inputArea}>
+          <Box className={styles.inputArea}>
             <TextField.Root
               placeholder="Ask anything or log a transaction..."
               value={input}
@@ -179,28 +201,30 @@ export const ChatBot = (): JSX.Element => {
               className={styles.input}
             >
               <TextField.Slot side="right">
-                <button
-                  className={styles.sendBtn}
+                <IconButton
+                  size="1"
+                  variant="ghost"
                   onClick={sendMessage}
                   disabled={loading || !input.trim()}
-                  type="button"
+                  aria-label="Send message"
                 >
                   <Send size={16} />
-                </button>
+                </IconButton>
               </TextField.Slot>
             </TextField.Root>
-          </div>
-        </div>
+          </Box>
+        </Flex>
       )}
 
-      <button
+      <IconButton
         className={`${styles.fab} ${open ? styles.fabOpen : ''}`}
         onClick={() => setOpen(!open)}
-        type="button"
-        aria-label="Chat assistant"
+        aria-label={open ? 'Close chat' : 'Open chat assistant'}
+        aria-expanded={open}
+        size="3"
       >
         {open ? <X size={22} /> : <MessageCircle size={22} />}
-      </button>
-    </div>
+      </IconButton>
+    </Box>
   )
 }

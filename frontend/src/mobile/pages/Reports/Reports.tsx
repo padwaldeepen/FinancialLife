@@ -1,14 +1,20 @@
-import { useState, useEffect, type JSX } from 'react'
+import { useState, useEffect, useRef, type JSX } from 'react'
 import { Box, Flex, Heading, Text, Card, Badge, Select } from '@radix-ui/themes'
-import { PieChart } from 'lucide-react'
+import { PieChart, RefreshCw } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import styles from './Reports.module.css'
 
+const PULL_THRESHOLD = 80
+
 export const Reports = (): JSX.Element => {
   const [year, setYear] = useState(new Date().getFullYear().toString())
+  const [refreshing, setRefreshing] = useState(false)
+  const [pullDistance, setPullDistance] = useState(0)
+  const touchStartY = useRef(0)
+  const isPulling = useRef(false)
   const { monthly, summary, categories, comparison, loading, fetchReports } = useBoundStore(
     useShallow((s) => ({
       monthly: s.reports.monthly,
@@ -24,15 +30,82 @@ export const Reports = (): JSX.Element => {
     fetchReports(year)
   }, [fetchReports, year])
 
+  const fetchData = async () => {
+    setRefreshing(true)
+    await fetchReports(year)
+    setRefreshing(false)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY > 0) return
+    touchStartY.current = e.touches[0]!.clientY
+    isPulling.current = true
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling.current || refreshing) return
+    const diff = e.touches[0]!.clientY - touchStartY.current
+    if (diff > 0) {
+      setPullDistance(Math.min(diff * 0.5, PULL_THRESHOLD * 1.5))
+    }
+  }
+
+  const handleTouchEnd = () => {
+    if (!isPulling.current) return
+    isPulling.current = false
+    if (pullDistance >= PULL_THRESHOLD && !refreshing) {
+      setPullDistance(PULL_THRESHOLD)
+      fetchData()
+    }
+    setPullDistance(0)
+  }
+
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => (currentYear - 2 + i).toString())
 
   if (loading) {
-    return <Text color="gray">Loading...</Text>
+    return (
+      <Flex direction="column" gap="3" p="3">
+        <div
+          className="skeleton"
+          style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
+        />
+        <div
+          className="skeleton"
+          style={{ height: 100, width: '100%', borderRadius: 'var(--radius-2)' }}
+        />
+        <div
+          className="skeleton"
+          style={{ height: 16, width: '55%', borderRadius: 'var(--radius-2)' }}
+        />
+      </Flex>
+    )
   }
 
   return (
-    <Box className={styles.page}>
+    <Box
+      className={styles.page}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <Box
+        className={styles.pullIndicator}
+        style={
+          {
+            '--pull-height': `${pullDistance}px`,
+            '--pull-opacity': Math.min(pullDistance / PULL_THRESHOLD, 1),
+          } as React.CSSProperties
+        }
+      >
+        <RefreshCw
+          size={20}
+          className={
+            refreshing ? styles.spinning : pullDistance >= PULL_THRESHOLD ? styles.ready : ''
+          }
+        />
+      </Box>
+
       <Flex align="center" justify="between" mb="4">
         <Heading size="5">Reports</Heading>
         <Select.Root value={year} onValueChange={setYear}>

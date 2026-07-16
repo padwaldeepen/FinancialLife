@@ -36,6 +36,7 @@
 
 .clickable {
   cursor: pointer;
+  min-height: 48px;
 }
 
 @keyframes fadeIn {

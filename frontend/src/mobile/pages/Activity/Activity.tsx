@@ -482,7 +482,7 @@ export const Activity = (): JSX.Element => {
 
       <Flex gap="2" mb="2" align="center" wrap="wrap">
         <Select.Root value={typeFilter} onValueChange={setTypeFilter}>
-          <Select.Trigger placeholder="All" style={{ minWidth: 100 }} />
+          <Select.Trigger placeholder="All" className={styles.filterSelect} />
           <Select.Content>
             <Select.Item value="">All</Select.Item>
             <Select.Item value="income">Income</Select.Item>
@@ -523,7 +523,7 @@ export const Activity = (): JSX.Element => {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              style={{ flex: 1 }}
+              className={styles.dateField}
             />
             <Text size="1" color="gray">
               to
@@ -532,7 +532,7 @@ export const Activity = (): JSX.Element => {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              style={{ flex: 1 }}
+              className={styles.dateField}
             />
           </Flex>
           <Button variant="outline" size="2" onClick={handleExport}>
@@ -547,7 +547,24 @@ export const Activity = (): JSX.Element => {
       )}
 
       {loading && transactions.length === 0 ? (
-        <Text color="gray">Loading...</Text>
+        <Flex direction="column" gap="3" p="3">
+          <div
+            className="skeleton"
+            style={{ height: 16, width: '100%', borderRadius: 'var(--radius-2)' }}
+          />
+          <div
+            className="skeleton"
+            style={{ height: 16, width: '65%', borderRadius: 'var(--radius-2)' }}
+          />
+          <div
+            className="skeleton"
+            style={{ height: 16, width: '80%', borderRadius: 'var(--radius-2)' }}
+          />
+          <div
+            className="skeleton"
+            style={{ height: 16, width: '45%', borderRadius: 'var(--radius-2)' }}
+          />
+        </Flex>
       ) : transactions.length === 0 ? (
         <Flex direction="column" align="center" gap="2" py="6">
           <Text size="3" weight="medium">
@@ -575,7 +592,7 @@ export const Activity = (): JSX.Element => {
                     onTouchStart={handleTouchStart}
                     onTouchEnd={(e) => handleTouchEnd(t.id, e)}
                   >
-                    <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
+                    <Flex direction="column" gap="1" className={styles.txContent}>
                       <Text size="2" weight="medium" className={styles.description}>
                         {t.description}
                       </Text>
@@ -595,7 +612,7 @@ export const Activity = (): JSX.Element => {
                         </Text>
                       </Flex>
                     </Flex>
-                    <Flex align="center" gap="2" style={{ flexShrink: 0 }}>
+                    <Flex align="center" gap="2" className={styles.txActions}>
                       {formatAmount(t)}
                       {swipedId === t.id && (
                         <IconButton
@@ -628,11 +645,11 @@ export const Activity = (): JSX.Element => {
       )}
 
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
-        <Dialog.Content style={{ maxWidth: 360 }}>
+        <Dialog.Content className={styles.dialogDetail}>
           {selected && (
             <>
               <Flex justify="between" align="center" mb="3">
-                <Dialog.Title style={{ margin: 0, fontSize: 'var(--font-size-4)' }}>
+                <Dialog.Title className={styles.dialogTitle}>
                   {editing ? 'Edit Transaction' : selected.description}
                 </Dialog.Title>
                 <IconButton variant="ghost" onClick={() => setDialogOpen(false)}>
@@ -757,7 +774,7 @@ export const Activity = (): JSX.Element => {
                   </Flex>
 
                   <Flex gap="3" align="center">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <label className={styles.checkboxLabel}>
                       <input
                         type="checkbox"
                         checked={editForm.is_pending}
@@ -765,7 +782,7 @@ export const Activity = (): JSX.Element => {
                       />
                       <Text size="2">Pending</Text>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <label className={styles.checkboxLabel}>
                       <input
                         type="checkbox"
                         checked={editForm.is_recurring}
@@ -782,11 +799,15 @@ export const Activity = (): JSX.Element => {
                       variant="soft"
                       color="gray"
                       onClick={() => setEditing(false)}
-                      style={{ flex: 1 }}
+                      className={styles.dialogButton}
                     >
                       Cancel
                     </Button>
-                    <Button variant="solid" onClick={handleSaveEdit} style={{ flex: 1 }}>
+                    <Button
+                      variant="solid"
+                      onClick={handleSaveEdit}
+                      className={styles.dialogButton}
+                    >
                       Save
                     </Button>
                   </Flex>
@@ -876,14 +897,18 @@ export const Activity = (): JSX.Element => {
                   </Flex>
 
                   <Flex gap="2">
-                    <Button variant="soft" onClick={() => setEditing(true)} style={{ flex: 1 }}>
+                    <Button
+                      variant="soft"
+                      onClick={() => setEditing(true)}
+                      className={styles.dialogButton}
+                    >
                       <Pencil size={14} /> Edit
                     </Button>
                     <Button
                       variant="soft"
                       color="green"
                       onClick={handleUpdateNotes}
-                      style={{ flex: 1 }}
+                      className={styles.dialogButton}
                     >
                       Save notes
                     </Button>
@@ -891,7 +916,7 @@ export const Activity = (): JSX.Element => {
                       variant="soft"
                       color="red"
                       onClick={handleDeleteFromDetail}
-                      style={{ flex: 1 }}
+                      className={styles.dialogButton}
                     >
                       <Trash2 size={14} /> Delete
                     </Button>
@@ -913,7 +938,7 @@ export const Activity = (): JSX.Element => {
             mt="3"
             mb="3"
           />
-          <Flex direction="column" gap="1" style={{ maxHeight: 300, overflowY: 'auto' }}>
+          <Flex direction="column" gap="1" className={styles.scrollableList}>
             {availableBills.length === 0 ? (
               <Text size="2" color="gray">
                 No bills found
@@ -924,12 +949,8 @@ export const Activity = (): JSX.Element => {
                   key={bill.id}
                   align="center"
                   justify="between"
+                  className={styles.billItem}
                   onClick={() => handleLinkToBill(bill.id)}
-                  style={{
-                    cursor: 'pointer',
-                    padding: 'var(--space-2)',
-                    borderRadius: 'var(--radius-2)',
-                  }}
                 >
                   <Text size="2" weight="medium">
                     {bill.name}
@@ -992,7 +1013,7 @@ export const Activity = (): JSX.Element => {
                 ] as const
               ).map((field) => (
                 <Flex key={field} align="center" gap="2">
-                  <Text size="2" style={{ width: 90, flexShrink: 0 }}>
+                  <Text size="2" className={styles.importFieldLabel}>
                     {field === 'date' || field === 'description' || field === 'amount'
                       ? `${field}*`
                       : field}
@@ -1001,7 +1022,7 @@ export const Activity = (): JSX.Element => {
                     value={importMapping[field]}
                     onValueChange={(v) => setImportMapping({ ...importMapping, [field]: v })}
                   >
-                    <Select.Trigger style={{ flex: 1 }} />
+                    <Select.Trigger className={styles.importFieldSelect} />
                     <Select.Content>
                       <Select.Item value="">— Skip —</Select.Item>
                       {importCsvHeaders.map((h) => (
@@ -1033,7 +1054,7 @@ export const Activity = (): JSX.Element => {
               <Text size="2" color="gray">
                 Preview — {importCsvRows.length} rows found
               </Text>
-              <Flex direction="column" gap="1" style={{ maxHeight: 300, overflowY: 'auto' }}>
+              <Flex direction="column" gap="1" className={styles.scrollableList}>
                 {importCsvRows.slice(0, 10).map((row, i) => {
                   const amtCol = importMapping.amount || ''
                   const typeCol = importMapping.type || ''
@@ -1052,7 +1073,7 @@ export const Activity = (): JSX.Element => {
                       align="center"
                       justify="between"
                       py="1"
-                      style={{ borderBottom: '1px solid var(--gray-4)' }}
+                      className={styles.previewRow}
                     >
                       <Flex direction="column" gap="1">
                         <Text size="2">{row[descCol]}</Text>

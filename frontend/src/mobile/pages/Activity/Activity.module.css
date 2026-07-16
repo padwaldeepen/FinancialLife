@@ -71,6 +71,66 @@
   padding: var(--space-8) var(--space-4);
 }
 
+.filterSelect {
+  min-width: 100px;
+}
+
+.dateField {
+  flex: 1;
+}
+
+.txContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.txActions {
+  flex-shrink: 0;
+}
+
+.dialogDetail {
+  max-width: 360px;
+}
+
+.dialogTitle {
+  margin: 0;
+  font-size: var(--font-size-4);
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dialogButton {
+  flex: 1;
+}
+
+.scrollableList {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.billItem {
+  cursor: pointer;
+  padding: var(--space-2);
+  border-radius: var(--radius-2);
+}
+
+.importFieldLabel {
+  width: 90px;
+  flex-shrink: 0;
+}
+
+.importFieldSelect {
+  flex: 1;
+}
+
+.previewRow {
+  border-bottom: 1px solid var(--gray-4);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

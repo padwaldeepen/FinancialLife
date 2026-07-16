@@ -34,6 +34,13 @@
   padding: var(--space-4);
   border-radius: var(--radius-card) !important;
   box-shadow: var(--shadow-card) !important;
+  transition:
+    box-shadow var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-card-hover) !important;
 }
 
 .row {

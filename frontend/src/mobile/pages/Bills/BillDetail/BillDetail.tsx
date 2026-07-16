@@ -193,9 +193,20 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
             Payment History
           </Text>
           {billHistory.loading ? (
-            <Text color="gray" size="1">
-              Loading...
-            </Text>
+            <Flex direction="column" gap="2" p="2">
+              <div
+                className="skeleton"
+                style={{ height: 16, width: '90%', borderRadius: 'var(--radius-2)' }}
+              />
+              <div
+                className="skeleton"
+                style={{ height: 16, width: '60%', borderRadius: 'var(--radius-2)' }}
+              />
+              <div
+                className="skeleton"
+                style={{ height: 16, width: '75%', borderRadius: 'var(--radius-2)' }}
+              />
+            </Flex>
           ) : billHistory.transactions.length > 0 ? (
             <Flex direction="column">
               {billHistory.transactions.map((tx: any) => (
@@ -255,9 +266,8 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                   key={tx.id}
                   align="center"
                   justify="between"
-                  className={styles.txRow}
+                  className={`${styles.txRow} ${styles.clickable}`}
                   onClick={() => handleLink(tx.id)}
-                  style={{ cursor: 'pointer' }}
                 >
                   <Flex direction="column" gap="1">
                     <Text size="2">{tx.description}</Text>

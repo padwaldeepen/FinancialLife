@@ -6,7 +6,9 @@
     "rules/backend.md",
     "rules/database.md",
     "rules/ui-ux.md",
-    "rules/git.md"
+    "rules/zustand.md",
+    "rules/git.md",
+    "rules/code-review.md"
   ],
   "mcp": {
     "chrome-devtools": {

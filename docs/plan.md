@@ -1,250 +1,149 @@
-# My Financial Life — Development Plan
+# My Financial Life — Plan
 
 > Last updated: 2026-07-16
-> Context: Localhost-only personal finance app. Not deployed anywhere. One user (me).
-> Goal: Understand where my money goes, how much I earn, and get advice on saving more.
-> ✅ = done | 🔧 = needs fix from review | ❌ = remaining | ⏭️ = skipped
+> Localhost-only, privacy-first personal finance app. One primary user (admin), family later.
+> Countries: USA, India, Canada → in practice: USD, INR, CAD with USD as base currency.
+>
+> **The one-line goal:** open the app and immediately know — where my money goes
+> (monthly/annually), which bills recur, what's coming next, and what I should do about it.
 
 ---
 
-## What We're Building
+## Honest Current State (July 2026)
 
-A personal finance app that helps **me** understand my financial life. Type `"coffee 4.50"` and it's logged. See where money goes. Get advice on saving. Run entirely on localhost — no cloud, no subscriptions, no bank sync. My data stays on my machine.
+The app today is a **working expense tracker** with a lot of surface area and some real gaps.
 
-**Stack:** React 19 + TypeScript + Vite + Radix UI + Nivo charts + Zustand | FastAPI + SQLAlchemy 2.x + PostgreSQL + JWT
+### Working
+- Natural-language quick-add, full transaction CRUD, search/filter, CSV import/export
+- Accounts, categories (hierarchy), merchants (merge/dedup), bills (auto-link), goals, budgets
+- Monthly reports with charts, receipt OCR (Tesseract.js), optional AI chat
+- Data-integrity fixes are applied: money columns are `Numeric(12,2)`, FKs on
+  `bill_id`/`goal_id`, `SECRET_KEY` required, `/parse` requires auth
 
----
-
-## Code Review Summary (July 2026)
-
-A full branch review was done across three perspectives: Technical Lead, UI/UX Expert, and Financial Manager. Key findings:
-
-### Critical Fixes Needed (before using the app seriously)
-
-| # | What | Why | Where |
-|---|------|-----|-------|
-| 1 | `Float` → `Numeric(12,2)` for money columns | Rounding errors on amounts | `models.py:99,130,150,194` |
-| 2 | Add auth to `/api/transactions/parse` | Public endpoint, anyone can hit it | `routers/transactions.py:533` |
-| 3 | Add `ForeignKey` on `bill_id`, `goal_id` | No referential integrity, any integer accepted | `models.py:106-107` |
-| 4 | Validate bill ownership in link/unlink | Can link transaction to another user's bill | `routers/bills.py:273-300` |
-| 5 | Validate enum fields (account_type, transaction_type, frequency) | Arbitrary strings corrupt reports | Multiple routers |
-| 6 | Fix `compute_upcoming` missing `await` | Bills always show as "paid" | `services/bill_service.py:284` |
-| 7 | Validate `amount > 0` | Negative/zero amounts accepted | Multiple routers |
-| 8 | Require non-empty `SECRET_KEY` | JWT signed with empty string if `.env` missing | `core/config.py:17` |
-
-### UI Fixes Needed
-
-| # | What | Why |
-|---|------|-----|
-| 1 | Define `--bg-deep` and `--bg-panel` CSS vars | Dark mode broken on mobile layout + mobile login |
-| 2 | Remove duplicate FAB on mobile | Two floating add buttons overlap |
-| 3 | Replace `window.confirm()` with Radix Dialog | Breaks polished design |
-| 4 | Refactor ChatBot to use Radix components | ~17 raw `<div>`s violate project rules |
-
-### Architecture Improvements (can wait)
-
-| What | Why |
-|------|-----|
-| Move business logic from routers to services | `transactions.py` is 745 lines of inline logic |
-| Add responsive breakpoints for desktop | Two-column layouts overflow at narrow widths |
-| Add `aria-expanded`, `role="dialog"` to ChatBot | Accessibility gap |
-| Implement refresh token rotation | Stolen refresh token usable for 7 days |
+### Not good enough (why this plan exists)
+| Problem | Reality |
+|---|---|
+| **No intelligence** | Zero lines of insight/recommendation/forecast code — the actual point of the app |
+| **UI is inconsistent** | Mixed colors, misaligned containers, weak UX flow on both desktop and mobile |
+| **No tests** | A finance app with untested money math cannot be trusted over Excel |
+| **No backups** | All data in one Docker volume on one disk — riskier than Excel in OneDrive |
+| **Single currency** | No INR/CAD, no exchange rates |
+| **No provenance / dedup** | A transaction from a scanned bill + the same one from a bank CSV would double-count |
+| **Privacy contradiction** | Chat/parse can send data to NVIDIA/Gemini/Groq free tiers — not privacy-first |
+| **Doc rot** | Docs described bugs as open that were already fixed (now archived to `docs/archive/`) |
+| **Duplicated frontend logic** | Desktop and mobile `Activity.tsx` are ~1,100 lines each, near-copies |
 
 ---
 
-## Completed Phases
+## Principles
 
-### Phase 0 — Tooling & Config ✅
-Frontend: Vite, TypeScript, Radix Themes, Nivo, Zustand, ESLint flat config. Backend: FastAPI, SQLAlchemy, Alembic, Ruff. Docker Compose. opencode rules.
+1. **Trustworthy numbers first.** Tests on money paths before new features; backups before the first real transaction goes in.
+2. **Rule-based intelligence first.** Statistics before AI; AI (local-first) only where rules can't reach.
+3. **Privacy-first means local-first AI.** Ollama for document understanding; cloud APIs opt-in only.
+4. **Three-color minimalist UI.** One neutral scale, one accent, semantic money colors — nothing else. See `design-system.md`.
+5. **Device roles differ.** Mobile = capture (scan, quick-add, glance). Desktop = analyze + manage (reports, admin, bulk edit). Feature set is deliberately bigger on desktop.
+6. **Every phase ends with the app answering a money question it couldn't answer before.**
+7. **Docs stay honest.** `plan.md` (this file) + `backlog.md` (detailed tickets) + `architecture-and-goals.md` + `design-system.md` + `DEVELOPMENT.md` + `how-it-works.md` (plain-language guide) are the only living docs. Everything else goes to `docs/archive/`.
 
-### Phase 1 — Theme + Global CSS ✅
-`src/theme.tsx` — Radix `<Theme>` with accentColor="orange", grayColor="slate". `useAppTheme()` hook for dark mode. CSS Modules only.
-
-### Phase 2 — Radix Themes Integration ✅
-All Radix UI components used directly. No custom wrappers. CSS Modules for layout only.
-
-### Phase 3 — Layouts ✅
-Desktop: Sidebar + TopBar + DesktopLayout. Mobile: BottomTabBar + FAB + MobileLayout. Device detection via matchMedia(1024px).
-
-### Phase 4 — Authentication ✅
-Login + Register (Desktop + Mobile). JWT access token (30min) + refresh token (7d httpOnly cookie). Zustand authSlice. Axios interceptor with 401 refresh rotation.
-
-### Phase 5 — Natural Language Quick-Add ✅
-Single text input → rule-based parser → instant transaction. Backend: POST /api/transactions/parse + POST /api/transactions/quick-add. Zero cost per call.
-
-### Phase 6 — Transaction History ✅
-List with search/filter/sort. Desktop table, mobile card list with swipe-to-delete. Edit, delete, infinite scroll. Backend: GET/POST/PUT/DELETE /api/transactions/.
-
-### Phase 7 — Dashboard ✅
-Balance cards (income/expenses/net). Nivo Pie chart (spending by category). Nivo Bar chart (category breakdown). Recent transactions. Different layouts for mobile vs desktop.
-
-### Phase 8 — Budgets ✅
-Create/view/edit budgets. Progress bars with spending limits. Over-budget warnings. Per-period spending auto-calculation.
-
-### Phase 9 — Receipt Scanning ✅
-Camera button (mobile) / file upload (desktop). Tesseract.js OCR runs entirely in browser. Extracted data pre-fills transaction form.
-
-### Phase 10 — AI Provider Setup ✅
-Groq API (free tier, fast LLM) + Gemini API (free tier, vision). AI abstraction layer with fallback chain: Groq → Gemini → rule-based. AI is optional — app works without API keys.
-
-### Phase 11 — Transaction AI Parsing ✅
-Parse "coffee 4.50" → structured result. Support variations: "salary 3200", "walmart 84.23", "netflix". Return preview before save. Client-side parsing preferred.
-
-### Phase 13 — Bills Model ✅
-Bill table: name, amount, frequency, due_day, category_id, merchant_id, account_id, is_variable. Router: GET/POST/PUT/DELETE /api/bills/. Upcoming bills calculation.
-
-### Phase 14 — Bills UI ✅
-Upcoming bills on Home screen. Bills screen (Mobile + Desktop). Bill detail with payment history and variable bill chart.
-
-### Phase 15 — Bill Transaction Linking ✅
-Auto-detect bill payments (merchant + amount + date proximity). Suggest linking. Manual linking. TransactionBillLink table. "Paid ✓" status on Home.
-
-### Phase 16 — Goals System ✅
-Goal table: save_up, pay_down, monthly_envelope types. Router: GET/POST/PUT/DELETE /api/goals/ + POST /api/goals/{id}/contribute.
-
-### Phase 17 — Goals UI ✅
-Goals list with progress cards. Goal detail with contribution history. Create/contribute/edit dialogs.
-
-### Phase 18 — Categories Analytics ✅
-Nivo Pie chart (spending distribution). Nivo Bar chart (category comparison). Category breakdown by month. Drill-down view.
-
-### Phase 19 — Reports System ✅
-Monthly report API: income, expenses, net savings, category breakdown, top merchants, comparison. Comparison endpoints. CSV export endpoint.
-
-### Phase 20 — Reports UI ✅
-Summary cards with +/- change. Category breakdown. Top merchants. Period selector. Comparison display. Export CSV button.
-
-### Phase 22 — Performance Optimization ✅
-API pagination tuning. Database indexes: (user_id, date), (user_id, merchant_id), (user_id, category_id). selectinload for relationships.
-
-### Phase 25 — State Management ✅
-All Zustand slices: accountsSlice, activitySlice, billsSlice, merchantsSlice, goalsSlice, categoriesSlice, reportsSlice, uiSlice.
-
-### Phase 27 — Security Hardening ✅
-JWT refresh rotation. API rate limiting (100 req/min general, 10 req/min auth). Pydantic validation. CORS config. HTTP security headers. SQL injection prevention via SQLAlchemy ORM.
-
-### Phase 28b — Bill Edit Dialog ✅
-Edit dialog (name, amount, account, frequency, due day, variable) on desktop + mobile Bills pages, edit button in Bill Detail.
-
-### Phase 35 — Shared Utilities ✅
-Created `shared/utils/format.ts` with `formatCurrency`, `formatDate`, `formatDateFull`, `getAmountColor`. Replaced all `.toFixed(2)` across 20+ files.
-
-### Phase 36 — Registration Improvements ✅
-Username field, password confirmation, show/hide toggle, client-side validation.
-
-### Phase 37 — CSV Import ✅
-Backend bulk endpoint, frontend CSV upload with papaparse, column mapping UI, preview table, account/category matching.
-
-### Phase 38 — Bill–Transaction Linking UI ✅
-Bill detail: linked transactions, manual linking. Transaction detail: linked bill, linking/unlinking.
-
-### Phase 39b — CSV Export Frontend ✅
-Export CSV button on Activity page filter bar (desktop + mobile) with date range support.
+### Explicitly OUT of scope
+- ❌ Email/SMS ingestion (bank CSV + document scan covers it)
+- ❌ Tax filing or tax documents (handled outside the app)
+- ❌ Bank API sync (Plaid etc. — costs money, breaks privacy)
+- ❌ Cloud deployment, CI/CD, multi-region anything
+- ❌ Paid APIs of any kind
 
 ---
 
-## Bonus Features (Completed)
+## Roadmap
 
-| Feature | Details |
-|---------|---------|
-| AI Chatbot | FAB on desktop, NVIDIA LLM + rule-based fallback, transaction detection |
-| Premium Fintech UI Redesign | Full redesign across all pages |
-| Settings Pages | Desktop + Mobile with account/category/budget/goal CRUD |
-| Transaction Filtering | Search, date range, category, merchant, type filters |
-| Account Management | CRUD with icons per type |
-| Category Management | CRUD + hierarchy + analytics tab |
-| Merchant Management | Rename, delete, hide, merge duplicates |
-| DB Indexes + N+1 Fixes | Performance optimization |
-| Auth Interceptor | 401 → refresh → retry with queue |
+> **Execution detail lives in [`backlog.md`](backlog.md)** — every checkbox below is
+> broken into Jira-style tickets there (scope, build steps, acceptance criteria, files,
+> dependencies). Coding tools work from the backlog, one ticket at a time, in order —
+> never from this summary alone.
 
----
+### Phase T — Trust & Cleanup ← **do first, ~1 week**
+Make the foundation safe before building on it.
+- [ ] **Tests on money paths**: pytest for NL parser, report aggregation, bill matching; keep in `backend/tests/`
+- [ ] **Dead/deprecated audit**: `npm outdated` + unused-dependency check; delete unused code, components, and endpoints found along the way
+- [ ] **Delete `ResponseCacheMiddleware`** — it caches `/api/accounts/` (with balances) for 60s and transaction mutations never invalidate it → stale balances after adding a transaction; pointless at localhost scale
+- [ ] **Replace unmaintained auth libs**: `python-jose` → `PyJWT`, `passlib` → direct `bcrypt` (passlib is abandoned; it's why bcrypt is pinned to 4.0.1)
+- [ ] **Setup verification**: clean-clone → `docker compose up` → app works; fix anything that breaks; record exact steps in `DEVELOPMENT.md`
+- [ ] **Privacy fix**: cloud AI (NVIDIA/Gemini/Groq) OFF by default, behind an explicit settings toggle with a "data leaves this machine" warning
+- [x] Docs consolidated, stale reports archived
 
-## Remaining Work
+### Phase D — Data Model v2 (~1 week)
+Schema changes are cheapest now, before intelligence and scanning are built on top.
+**Decision: no real data exists yet, so implement v2 directly in the models and squash
+Alembic to one clean initial migration** — no legacy upgrade path to maintain. (From the
+day real data goes in, every change gets a proper incremental migration again.)
+Full schema in `architecture-and-goals.md`. Summary:
+- [ ] `currency` (USD/INR/CAD) on Transaction; `base_currency` on User
+- [ ] `exchange_rates` table, fed by Frankfurter (free, keyless, ECB rates), cached locally — one fetch per day max
+- [ ] `source` on Transaction: `manual | quick_add | csv_import | document_scan`
+- [ ] `documents` table (uploaded/scanned files) + `transaction.document_id` provenance link
+- [ ] **Dedup support**: `import_hash` on Transaction + fuzzy-match lookup (same amount, date ±3 days, similar merchant) used by every import path
+- [ ] Alembic migration per change; reports converted to base-currency aware
 
-### Priority Order for Localhost Personal Use
+### Phase U — UI Rebuild: 5 pages, 3 colors (~3–4 weeks)
+**Decision: rebuild, don't restyle.** The current 8-sections-×-2-trees IA is
+table-shaped (one page per DB table = Excel thinking). Keep the shell (auth flow,
+routing, axios interceptor, store infrastructure, theme); build the question-shaped
+page map from `design-system.md` §3 fresh; delete retired pages as they're absorbed.
+- [ ] Design tokens + `theme.tsx` encode the 3-color system; every off-palette color deleted
+- [ ] **Desktop (5 pages)**: Home · Activity · Recurring (bills + subscriptions + budgets) · Insights (absorbs Reports + category analytics) · Manage (absorbs Settings, Categories, Merchants, Goals CRUD)
+- [ ] **Mobile (3 tabs + capture)**: Home · Activity · Capture; settings behind avatar; Categories/Merchants/Reports/Goals/More pages deleted
+- [ ] **Folder cleanup**: consolidate `src/auth`, `src/hooks`, `src/utils` into `shared/` (target structure in `architecture-and-goals.md`) — rule: `desktop/`/`mobile/` hold only `.tsx` + `.module.css`
+- [ ] **State cleanup** (while pages are rebuilt): surface slice errors to the UI — no more silent `catch {}`; real rollback on failed updates (`updateNotes` claims to revert and doesn't); staleness check in `namespaceSlice` (skip refetch when < 30s fresh — kills the loading flash on every navigation); one source of truth for filter lists; shared types imported from slices, no local copies
+- [ ] Fixed by construction: dark-mode CSS vars, duplicate FAB, `window.confirm()`, credit-card balances summed into "Total Balance"
 
-Since this runs locally for one user (me), the priorities are:
-1. **Fix data integrity bugs** — so my financial data is accurate
-2. **Fix UI broken things** — so the app is pleasant to use
-3. **Polish** — nice-to-have improvements
+### Phase I — Intelligence (~3–5 weeks) ← **the point of the project**
+All rule-based, no AI required, test-first (pure functions over transaction lists).
+- [ ] **Recurring detection**: group by merchant → amount consistency (exact for subscriptions, ±20% for utilities) + interval consistency (~7/14/30/90/365 days) → 3+ hits = recurring; predicts next date & amount
+- [ ] **Spending reports**: monthly + annual breakdowns by category/merchant, month-over-month and year-over-year trends, anomaly flags ("food up 40% this month")
+- [ ] **Cash-flow forecast**: day-by-day 60–90 day balance simulation (paydays + recurring bills + avg daily discretionary); crunch-point warnings
+- [ ] **Safe-to-spend**: balance minus everything spoken-for before next payday — the number on the home screen
+- [ ] Insight cards on Home (top 3–5), honest "not enough data yet" states
 
-### 🔧 Phase R1 — Data Integrity Fixes (Critical)
-Fix the bugs that make financial data unreliable:
-- [ ] Change `Float` → `Numeric(12,2)` for all money columns + Alembic migration
-- [ ] Add `ForeignKey` constraints on `bill_id`, `goal_id` on Transaction
-- [ ] Add `Literal` types for `account_type`, `transaction_type`, `frequency`, `period`
-- [ ] Validate `amount > 0` on create/update
-- [ ] Fix `compute_upcoming` to `await` the `db.execute()` call
-- [ ] Add `UniqueConstraint` on `TransactionBillLink`
-- [ ] Add ownership check on bill link/unlink endpoints
+### Phase S — Document Understanding (~3–4 weeks)
+Upload or scan a bill / receipt / credit-card statement / bank document → app understands and updates itself. **Never auto-commits: extract → review screen → dedup check → save.**
+- [ ] Upload (desktop) and camera scan (mobile) into the `documents` table
+- [ ] Extraction tier 1: local LLM via **Ollama** (vision model, e.g. Qwen-VL class) — private, free
+- [ ] Extraction tier 2 fallback: Tesseract OCR + rules (works with zero AI setup)
+- [ ] Understanding: "Walmart $30" → merchant = Walmart, category inferred from history + line items (groceries vs alcohol vs travel), date, amount
+- [ ] Statement mode: credit-card/bank PDF → *list* of transactions, each run through dedup
+- [ ] **Dedup gate on every import**: exact `import_hash` match = auto-skip; fuzzy match = "possible duplicate" review UI with merge/skip/keep-both
+- [ ] Document attached to resulting transaction(s) — tap any transaction to see its source
 
-### 🔧 Phase R2 — Security Fixes (Important for Localhost)
-These matter less on localhost but are still good practice:
-- [ ] Add auth to `/api/transactions/parse`
-- [ ] Require non-empty `SECRET_KEY` at startup
-- [ ] Add password strength validation (min 8 chars)
-- [ ] Add bulk limit on `/import` endpoint
+### Phase A — Admin Panel (~1–2 weeks)
+Desktop-only, `is_admin` gated (column already exists).
+**Isolation rule: every user has their own separate dashboard and data.** All queries are
+scoped by `user_id` (already true in the schema); admin manages the *system*, never sees
+another user's transactions, insights, or dashboard.
+- [ ] User management (create/deactivate family users — groundwork for family use later)
+- [ ] System data: manage system categories, merchant normalization rules, recurring-detection overrides
+- [ ] AI settings: Ollama endpoint, cloud toggles, per-provider on/off
+- [ ] Data tools: backup now, export all, import review queue, dedup audit log
+- [ ] Job visibility: last exchange-rate fetch, last backup, scan queue status
 
-### 🔧 Phase R3 — UI Fixes
-- [ ] Define `--bg-deep` and `--bg-panel` CSS variables (dark mode broken on mobile)
-- [ ] Remove duplicate FAB on mobile (keep BottomTabBar center button)
-- [ ] Replace `window.confirm()` with Radix Dialog in Settings
-- [ ] Refactor ChatBot to use Radix components (`<Box>`, `<Flex>`, `<Text>`)
-
-### ❌ Phase 30 — Inline Style Cleanup
-- Remove all `style={{ }}` occurrences across TSX files
-- Replace with CSS Module classes
-- Dynamic styles via CSS custom properties
-- Progress bars → Radix `<Progress>` component
-
-### ❌ Phase 33 — Mobile Polish
-- Pull-to-refresh on Categories, Goals, Merchants, Reports
-- Verify touch targets at 44x44px minimum
-
-### ❌ Phase 34 — Desktop Polish
-- Collapsible sidebar (hamburger at < 1024px)
-- Hover states on all cards
-- Responsive grid at 768-1023px breakpoints
-
-### ❌ Phase 31 — Skeleton Loading States
-- Replace "Loading..." text with Radix `<Skeleton>` shimmer
-- Add to Home, Activity, Bills, Categories, Goals, Merchants, Reports
-
----
-
-## Skipped (Not Needed for Localhost)
-
-| Phase | Reason |
-|-------|--------|
-| Phase 12 — Receipt Upload System | OCR already works via Tesseract.js in browser |
-| Phase 21 — Search System | Chatbot FAB covers this use case |
-| Phase 29 — Forgot Password | Localhost only, no email infra needed |
-| Phase 32 — Keyboard Shortcuts | Not needed |
-| Phase 40 — Onboarding Flow | Not needed |
-| Phase 41 — Auth Improvements | Token refresh already works |
-| Phase 42 — Testing | Skip for now |
-| Phase 43 — DevOps (CI/CD) | Skip for now — localhost only |
-| Phase 44 — Notifications | Skip for now |
-| Phase 22b — Caching Layer | Not needed at localhost scale |
-| Phase 23b — Gesture Navigation | Swipe-to-delete + pull-to-refresh already done |
-| Phase 24b — Command Palette | Not needed |
-| Phase 26 — Data Integrity | SQLAlchemy ORM handles this |
-| Phase 28 — Offline/Sync | Not needed for localhost |
-| Phase 29b — JSON Export | CSV is sufficient |
-| Phase 30b — Statement Import | Not needed for MVP |
+### Later (only after the above is real and used daily)
+- **Automated backups** — deferred while the app holds only test data, but a **hard gate
+  before the first real transaction goes in**: scheduled `pg_dump` (Task Scheduler) to a
+  second location + one tested restore (the DB volume is the only part of this project
+  with no second copy anywhere — code has git, data has nothing)
+- Net-worth via monthly balance snapshots per account (US + India + Canada accounts, base-currency trendline)
+- LAN/HTTPS access so the phone PWA + camera scanning works away from the desk (Caddy or Tailscale)
+- Family accounts (schema is ready; needs LAN access + auth polish first)
+- Country-profile content (financial concepts/terminology per country) layered onto recommendations
 
 ---
 
-## Rules
-
-1. **No new features outside this plan.**
-2. **Every phase must be working before moving to the next.**
-3. **Run lint + format before committing:** Frontend: `npm run lint:fix && npm run format:fix` | Backend: `ruff check . && ruff format .`
-4. **AI must always be optional.** App works without API keys.
-5. **Only free APIs.** No OpenAI, no paid services.
-6. **CSS Modules only.** No Tailwind, no inline styles, no CSS-in-JS.
-7. **Desktop and mobile are separate.** No shared CSS, no cross-imports.
-8. **Use Radix UI directly.** No custom wrappers.
-9. **Zustand for all global state.** useState for local form state only.
-10. **Every DB change needs an Alembic migration.**
-11. **This runs on localhost only.** No deployment, no CI/CD, no production concerns.
+## Definition of "done properly" (applies to every phase)
+1. Works end-to-end via the UI, not just the API — **verified by driving the running app
+   with Playwright in BOTH viewports** (the `feature-verify` skill: exercise the exact
+   flow on desktop ≥1024px AND mobile 390×844, assert the numbers, screenshot evidence,
+   console clean — the trees are separate, one passing proves nothing about the other)
+2. Money math covered by tests
+3. Lint + format clean (`npm run lint:fix && npm run format:fix` / `ruff check . && ruff format .`)
+4. Code reviewed against `rules/code-review.md` before commit
+5. Alembic migration for any schema change
+6. This file updated: checkbox ticked, surprises noted

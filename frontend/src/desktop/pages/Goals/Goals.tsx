@@ -274,14 +274,16 @@ export const Goals = (): JSX.Element => {
                   <Box className={styles.barOuter}>
                     <Box
                       className={styles.barInner}
-                      style={{
-                        width: `${Math.min(goal.progress_pct, 100)}%`,
-                        backgroundColor: done
-                          ? 'var(--green-9)'
-                          : goal.color
-                            ? goal.color
-                            : 'var(--accent-9)',
-                      }}
+                      style={
+                        {
+                          '--bar-width': `${Math.min(goal.progress_pct, 100)}%`,
+                          '--bar-color': done
+                            ? 'var(--green-9)'
+                            : goal.color
+                              ? goal.color
+                              : 'var(--accent-9)',
+                        } as React.CSSProperties
+                      }
                     />
                   </Box>
 
@@ -322,10 +324,12 @@ export const Goals = (): JSX.Element => {
                           <Box className={styles.barOuter}>
                             <Box
                               className={styles.barInner}
-                              style={{
-                                width: `${Math.min(detailGoal.progress_pct, 100)}%`,
-                                backgroundColor: done ? 'var(--green-9)' : 'var(--accent-9)',
-                              }}
+                              style={
+                                {
+                                  '--bar-width': `${Math.min(detailGoal.progress_pct, 100)}%`,
+                                  '--bar-color': done ? 'var(--green-9)' : 'var(--accent-9)',
+                                } as React.CSSProperties
+                              }
                             />
                           </Box>
                           <Text size="1" color="gray">

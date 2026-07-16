@@ -277,12 +277,14 @@ export const Goals = (): JSX.Element => {
                   <Box className={styles.barOuter}>
                     <Box
                       className={styles.barInner}
-                      style={{
-                        width: `${Math.min(goal.progress_pct, 100)}%`,
-                        backgroundColor: achieved
-                          ? 'var(--green-9)'
-                          : goal.color || 'var(--accent-9)',
-                      }}
+                      style={
+                        {
+                          '--bar-width': `${Math.min(goal.progress_pct, 100)}%`,
+                          '--bar-color': achieved
+                            ? 'var(--green-9)'
+                            : goal.color || 'var(--accent-9)',
+                        } as React.CSSProperties
+                      }
                     />
                   </Box>
 
@@ -323,10 +325,12 @@ export const Goals = (): JSX.Element => {
                           <Box className={styles.barOuter}>
                             <Box
                               className={styles.barInner}
-                              style={{
-                                width: `${Math.min(detailGoal.progress_pct, 100)}%`,
-                                backgroundColor: achieved ? 'var(--green-9)' : 'var(--accent-9)',
-                              }}
+                              style={
+                                {
+                                  '--bar-width': `${Math.min(detailGoal.progress_pct, 100)}%`,
+                                  '--bar-color': achieved ? 'var(--green-9)' : 'var(--accent-9)',
+                                } as React.CSSProperties
+                              }
                             />
                           </Box>
                           <Text size="1" color="gray">
@@ -364,12 +368,17 @@ export const Goals = (): JSX.Element => {
                         </Flex>
 
                         <Flex gap="2" mt="3">
-                          <Button size="2" variant="soft" style={{ flex: 1 }} onClick={openEdit}>
+                          <Button
+                            size="2"
+                            variant="soft"
+                            className={styles.flex1}
+                            onClick={openEdit}
+                          >
                             <Pencil size={14} /> Edit
                           </Button>
                           <Button
                             size="2"
-                            style={{ flex: 1 }}
+                            className={styles.flex1}
                             onClick={() => setContributeOpen(true)}
                           >
                             <Plus size={14} /> Contribute

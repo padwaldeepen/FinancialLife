@@ -291,10 +291,7 @@ export const Settings = (): JSX.Element => {
                   {accountIcons[account.type] || <Wallet size={18} />}
                   <Box className={styles.labelText}>
                     <span className={styles.labelTextPrimary}>{account.name}</span>
-                    <span
-                      className={styles.labelTextSecondary}
-                      style={{ textTransform: 'capitalize' }}
-                    >
+                    <span className={`${styles.labelTextSecondary} ${styles.capitalize}`}>
                       {account.type} — {formatCurrency(account.balance)}
                     </span>
                   </Box>
@@ -488,7 +485,7 @@ export const Settings = (): JSX.Element => {
           if (!o) setBudgetDeleteId(null)
         }}
       >
-        <Dialog.Content aria-describedby={undefined} style={{ maxWidth: 380 }}>
+        <Dialog.Content aria-describedby={undefined} className={styles.maxWidth380}>
           <Dialog.Title>Delete Budget</Dialog.Title>
           <Text size="2" mt="2">
             Are you sure you want to delete this budget? This action cannot be undone.

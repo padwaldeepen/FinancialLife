@@ -178,7 +178,7 @@ export const AddTransactionModal = (): JSX.Element => {
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              style={{ display: 'none' }}
+              className={styles.hiddenInput}
               onChange={handleFileScan}
             />
             <Text size="1" color="gray">
@@ -227,18 +227,22 @@ export const AddTransactionModal = (): JSX.Element => {
                       </Box>
                     </Popover.Trigger>
                     <Popover.Content size="1">
-                      <ScrollArea style={{ maxHeight: 280 }}>
+                      <ScrollArea className={styles.categoryList}>
                         <Flex direction="column" gap="1">
                           {categories.map((cat) => (
                             <Box
                               key={cat.id}
                               className={styles.categoryItem}
-                              style={{
-                                paddingLeft: `calc(var(--space-2) * ${cat.depth + 1})`,
-                                borderLeft: `3px solid ${cat.color}`,
-                                background:
-                                  selectedCategoryId === cat.id ? 'var(--accent-3)' : 'transparent',
-                              }}
+                              style={
+                                {
+                                  '--cat-depth': cat.depth + 1,
+                                  '--cat-color': cat.color,
+                                  '--cat-selected':
+                                    selectedCategoryId === cat.id
+                                      ? 'var(--accent-3)'
+                                      : 'transparent',
+                                } as React.CSSProperties
+                              }
                               onClick={() => {
                                 setSelectedCategoryId(cat.id)
                               }}

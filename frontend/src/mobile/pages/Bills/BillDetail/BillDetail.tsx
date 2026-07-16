@@ -181,11 +181,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                 />
               </Box>
             ) : (
-              <Text
-                color="gray"
-                size="1"
-                style={{ paddingTop: 'var(--space-2)', paddingBottom: 'var(--space-2)' }}
-              >
+              <Text color="gray" size="1" className={styles.sectionPadY}>
                 No historical data
               </Text>
             )}
@@ -204,14 +200,14 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
             <Flex direction="column">
               {billHistory.transactions.map((tx: any) => (
                 <Flex key={tx.id} align="center" justify="between" className={styles.txRow}>
-                  <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
+                  <Flex direction="column" gap="1" className={styles.flexGrow}>
                     <Text size="2">{tx.description}</Text>
                     <Text size="1" color="gray">
                       {tx.date}
                     </Text>
                   </Flex>
                   <Flex align="center" gap="2">
-                    <Text size="2" weight="bold" style={{ whiteSpace: 'nowrap' }}>
+                    <Text size="2" weight="bold" className={styles.nowrap}>
                       {formatCurrency(Number(tx.amount))}
                     </Text>
                     <Button
@@ -228,11 +224,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
               ))}
             </Flex>
           ) : (
-            <Text
-              color="gray"
-              size="1"
-              style={{ paddingTop: 'var(--space-2)', paddingBottom: 'var(--space-2)' }}
-            >
+            <Text color="gray" size="1" className={styles.sectionPadY}>
               No payments linked to this bill yet
             </Text>
           )}
@@ -252,7 +244,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
             mt="3"
             mb="3"
           />
-          <Flex direction="column" gap="1" style={{ maxHeight: 300, overflowY: 'auto' }}>
+          <Flex direction="column" gap="1" className={styles.scrollArea}>
             {availableTx.length === 0 ? (
               <Text size="2" color="gray">
                 No unlinked transactions

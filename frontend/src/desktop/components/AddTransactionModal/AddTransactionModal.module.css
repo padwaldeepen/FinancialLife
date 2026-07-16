@@ -2,10 +2,21 @@
   cursor: pointer;
 }
 
+.hiddenInput {
+  display: none;
+}
+
+.categoryList {
+  max-height: 280px;
+}
+
 .categoryItem {
   cursor: pointer;
   border-radius: var(--radius-2);
   padding: var(--space-1) var(--space-2);
+  padding-left: calc(var(--space-2) * var(--cat-depth));
+  border-left: 3px solid var(--cat-color);
+  background: var(--cat-selected);
   transition: background 0.1s;
 }
 

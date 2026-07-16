@@ -185,8 +185,11 @@ export const Reports = (): JSX.Element => {
           <Flex direction="column" gap="2">
             {categories.map((cat) => (
               <Flex key={cat.category_name} align="center" gap="2" className={styles.catRow}>
-                <Box className={styles.colorDot} style={{ backgroundColor: cat.category_color }} />
-                <Text size="2" style={{ flex: 1, minWidth: 0 }}>
+                <Box
+                  className={styles.colorDot}
+                  style={{ '--cat-color': cat.category_color } as React.CSSProperties}
+                />
+                <Text size="2" className={styles.flex1}>
                   {cat.category_name}
                 </Text>
                 <Badge size="1" color="gray">
@@ -195,7 +198,7 @@ export const Reports = (): JSX.Element => {
                 <Text size="2" weight="medium">
                   {formatCurrency(cat.total)}
                 </Text>
-                <Text size="1" color="gray" style={{ width: 36, textAlign: 'right' }}>
+                <Text size="1" color="gray" className={styles.colCount}>
                   {cat.percentage}%
                 </Text>
               </Flex>

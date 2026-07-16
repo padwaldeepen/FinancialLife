@@ -56,6 +56,14 @@
   gap: 2px;
 }
 
+.capitalize {
+  text-transform: capitalize;
+}
+
+.maxWidth360 {
+  max-width: 360px;
+}
+
 .logoutRow {
   padding-top: var(--space-3);
 }

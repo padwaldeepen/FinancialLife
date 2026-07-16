@@ -41,6 +41,12 @@
   height: 100%;
   border-radius: var(--radius-full);
   transition: width var(--duration-slow) var(--ease-out);
+  width: var(--bar-width);
+  background-color: var(--bar-color, var(--accent-9));
+}
+
+.flex1 {
+  flex: 1;
 }
 
 @keyframes fadeIn {

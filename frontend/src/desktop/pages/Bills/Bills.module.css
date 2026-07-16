@@ -83,6 +83,23 @@
   color: var(--gray-11);
 }
 
+.flex1 {
+  flex: 1;
+}
+
+.flex1Min0 {
+  flex: 1;
+  min-width: 0;
+}
+
+.colWidth100 {
+  width: 100px;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

@@ -5,6 +5,10 @@
 }
 
 .pullIndicator {
+  --pull-height: 0;
+  --pull-opacity: 0;
+  height: var(--pull-height);
+  opacity: var(--pull-opacity);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -108,6 +112,7 @@
 }
 
 .accountIcon {
+  --account-color: var(--gray-9);
   width: 44px;
   height: 44px;
   display: flex;
@@ -115,6 +120,7 @@
   justify-content: center;
   border-radius: var(--radius-3);
   flex-shrink: 0;
+  color: var(--account-color);
 }
 
 .accountBalance {
@@ -176,4 +182,13 @@
 .placeholderCard {
   border: 1px dashed var(--gray-5);
   border-radius: var(--radius-card);
+}
+
+.flex1 {
+  flex: 1;
+  min-width: 0;
+}
+
+.capitalize {
+  text-transform: capitalize;
 }

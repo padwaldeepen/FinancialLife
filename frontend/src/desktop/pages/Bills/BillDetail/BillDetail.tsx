@@ -169,7 +169,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
           </Tabs.List>
 
           {bill.is_variable && (
-            <Tabs.Content value="chart" style={{ paddingTop: 'var(--space-3)' }}>
+            <Tabs.Content value="chart" className={styles.sectionPadding}>
               {billHistory.monthly_spending.length > 0 ? (
                 <Box className={styles.chart}>
                   <ResponsiveBar
@@ -193,17 +193,14 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                   />
                 </Box>
               ) : (
-                <Text
-                  color="gray"
-                  style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
-                >
+                <Text color="gray" className={styles.sectionPadY}>
                   No historical data for this bill
                 </Text>
               )}
             </Tabs.Content>
           )}
 
-          <Tabs.Content value="history" style={{ paddingTop: 'var(--space-3)' }}>
+          <Tabs.Content value="history" className={styles.sectionPadding}>
             {billHistory.loading ? (
               <Text color="gray">Loading...</Text>
             ) : billHistory.transactions.length > 0 ? (
@@ -234,10 +231,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                 ))}
               </Flex>
             ) : (
-              <Text
-                color="gray"
-                style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
-              >
+              <Text color="gray" className={styles.sectionPadY}>
                 No payments linked to this bill yet
               </Text>
             )}
@@ -257,7 +251,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
               mt="3"
               mb="3"
             />
-            <Flex direction="column" gap="1" style={{ maxHeight: 300, overflowY: 'auto' }}>
+            <Flex direction="column" gap="1" className={styles.scrollArea}>
               {availableTx.length === 0 ? (
                 <Text size="2" color="gray">
                   No unlinked transactions found

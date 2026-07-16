@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.middleware import invalidate_response_cache
 from database.models import User
 from database.session import get_db
 from routers.auth import get_current_user
@@ -100,6 +101,7 @@ async def create_account(
     )
     await db.commit()
     await db.refresh(account)
+    invalidate_response_cache("/api/accounts/")
     balance = await account_service.get_account_balance(account.id, db)
     return AccountResponse(
         id=account.id,
@@ -126,6 +128,7 @@ async def update_account(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
     await db.commit()
     await db.refresh(account)
+    invalidate_response_cache("/api/accounts/")
     balance = await account_service.get_account_balance(account.id, db)
     return AccountResponse(
         id=account.id,

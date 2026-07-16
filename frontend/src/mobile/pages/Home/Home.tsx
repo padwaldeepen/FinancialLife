@@ -129,10 +129,12 @@ export const Home = (): JSX.Element => {
     >
       <Box
         className={styles.pullIndicator}
-        style={{
-          height: pullDistance,
-          opacity: Math.min(pullDistance / PULL_THRESHOLD, 1),
-        }}
+        style={
+          {
+            '--pull-height': `${pullDistance}px`,
+            '--pull-opacity': Math.min(pullDistance / PULL_THRESHOLD, 1),
+          } as React.CSSProperties
+        }
       >
         <RefreshCw
           size={20}
@@ -165,15 +167,19 @@ export const Home = (): JSX.Element => {
                 <Flex align="center" gap="3">
                   <Box
                     className={styles.accountIcon}
-                    style={{ color: accountColors[account.type] || 'var(--gray-9)' }}
+                    style={
+                      {
+                        '--account-color': accountColors[account.type] || 'var(--gray-9)',
+                      } as React.CSSProperties
+                    }
                   >
                     {accountIcons[account.type] || <Wallet size={20} />}
                   </Box>
-                  <Box style={{ flex: 1, minWidth: 0 }}>
+                  <Box className={styles.flex1}>
                     <Text size="2" weight="bold">
                       {account.name}
                     </Text>
-                    <Text size="1" color="gray" style={{ textTransform: 'capitalize' }}>
+                    <Text size="1" color="gray" className={styles.capitalize}>
                       {account.type}
                     </Text>
                   </Box>
@@ -204,7 +210,7 @@ export const Home = (): JSX.Element => {
             <Flex direction="column">
               {recentTx.map((t) => (
                 <Flex key={t.id} className={styles.transactionRow} align="center" justify="between">
-                  <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
+                  <Flex direction="column" gap="1" className={styles.flex1}>
                     <Text size="2" weight="medium" className={styles.description}>
                       {t.description}
                     </Text>
@@ -238,7 +244,7 @@ export const Home = (): JSX.Element => {
             <Flex direction="column" gap="2">
               {upcomingBills.slice(0, 5).map((bill) => (
                 <Flex key={bill.id} align="center" justify="between" className={styles.billRow}>
-                  <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
+                  <Flex direction="column" gap="1" className={styles.flex1}>
                     <Text size="2" weight="medium">
                       {bill.name}
                     </Text>

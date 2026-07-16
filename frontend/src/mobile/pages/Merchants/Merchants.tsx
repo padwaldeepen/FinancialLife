@@ -184,7 +184,7 @@ export const Merchants = (): JSX.Element => {
               <Box className={styles.icon}>
                 <Store size={18} />
               </Box>
-              <Box style={{ flex: 1 }}>
+              <Box className={styles.flex1}>
                 <Text size="2" weight="bold">
                   {merchant.name}
                 </Text>
@@ -217,7 +217,7 @@ export const Merchants = (): JSX.Element => {
         open={!!selected && !!detail}
         onOpenChange={(open) => !open && setSelected(null)}
       >
-        <Dialog.Content style={{ maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto' }}>
+        <Dialog.Content className={styles.dialogContent}>
           {selected && detail && (
             <>
               <Dialog.Title>{detail.name}</Dialog.Title>
@@ -274,9 +274,9 @@ export const Merchants = (): JSX.Element => {
                   <Tabs.Trigger value="history">History</Tabs.Trigger>
                 </Tabs.List>
 
-                <Tabs.Content value="spending" style={{ paddingTop: 'var(--space-3)' }}>
+                <Tabs.Content value="spending" className={styles.sectionPadding}>
                   {detail.monthly_spending.length > 0 ? (
-                    <Box style={{ height: 200 }}>
+                    <Box className={styles.chartHeight200}>
                       <ResponsiveBar
                         data={detail.monthly_spending}
                         keys={['amount']}
@@ -298,28 +298,21 @@ export const Merchants = (): JSX.Element => {
                       />
                     </Box>
                   ) : (
-                    <Text
-                      color="gray"
-                      style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
-                    >
+                    <Text color="gray" className={styles.sectionPadY}>
                       No spending data
                     </Text>
                   )}
                 </Tabs.Content>
 
-                <Tabs.Content value="categories" style={{ paddingTop: 'var(--space-3)' }}>
+                <Tabs.Content value="categories" className={styles.sectionPadding}>
                   {detail.category_breakdown.length > 0 ? (
                     <Flex direction="column" gap="2">
                       {detail.category_breakdown.map((c) => (
                         <Flex key={c.category_name} justify="between" align="center">
                           <Flex align="center" gap="2">
                             <Box
-                              style={{
-                                width: 10,
-                                height: 10,
-                                borderRadius: '50%',
-                                backgroundColor: c.color,
-                              }}
+                              className={styles.categoryDot}
+                              style={{ '--dot-color': c.color } as React.CSSProperties}
                             />
                             <Text size="2">{c.category_name}</Text>
                           </Flex>
@@ -330,16 +323,13 @@ export const Merchants = (): JSX.Element => {
                       ))}
                     </Flex>
                   ) : (
-                    <Text
-                      color="gray"
-                      style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
-                    >
+                    <Text color="gray" className={styles.sectionPadY}>
                       No category data
                     </Text>
                   )}
                 </Tabs.Content>
 
-                <Tabs.Content value="history" style={{ paddingTop: 'var(--space-3)' }}>
+                <Tabs.Content value="history" className={styles.sectionPadding}>
                   {detail.recent_transactions.length > 0 ? (
                     <Flex direction="column" gap="1">
                       {detail.recent_transactions.map((tx) => (
@@ -363,10 +353,7 @@ export const Merchants = (): JSX.Element => {
                       ))}
                     </Flex>
                   ) : (
-                    <Text
-                      color="gray"
-                      style={{ paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
-                    >
+                    <Text color="gray" className={styles.sectionPadY}>
                       No transactions
                     </Text>
                   )}
@@ -403,7 +390,7 @@ export const Merchants = (): JSX.Element => {
 
       {/* Rename Dialog */}
       <Dialog.Root open={renameOpen} onOpenChange={setRenameOpen}>
-        <Dialog.Content style={{ maxWidth: 360 }}>
+        <Dialog.Content className={styles.renameDialog}>
           <Dialog.Title>Rename Merchant</Dialog.Title>
           <Flex direction="column" gap="3" mt="3">
             <Text size="2" color="gray">
@@ -435,7 +422,7 @@ export const Merchants = (): JSX.Element => {
           if (!o) setDeleteConfirmId(null)
         }}
       >
-        <Dialog.Content style={{ maxWidth: 360 }}>
+        <Dialog.Content className={styles.renameDialog}>
           <Dialog.Title>Delete Merchant</Dialog.Title>
           <Text size="2" mt="2">
             Are you sure? This action cannot be undone. Transactions linked to this merchant will be
@@ -453,7 +440,7 @@ export const Merchants = (): JSX.Element => {
       </Dialog.Root>
 
       <Dialog.Root open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
-        <Dialog.Content style={{ maxWidth: '95vw' }}>
+        <Dialog.Content className={styles.maxWidth95}>
           <Dialog.Title>Merge Duplicates</Dialog.Title>
           {similarPairs.length === 0 ? (
             <Text color="gray">No similar merchants found</Text>
@@ -477,7 +464,7 @@ export const Merchants = (): JSX.Element => {
                       <Button
                         size="1"
                         variant="soft"
-                        style={{ flex: 1 }}
+                        className={styles.flex1}
                         onClick={() => handleMerge(pair.merchant_a.id, pair.merchant_b.id)}
                       >
                         Keep {pair.merchant_a.name}
@@ -485,7 +472,7 @@ export const Merchants = (): JSX.Element => {
                       <Button
                         size="1"
                         variant="soft"
-                        style={{ flex: 1 }}
+                        className={styles.flex1}
                         onClick={() => handleMerge(pair.merchant_b.id, pair.merchant_a.id)}
                       >
                         Keep {pair.merchant_b.name}

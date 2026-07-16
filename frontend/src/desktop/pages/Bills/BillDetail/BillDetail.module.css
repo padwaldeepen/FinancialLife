@@ -10,3 +10,21 @@
 .txRow:hover {
   background-color: var(--gray-3);
 }
+
+.sectionPadding {
+  padding-top: var(--space-3);
+}
+
+.sectionPadY {
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-4);
+}
+
+.scrollArea {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.clickable {
+  cursor: pointer;
+}

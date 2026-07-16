@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type JSX } from 'react'
+import { useState, useEffect, useMemo, useRef, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -13,13 +13,15 @@ import {
   Tabs,
   Button,
 } from '@radix-ui/themes'
-import { Store, Search, X, Merge, BarChart3, Pencil, Trash2 } from 'lucide-react'
+import { Store, Search, X, Merge, BarChart3, Pencil, Trash2, RefreshCw } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import styles from './Merchants.module.css'
+
+const PULL_THRESHOLD = 80
 
 export const Merchants = (): JSX.Element => {
   const {
@@ -57,10 +59,44 @@ export const Merchants = (): JSX.Element => {
   const [renaming, setRenaming] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [pullDistance, setPullDistance] = useState(0)
+  const touchStartY = useRef(0)
+  const isPulling = useRef(false)
 
   useEffect(() => {
     fetchMerchants()
   }, [fetchMerchants])
+
+  const fetchData = async () => {
+    setRefreshing(true)
+    await fetchMerchants()
+    setRefreshing(false)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY > 0) return
+    touchStartY.current = e.touches[0]!.clientY
+    isPulling.current = true
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling.current || refreshing) return
+    const diff = e.touches[0]!.clientY - touchStartY.current
+    if (diff > 0) {
+      setPullDistance(Math.min(diff * 0.5, PULL_THRESHOLD * 1.5))
+    }
+  }
+
+  const handleTouchEnd = () => {
+    if (!isPulling.current) return
+    isPulling.current = false
+    if (pullDistance >= PULL_THRESHOLD && !refreshing) {
+      setPullDistance(PULL_THRESHOLD)
+      fetchData()
+    }
+    setPullDistance(0)
+  }
 
   useEffect(() => {
     if (selected !== null) {
@@ -147,11 +183,52 @@ export const Merchants = (): JSX.Element => {
   }, [merchants, search])
 
   if (loading) {
-    return <Text color="gray">Loading...</Text>
+    return (
+      <Flex direction="column" gap="3" p="3">
+        <div
+          className="skeleton"
+          style={{ height: 16, width: '100%', borderRadius: 'var(--radius-2)' }}
+        />
+        <div
+          className="skeleton"
+          style={{ height: 16, width: '75%', borderRadius: 'var(--radius-2)' }}
+        />
+        <div
+          className="skeleton"
+          style={{ height: 16, width: '60%', borderRadius: 'var(--radius-2)' }}
+        />
+        <div
+          className="skeleton"
+          style={{ height: 16, width: '90%', borderRadius: 'var(--radius-2)' }}
+        />
+      </Flex>
+    )
   }
 
   return (
-    <Box className={styles.page}>
+    <Box
+      className={styles.page}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <Box
+        className={styles.pullIndicator}
+        style={
+          {
+            '--pull-height': `${pullDistance}px`,
+            '--pull-opacity': Math.min(pullDistance / PULL_THRESHOLD, 1),
+          } as React.CSSProperties
+        }
+      >
+        <RefreshCw
+          size={20}
+          className={
+            refreshing ? styles.spinning : pullDistance >= PULL_THRESHOLD ? styles.ready : ''
+          }
+        />
+      </Box>
+
       <Flex justify="between" align="center" mb="3">
         <Heading size="5">Merchants</Heading>
         <IconButton variant="soft" size="2" onClick={handleFetchSimilar}>

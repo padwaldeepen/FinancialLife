@@ -1,4 +1,4 @@
-import { useState, useEffect, type JSX } from 'react'
+import { useState, useEffect, useRef, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -12,7 +12,7 @@ import {
   IconButton,
   Badge,
 } from '@radix-ui/themes'
-import { Plus, Trash2, Target, PiggyBank, TrendingDown, Pencil } from 'lucide-react'
+import { Plus, Trash2, Target, PiggyBank, TrendingDown, Pencil, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -30,6 +30,8 @@ const goalLabels: Record<string, string> = {
   pay_down: 'Pay Down',
   monthly_envelope: 'Monthly Envelope',
 }
+
+const PULL_THRESHOLD = 80
 
 export const Goals = (): JSX.Element => {
   const { goals, loading, fetchGoals, createGoal, updateGoal, contributeToGoal, deleteGoal } =
@@ -63,10 +65,44 @@ export const Goals = (): JSX.Element => {
   const [editDeadline, setEditDeadline] = useState('')
   const [editType, setEditType] = useState('save_up')
   const [savingEdit, setSavingEdit] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [pullDistance, setPullDistance] = useState(0)
+  const touchStartY = useRef(0)
+  const isPulling = useRef(false)
 
   useEffect(() => {
     fetchGoals()
   }, [fetchGoals])
+
+  const fetchData = async () => {
+    setRefreshing(true)
+    await fetchGoals()
+    setRefreshing(false)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY > 0) return
+    touchStartY.current = e.touches[0]!.clientY
+    isPulling.current = true
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling.current || refreshing) return
+    const diff = e.touches[0]!.clientY - touchStartY.current
+    if (diff > 0) {
+      setPullDistance(Math.min(diff * 0.5, PULL_THRESHOLD * 1.5))
+    }
+  }
+
+  const handleTouchEnd = () => {
+    if (!isPulling.current) return
+    isPulling.current = false
+    if (pullDistance >= PULL_THRESHOLD && !refreshing) {
+      setPullDistance(PULL_THRESHOLD)
+      fetchData()
+    }
+    setPullDistance(0)
+  }
 
   const handleCreate = async () => {
     if (!name.trim() || !goalAmount) return
@@ -151,7 +187,29 @@ export const Goals = (): JSX.Element => {
   const done = (g: (typeof goals)[0]) => g.progress_pct >= 100
 
   return (
-    <Box className={styles.page}>
+    <Box
+      className={styles.page}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <Box
+        className={styles.pullIndicator}
+        style={
+          {
+            '--pull-height': `${pullDistance}px`,
+            '--pull-opacity': Math.min(pullDistance / PULL_THRESHOLD, 1),
+          } as React.CSSProperties
+        }
+      >
+        <RefreshCw
+          size={20}
+          className={
+            refreshing ? styles.spinning : pullDistance >= PULL_THRESHOLD ? styles.ready : ''
+          }
+        />
+      </Box>
+
       <Flex align="center" justify="between" mb="4">
         <Heading size="5">Goals</Heading>
         <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -221,7 +279,24 @@ export const Goals = (): JSX.Element => {
       </Flex>
 
       {loading ? (
-        <Text color="gray">Loading...</Text>
+        <Flex direction="column" gap="3" p="3">
+          <div
+            className="skeleton"
+            style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
+          />
+          <div
+            className="skeleton"
+            style={{ height: 16, width: '55%', borderRadius: 'var(--radius-2)' }}
+          />
+          <div
+            className="skeleton"
+            style={{ height: 20, width: '80%', borderRadius: 'var(--radius-2)' }}
+          />
+          <div
+            className="skeleton"
+            style={{ height: 16, width: '35%', borderRadius: 'var(--radius-2)' }}
+          />
+        </Flex>
       ) : goals.length === 0 ? (
         <Flex direction="column" align="center" gap="2" py="6">
           <Text size="3" weight="medium">

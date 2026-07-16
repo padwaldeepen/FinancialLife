@@ -1,7 +1,8 @@
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -18,11 +19,13 @@ router = APIRouter()
 
 ai_service = AIService()
 
+MAX_IMPORT_ROWS = 10000
+
 
 class TransactionCreate(BaseModel):
-    amount: float
+    amount: float = Field(gt=0, description="Amount must be positive")
     description: str
-    transaction_type: str
+    transaction_type: Literal["income", "expense", "transfer"]
     account_id: int
     category_id: int | None = None
     merchant_id: int | None = None
@@ -35,9 +38,9 @@ class TransactionCreate(BaseModel):
 
 
 class TransactionUpdate(BaseModel):
-    amount: float | None = None
+    amount: float | None = Field(default=None, gt=0)
     description: str | None = None
-    transaction_type: str | None = None
+    transaction_type: Literal["income", "expense", "transfer"] | None = None
     account_id: int | None = None
     category_id: int | None = None
     merchant_id: int | None = None
@@ -279,7 +282,6 @@ async def get_transaction(
 
     category = transaction.category
     merchant = transaction.merchant
-    account = transaction.account
     account = transaction.account
 
     return TransactionResponse(
@@ -531,7 +533,10 @@ class QuickAddRequest(BaseModel):
 
 
 @router.post("/parse", response_model=ParseResponse)
-async def parse_transaction_text(request: ParseRequest):
+async def parse_transaction_text(
+    request: ParseRequest,
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+):
     ai_result = await ai_service.parse(request.text)
 
     if ai_result is not None:
@@ -686,9 +691,9 @@ async def quick_add_transaction(
 
 
 class TransactionImport(BaseModel):
-    amount: float
+    amount: float = Field(gt=0)
     description: str
-    transaction_type: str = "expense"
+    transaction_type: Literal["income", "expense", "transfer"] = "expense"
     account_id: int
     category_id: int | None = None
     merchant_id: int | None = None
@@ -697,7 +702,7 @@ class TransactionImport(BaseModel):
 
 
 class ImportRequest(BaseModel):
-    transactions: list[TransactionImport]
+    transactions: list[TransactionImport] = Field(max_length=MAX_IMPORT_ROWS)
 
 
 class ImportResponse(BaseModel):

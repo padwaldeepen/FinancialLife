@@ -103,6 +103,8 @@ export const Settings = (): JSX.Element => {
   const [budgetSaving, setBudgetSaving] = useState(false)
   const [budgetDeleteId, setBudgetDeleteId] = useState<number | null>(null)
   const [budgetDeleting, setBudgetDeleting] = useState(false)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [deleteConfirmName, setDeleteConfirmName] = useState('')
 
   useEffect(() => {
     fetchAccounts()
@@ -145,10 +147,17 @@ export const Settings = (): JSX.Element => {
     }
   }
 
-  const handleDelete = async (id: number, name: string) => {
-    if (!window.confirm(`Delete account "${name}"? This cannot be undone.`)) return
-    deleteAccount(id)
+  const handleDelete = (id: number, name: string) => {
+    setDeleteConfirmId(id)
+    setDeleteConfirmName(name)
+  }
+
+  const confirmDelete = async () => {
+    if (deleteConfirmId === null) return
+    deleteAccount(deleteConfirmId)
     toast.success('Account deleted')
+    setDeleteConfirmId(null)
+    setDeleteConfirmName('')
   }
 
   const openBudgetCreate = () => {
@@ -496,6 +505,39 @@ export const Settings = (): JSX.Element => {
             </Button>
             <Button color="red" onClick={handleBudgetDelete} disabled={budgetDeleting}>
               {budgetDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
+
+      {/* Account Delete Confirmation */}
+      <Dialog.Root
+        open={deleteConfirmId !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDeleteConfirmId(null)
+            setDeleteConfirmName('')
+          }
+        }}
+      >
+        <Dialog.Content aria-describedby={undefined} className={styles.maxWidth380}>
+          <Dialog.Title>Delete Account</Dialog.Title>
+          <Text size="2" mt="2">
+            Delete account &quot;{deleteConfirmName}&quot;? This cannot be undone.
+          </Text>
+          <Flex gap="3" mt="4" justify="end">
+            <Button
+              variant="soft"
+              color="gray"
+              onClick={() => {
+                setDeleteConfirmId(null)
+                setDeleteConfirmName('')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button color="red" onClick={confirmDelete}>
+              Delete
             </Button>
           </Flex>
         </Dialog.Content>

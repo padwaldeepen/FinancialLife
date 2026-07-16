@@ -202,7 +202,20 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
 
           <Tabs.Content value="history" className={styles.sectionPadding}>
             {billHistory.loading ? (
-              <Text color="gray">Loading...</Text>
+              <Flex direction="column" gap="2" p="3">
+                <div
+                  className="skeleton"
+                  style={{ height: 16, width: '90%', borderRadius: 'var(--radius-2)' }}
+                />
+                <div
+                  className="skeleton"
+                  style={{ height: 16, width: '65%', borderRadius: 'var(--radius-2)' }}
+                />
+                <div
+                  className="skeleton"
+                  style={{ height: 16, width: '80%', borderRadius: 'var(--radius-2)' }}
+                />
+              </Flex>
             ) : billHistory.transactions.length > 0 ? (
               <Flex direction="column" gap="1">
                 {billHistory.transactions.map((tx: any) => (
@@ -262,9 +275,8 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                     key={tx.id}
                     align="center"
                     justify="between"
-                    className={styles.txRow}
+                    className={`${styles.txRow} ${styles.clickable}`}
                     onClick={() => handleLink(tx.id)}
-                    style={{ cursor: 'pointer' }}
                   >
                     <Flex direction="column" gap="1">
                       <Text size="2">{tx.description}</Text>

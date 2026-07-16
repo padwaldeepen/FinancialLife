@@ -1,11 +1,20 @@
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Account, Category, Merchant, Transaction, TransactionBillLink, User
+from database.models import (
+    Account,
+    Bill,
+    Category,
+    Merchant,
+    Transaction,
+    TransactionBillLink,
+    User,
+)
 from database.session import get_db
 from routers.auth import get_current_user
 from services import bill_service
@@ -15,26 +24,26 @@ router = APIRouter()
 
 class BillCreate(BaseModel):
     name: str
-    amount: float
-    frequency: str
-    due_day: int
+    amount: float = Field(gt=0)
+    frequency: Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"]
+    due_day: int = Field(ge=1, le=31)
     account_id: int
     category_id: int | None = None
     merchant_id: int | None = None
-    amount_estimated: float | None = None
+    amount_estimated: float | None = Field(default=None, gt=0)
     is_variable: bool = False
     notes: str | None = None
 
 
 class BillUpdate(BaseModel):
     name: str | None = None
-    amount: float | None = None
-    frequency: str | None = None
-    due_day: int | None = None
+    amount: float | None = Field(default=None, gt=0)
+    frequency: Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"] | None = None
+    due_day: int | None = Field(default=None, ge=1, le=31)
     account_id: int | None = None
     category_id: int | None = None
     merchant_id: int | None = None
-    amount_estimated: float | None = None
+    amount_estimated: float | None = Field(default=None, gt=0)
     is_variable: bool | None = None
     is_active: bool | None = None
     notes: str | None = None
@@ -115,7 +124,7 @@ async def upcoming_bills(
     db: AsyncSession = Depends(get_db),
 ):
     bills = await bill_service.get_bills(current_user.id, db)
-    return bill_service.compute_upcoming(bills, days, db)
+    return await bill_service.compute_upcoming_async(bills, days, db)
 
 
 @router.get("/{bill_id}", response_model=BillResponse)
@@ -287,6 +296,16 @@ async def link_transaction(
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
+    bill_result = await db.execute(
+        select(Bill).where(
+            Bill.id == bill_id,
+            Bill.user_id == current_user.id,
+        )
+    )
+    bill = bill_result.scalar_one_or_none()
+    if not bill:
+        raise HTTPException(status_code=404, detail="Bill not found")
+
     link = await bill_service.auto_link_transaction(
         transaction_id,
         bill_id,
@@ -294,7 +313,7 @@ async def link_transaction(
         is_auto=False,
     )
     if not link:
-        raise HTTPException(status_code=404, detail="Bill not found")
+        raise HTTPException(status_code=404, detail="Could not create bill link")
 
     tx.bill_id = bill_id
     await db.commit()
@@ -308,6 +327,16 @@ async def unlink_transaction(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    bill_result = await db.execute(
+        select(Bill).where(
+            Bill.id == bill_id,
+            Bill.user_id == current_user.id,
+        )
+    )
+    bill = bill_result.scalar_one_or_none()
+    if not bill:
+        raise HTTPException(status_code=404, detail="Bill not found")
+
     result = await db.execute(
         select(TransactionBillLink).where(
             TransactionBillLink.transaction_id == transaction_id,

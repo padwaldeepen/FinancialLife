@@ -260,7 +260,24 @@ export const Categories = (): JSX.Element => {
       {tab === 'list' && (
         <>
           {loading ? (
-            <Text color="gray">Loading...</Text>
+            <Flex direction="column" gap="3" p="4">
+              <div
+                className="skeleton"
+                style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
+              />
+              <div
+                className="skeleton"
+                style={{ height: 20, width: '75%', borderRadius: 'var(--radius-2)' }}
+              />
+              <div
+                className="skeleton"
+                style={{ height: 20, width: '55%', borderRadius: 'var(--radius-2)' }}
+              />
+              <div
+                className="skeleton"
+                style={{ height: 20, width: '90%', borderRadius: 'var(--radius-2)' }}
+              />
+            </Flex>
           ) : (
             <Flex direction="column" gap="2">
               {parents.map((parent) => {
@@ -422,7 +439,7 @@ export const Categories = (): JSX.Element => {
           if (!o) setDeleteId(null)
         }}
       >
-        <Dialog.Content style={{ maxWidth: 380 }}>
+        <Dialog.Content className={styles.dialogNarrow}>
           <Dialog.Title>Delete Category</Dialog.Title>
           <Text size="2" mt="2">
             Are you sure you want to delete this category? Transactions using it will be

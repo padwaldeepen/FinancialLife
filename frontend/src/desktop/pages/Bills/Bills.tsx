@@ -261,7 +261,20 @@ export const Bills = (): JSX.Element => {
       </Flex>
 
       {loading ? (
-        <Text color="gray">Loading...</Text>
+        <Flex direction="column" gap="3" p="4">
+          <div
+            className="skeleton"
+            style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
+          />
+          <div
+            className="skeleton"
+            style={{ height: 20, width: '80%', borderRadius: 'var(--radius-2)' }}
+          />
+          <div
+            className="skeleton"
+            style={{ height: 20, width: '60%', borderRadius: 'var(--radius-2)' }}
+          />
+        </Flex>
       ) : bills.length === 0 ? (
         <Flex className={styles.emptyState} direction="column">
           <span className={styles.emptyTitle}>No bills yet</span>

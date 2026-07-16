@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,13 +15,13 @@ router = APIRouter()
 
 class AccountCreate(BaseModel):
     name: str
-    type: str
+    type: Literal["checking", "savings", "credit", "cash", "investment"]
     currency: str = "USD"
 
 
 class AccountUpdate(BaseModel):
     name: str | None = None
-    type: str | None = None
+    type: Literal["checking", "savings", "credit", "cash", "investment"] | None = None
     currency: str | None = None
     is_active: bool | None = None
     sort_order: int | None = None

@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
-from warnings import warn
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -18,23 +18,20 @@ DEPRECATION_NOTE = "DEPRECATED — will be removed in Phase 16. Replaced by Goal
 
 router = APIRouter(deprecated=True)
 
-# Emit deprecation warning on import
-warn(f"Budgets router is deprecated. {DEPRECATION_NOTE}", DeprecationWarning, stacklevel=2)
-
 PERIOD_START_OVERRIDE: dict[str, int] = {}
 
 
 class BudgetCreate(BaseModel):
     name: str
-    amount: float
-    period: str
+    amount: float = Field(gt=0)
+    period: Literal["monthly", "weekly", "yearly"]
     category_id: int | None = None
 
 
 class BudgetUpdate(BaseModel):
     name: str | None = None
-    amount: float | None = None
-    period: str | None = None
+    amount: float | None = Field(default=None, gt=0)
+    period: Literal["monthly", "weekly", "yearly"] | None = None
     category_id: int | None = None
     is_active: bool | None = None
 

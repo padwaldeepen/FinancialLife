@@ -265,9 +265,54 @@ def _next_due_date(due_day: int, frequency: str) -> date:
 
 
 def compute_upcoming(
+    bills: list[Bill],
+    days: int = 7,
+    db: AsyncSession | None = None,  # noqa: ARG001
+) -> list[dict]:
+    """Compute upcoming bills within the next N days, checking for paid status.
+
+    NOTE: db must be provided to check paid status. If db is None, has_paid defaults to False.
+    The caller should use compute_upcoming_async for proper async db access.
+    """
+    today = date.today()
+    cutoff = today + timedelta(days=days)
+    upcoming: list[dict] = []
+
+    for bill in bills:
+        next_due = _next_due_date(bill.due_day, bill.frequency)
+        if today <= next_due <= cutoff:
+            category_name = bill.category.name if bill.category else None
+            account_name = bill.account.name if bill.account else None
+            merchant_name = bill.merchant.name if bill.merchant else None
+
+            upcoming.append(
+                {
+                    "id": bill.id,
+                    "name": bill.name,
+                    "amount": float(bill.amount),
+                    "amount_estimated": float(bill.amount_estimated)
+                    if bill.amount_estimated
+                    else None,
+                    "frequency": bill.frequency,
+                    "due_day": bill.due_day,
+                    "next_due": next_due.isoformat(),
+                    "days_until": (next_due - today).days,
+                    "category_name": category_name,
+                    "account_name": account_name,
+                    "merchant_name": merchant_name,
+                    "is_variable": bill.is_variable,
+                    "has_paid": False,
+                }
+            )
+
+    upcoming.sort(key=lambda b: b["days_until"])
+    return upcoming
+
+
+async def compute_upcoming_async(
     bills: list[Bill], days: int = 7, db: AsyncSession | None = None
 ) -> list[dict]:
-    """Compute upcoming bills within the next N days, checking for paid status."""
+    """Async version of compute_upcoming that properly checks paid status."""
     today = date.today()
     cutoff = today + timedelta(days=days)
     upcoming: list[dict] = []
@@ -281,7 +326,7 @@ def compute_upcoming(
 
             has_paid = False
             if db is not None:
-                paid_result = db.execute(
+                paid_result = await db.execute(
                     select(TransactionBillLink).where(
                         TransactionBillLink.bill_id == bill.id,
                         TransactionBillLink.period_start
@@ -289,15 +334,17 @@ def compute_upcoming(
                         TransactionBillLink.period_end
                         >= datetime.combine(today, datetime.min.time()),
                     )
-                ).scalar_one_or_none()
-                has_paid = paid_result is not None
+                )
+                has_paid = paid_result.scalar_one_or_none() is not None
 
             upcoming.append(
                 {
                     "id": bill.id,
                     "name": bill.name,
-                    "amount": bill.amount,
-                    "amount_estimated": bill.amount_estimated,
+                    "amount": float(bill.amount),
+                    "amount_estimated": float(bill.amount_estimated)
+                    if bill.amount_estimated
+                    else None,
                     "frequency": bill.frequency,
                     "due_day": bill.due_day,
                     "next_due": next_due.isoformat(),

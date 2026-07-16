@@ -133,6 +133,58 @@
   text-align: center;
 }
 
+.dateInput {
+  width: 140px;
+}
+
+.txContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.txActions {
+  flex-shrink: 0;
+}
+
+.dialogDetail {
+  max-width: 480px;
+}
+
+.dialogTitle {
+  margin: 0;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.scrollableList {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.billItem {
+  cursor: pointer;
+}
+
+.importFieldLabel {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.importFieldSelect {
+  flex: 1;
+}
+
+.importPreviewContainer {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--gray-5);
+  border-radius: var(--radius-2);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

@@ -28,12 +28,10 @@ class Settings(BaseSettings):
         "127.0.0.1",
     ]
 
-    USE_AI: bool = False
+    # Gemini is the ONLY cloud AI provider. Server-level key; each user opts in
+    # via their own ai_cloud_enabled toggle (off by default — nothing leaves the
+    # machine for users who haven't opted in).
     GEMINI_API_KEY: str = ""
-    NVIDIA_API_KEY: str = ""
-    NVIDIA_MODEL: str = "meta/llama-3.3-70b-instruct"
-    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
-    GROQ_API_KEY: str = ""
 
 
 settings = Settings()

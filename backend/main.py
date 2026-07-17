@@ -6,7 +6,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from core.config import settings
 from core.logging import get_logger, log_startup
-from core.middleware import RateLimitMiddleware, ResponseCacheMiddleware, SecurityHeadersMiddleware
+from core.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
 from database.session import AsyncSessionLocal
 from routers import (
     accounts,
@@ -60,7 +60,6 @@ app.add_middleware(
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware)
-app.add_middleware(ResponseCacheMiddleware)
 
 app.include_router(accounts.router, prefix="/api/accounts", tags=["Accounts"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])

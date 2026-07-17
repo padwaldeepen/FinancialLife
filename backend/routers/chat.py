@@ -145,39 +145,40 @@ SYSTEM_PROMPT = (
 )
 
 
-async def _ask_llm(question: str, user_summary: str) -> str:
-    if not settings.NVIDIA_API_KEY:
+GEMINI_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+)
+
+
+async def _ask_llm(question: str, user_summary: str, cloud_enabled: bool) -> str:
+    # Gemini only, and only for users who opted in — otherwise answer from data locally.
+    if not cloud_enabled or not settings.GEMINI_API_KEY:
         return _answer_from_data(question, user_summary)
 
-    user_msg = f"User's current financial summary:\n{user_summary}\n\nUser's question: {question}"
+    user_msg = (
+        f"{SYSTEM_PROMPT}\n\nUser's current financial summary:\n{user_summary}\n\n"
+        f"User's question: {question}"
+    )
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
-                f"{settings.NVIDIA_BASE_URL}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.NVIDIA_API_KEY}",
-                    "Content-Type": "application/json",
-                },
+                f"{GEMINI_URL}?key={settings.GEMINI_API_KEY}",
                 json={
-                    "model": settings.NVIDIA_MODEL,
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_msg},
-                    ],
-                    "temperature": 0.4,
-                    "max_tokens": 300,
-                    "stream": False,
+                    "contents": [{"parts": [{"text": user_msg}]}],
+                    "generationConfig": {"temperature": 0.4, "maxOutputTokens": 300},
                 },
             )
             resp.raise_for_status()
             data = resp.json()
 
-        text = data["choices"][0]["message"]["content"].strip()
+        text = (
+            data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+        ).strip()
         return text or "I couldn't generate a response. Please try again."
 
     except Exception as e:
-        log.warning("NVIDIA chat failed: %s — %s", type(e).__name__, e)
+        log.warning("Gemini chat failed: %s — %s", type(e).__name__, e)
         return _answer_from_data(question, user_summary)
 
 
@@ -249,6 +250,6 @@ async def chat(
             )
 
     summary = await _get_user_summary(db, current_user.id)
-    reply = await _ask_llm(text, summary)
+    reply = await _ask_llm(text, summary, cloud_enabled=current_user.ai_cloud_enabled)
 
     return ChatResponse(reply=reply)

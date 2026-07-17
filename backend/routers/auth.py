@@ -55,9 +55,14 @@ class UserResponse(BaseModel):
     full_name: str | None
     is_admin: bool
     is_active: bool
+    ai_cloud_enabled: bool = False
 
     class Config:
         from_attributes = True
+
+
+class AISettingsUpdate(BaseModel):
+    ai_cloud_enabled: bool
 
 
 def _set_refresh_cookie(response: Response, token: str, request: Request | None = None) -> None:
@@ -250,4 +255,20 @@ async def logout(response: Response):
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     log.debug("User info fetched — user_id=%d email=%s", current_user.id, current_user.email)
+    return current_user
+
+
+@router.put("/me/ai-settings", response_model=UserResponse)
+async def update_ai_settings(
+    payload: AISettingsUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-user cloud-AI opt-in. Off (default) = this user's data never goes to Gemini."""
+    current_user.ai_cloud_enabled = payload.ai_cloud_enabled
+    await db.commit()
+    await db.refresh(current_user)
+    log.info(
+        "AI cloud toggle set — user_id=%d enabled=%s", current_user.id, payload.ai_cloud_enabled
+    )
     return current_user

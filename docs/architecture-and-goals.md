@@ -10,8 +10,11 @@
 
 A privacy-first personal financial advisor on localhost. Not just tracking — the app should
 tell me where I'm spending monthly/annually, which bills recur, what's coming (forecast),
-and what to do about it. Multi-currency (USD, INR, CAD) because life spans the USA, India,
-and Canada.
+and what to do about it. Multi-country (USA, India, Canada) works via **country
+profiles**: one login per person, 1–3 sealed country worlds under it (each
+single-currency: USD/INR/CAD). Pick the country at login or from the top-bar switcher;
+inside a profile everything is one currency — **no conversion exists anywhere in the
+app**.
 
 ---
 
@@ -31,7 +34,8 @@ manual entry          →                                  safe-to-spend
 - **AI tiers**: (1) rules/statistics — always on; (2) local LLM via Ollama — private
   document understanding; (3) **Gemini free tier** (the single cloud provider — text +
   vision) — per-user **opt-in only**, off by default
-- **External calls when idle**: exactly one — Frankfurter (ECB exchange rates), cached daily
+- **External calls when idle**: **zero** — the only outbound call the app can ever make
+  is Gemini, and only for users who opted in (T5)
 
 ---
 
@@ -49,12 +53,34 @@ indexes on `(user_id, date)`, `(user_id, merchant_id)`, `(user_id, category_id)`
 > and Alembic gets **squashed to one clean initial migration**. Incremental migrations
 > resume the day real data goes in.
 
+**Country & currency rules (decided — the country-profile model)**
+1. **One person = one login (`users`) = 1–3 country profiles (`profiles`).** A profile
+   is a sealed financial world: USA, India, or Canada — at most one per country per user.
+   Registration asks the country once and creates the first profile; more can be added
+   later from Manage ("Add country") if the person actually has accounts there.
+2. **A profile has exactly one currency, assigned from its country** (US→USD, IN→INR,
+   CA→CAD) and fixed forever. It drives every displayed amount in that profile,
+   including locale digit grouping (`Intl.NumberFormat`: en-US / en-IN / en-CA — India
+   shows ₹1,00,000 lakh-style).
+3. **All financial data hangs off `profile_id`, not `user_id`** — accounts,
+   transactions, merchants, bills, goals, budgets, documents, insights. Profiles never
+   mix on screen: dashboards, reports, forecasts, and safe-to-spend are all per-profile.
+   Therefore **no currency column exists below the profile, and no conversion, exchange
+   rates, or external rate API exist at all** — there is never a screen with two
+   currencies on it.
+4. **Switching** happens at login (if multiple profiles) or anytime from the top-bar
+   country switcher. The JWT stays person-level; every financial request carries the
+   active `profile_id`, and the backend validates the profile belongs to the
+   authenticated user — same isolation guarantee as before, one level deeper.
+5. **Never merged — hard rule.** No screen, report, insight, or export ever combines
+   two profiles' data. USA data stays USA; India data stays India. Each profile has its
+   own receipts/documents, its own merchants, its own recurring detection and forecast.
+
 **Transaction — new columns**
 | Column | Type | Why |
 |---|---|---|
-| `currency` | `String(3)`, default user base | INR/CAD support; every aggregation converts to base currency |
 | `source` | enum: `manual, quick_add, csv_import, document_scan` | provenance — trust and debugging |
-| `import_hash` | `String`, indexed | exact-dedup key: `sha256(user, account, date, amount, normalized_desc)` |
+| `import_hash` | `String`, indexed | exact-dedup key: `sha256(profile, account, date, amount, normalized_desc)` |
 | `document_id` | FK → `documents`, nullable | tap a transaction, see the bill/receipt it came from |
 
 **New tables**
@@ -62,20 +88,86 @@ indexes on `(user_id, date)`, `(user_id, merchant_id)`, `(user_id, category_id)`
 documents         (id, user_id, kind[receipt|bill|statement|other], file_path,
                    mime_type, status[pending|reviewed|rejected], extracted_json,
                    uploaded_at)
-exchange_rates    (id, date, base, quote, rate)  UNIQUE(date, base, quote)
-                   -- fed by Frankfurter, one fetch/day, works offline afterwards
-balance_snapshots (id, account_id, date, balance, currency)   -- "Later" phase, net worth
+balance_snapshots (id, account_id, date, balance)   -- "Later" phase, net worth
 insights          (id, user_id, kind, payload_json, period, dismissed, created_at)
                    -- optional cache for Phase I results; engines are pure functions first
 ```
 
-**User**: add `base_currency` (default USD). `is_admin` already exists — admin panel gates on it.
+**Removed in v2**: `Account.currency` (redundant — the user's currency covers all their
+accounts). No `exchange_rates` table exists — see Currency rules above.
 
-**Per-user isolation**: every user has their own separate dashboard and data. All tables
-carry `user_id` and every query filters on the authenticated user — insights, forecasts,
-documents, and reports are computed per user, never shared. Admin role manages the system
-(users, system categories, AI settings, backups) but has **no access to other users'
-financial data**.
+**Users table (v2 — full definition, since the DB is recreated from scratch)**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | int PK | |
+| `email` | String, unique, indexed | login identifier |
+| `username` | String, unique, indexed | display + login |
+| `hashed_password` | String | bcrypt (T3) |
+| `full_name` | String, nullable | |
+| `is_admin` | bool, default false | **bootstrap rule: the first registered user becomes admin automatically**; admin creates further users from the panel |
+| `is_active` | bool, default true | deactivate instead of delete — `get_current_user` rejects inactive users, so deactivation kills access immediately |
+| `ai_cloud_enabled` | bool, default false | the per-person cloud-AI opt-in (T5); the Gemini API key itself stays server-level in `.env` — users share the key, each controls whether *their* data may use it |
+
+The `users` table is **auth + identity only** — no financial or country fields. Country
+and currency live one level down:
+
+**Profiles table (new in v2)**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | int PK | what every financial table's `profile_id` points at |
+| `user_id` | FK users | owner; `UNIQUE(user_id, country)` — max one profile per country per person |
+| `country` | String(2): "US"/"IN"/"CA" | chosen when the profile is created; fixed |
+| `currency` | String(3): USD/INR/CAD | assigned from country; fixed; drives all formatting in this profile |
+| `created_at` | DateTime | |
+| `created_at` / `updated_at` | DateTime | |
+
+**On registration**, each person: picks their country (the only setup question) →
+creates the user + their first profile + one default account ("Checking") inside it, so
+quick-add works from the first minute. Global system categories are shared read-only
+(`user_id = NULL`, `is_system = true` — not copied). No sample data. **Adding a second
+country** later = "Add country" in Manage → new empty profile, ten seconds.
+
+**Deletion policy**: UI offers deactivate only. Hard delete exists solely as an admin
+action and cascades the user's entire financial graph (accounts → transactions →
+documents → goals → budgets → merchants) — all relationships defined with explicit
+cascade rules in v2 so a hard delete can never orphan rows.
+
+**Isolation (two levels)**: every person has their own separate data (JWT-authenticated
+`user_id`), and within a person, every country profile is a sealed world
+(`profile_id` on all financial tables; backend validates the requested profile belongs
+to the authenticated user on every call). Insights, forecasts, documents, and reports
+are computed per profile, never shared, never merged. Admin manages the system (users,
+system categories, backups) but has **no access to anyone's financial data**.
+
+### v2 schema at a glance (12 tables — the complete list for D1)
+
+```
+users              who you are: auth + identity (is_admin, ai_cloud_enabled)
+profiles           your country worlds: 1–3 per user, each = country + currency, sealed
+accounts           where money lives: checking/savings/credit/cash/investment, per profile
+categories         what spending means: hierarchical, global system set + user-created
+merchants          who you pay: normalized names, the anchor for recurring detection
+transactions       every movement of money — the heart; everything else gives it meaning
+                   (amount, date, type, account, category, merchant,
+                    source, import_hash, document_id, notes)
+bills              expected recurring obligations (rent, utilities): amount, frequency, due day
+transaction_bill_links   proof a bill was paid: links transactions to bills per period
+goals              what you're saving toward / paying down: target, progress, deadline
+budgets            spending limits per category/period (lightweight — awareness, not envelopes)
+documents          scanned/uploaded files (receipt/bill/statement) + extracted JSON + status
+--- later ---
+balance_snapshots  monthly per-account balances → net-worth trendline   [Later phase]
+insights           optional cache of computed insights                   [only if needed]
+```
+
+(12 tables. No `exchange_rates`, no currency columns below the profile — one profile =
+one currency means amounts are just numbers; the profile's country decides how they're
+displayed. **Profiles are never merged**: no screen or report combines two profiles.)
+
+Every financial table carries `profile_id`; profiles carry `user_id` — isolation is
+structural at both levels: person from person, and country world from country world.
 
 ### Deduplication design (the "same bill twice" problem)
 
@@ -89,11 +181,14 @@ Every import path (CSV, statement scan, receipt scan) runs through one gate:
 
 This is what makes "scan the credit-card bill AND import the bank CSV" safe.
 
-### Multi-country = multi-currency (deliberate simplification)
+### Multi-country = per-user country profile (deliberate simplification)
 
-"Supporting USA, India, Canada" concretely means: transactions in USD/INR/CAD, reports in
-base currency. It does **not** mean country-specific planning
-engines — that's content layered on later, and nothing in this schema blocks it.
+"Supporting USA, India, Canada" concretely means: each user picks a country at
+registration; it assigns their currency and formatting (symbol, digit grouping via
+`Intl.NumberFormat` — en-US / en-IN / en-CA), and every number they see is in it. It
+does **not** mean currency conversion (one user = one currency, nothing to convert) and
+does **not** mean country-specific planning engines — that's content layered on later
+(keyed off `users.country`), and nothing in this schema blocks it.
 
 ---
 
@@ -106,8 +201,7 @@ backend/
 ├── routers/       thin HTTP handlers only        ← rule: no business logic here
 ├── services/      business logic (testable, no HTTP)
 │   ├── insights/  recurring.py, trends.py, forecast.py, safe_to_spend.py   [Phase I]
-│   ├── ingest/    dedup.py, csv_import.py, document_extract.py             [Phase S]
-│   └── fx.py      exchange-rate fetch + conversion                          [Phase D]
+│   └── ingest/    dedup.py, csv_import.py, document_extract.py             [Phase S]
 └── tests/         pytest — money paths are mandatory                        [Phase T]
 ```
 
@@ -117,6 +211,50 @@ opportunistically while building Phase I, not as a big-bang refactor.
 
 The intelligence engines are **pure functions** (`list[Transaction] → list[Insight]`):
 trivially testable, no DB coupling, cacheable later via the `insights` table if needed.
+
+### API endpoint map (v2 target)
+
+Everything below `/api/auth` and `/api/profiles` requires auth **and** a validated
+profile context (`X-Profile-Id` header; backend confirms ownership). ★ = new in v2.
+
+```
+Auth        POST /api/auth/register (country picker ★) · /login · /refresh · /logout
+Profiles ★  GET  /api/profiles              my country profiles
+            POST /api/profiles              add country (max 1 per country)
+Accounts    GET/POST/PUT/DELETE /api/accounts/
+Transactions GET/POST/PUT/DELETE /api/transactions/
+            POST /api/transactions/parse     NL parse (rules → local/cloud AI per T5/S7)
+            POST /api/transactions/quick-add parse + create (one-question rule)
+            POST /api/transactions/import    CSV rows → dedup gate ★ → insert/review
+Categories  GET/POST/PUT/DELETE /api/categories/
+Merchants   GET/POST/PUT/DELETE /api/merchants/ · POST /{id}/merge
+Bills       GET/POST/PUT/DELETE /api/bills/ · GET /upcoming · POST /{id}/link · /unlink
+Goals       GET/POST/PUT/DELETE /api/goals/ · POST /{id}/contribute
+Budgets     GET/POST/PUT/DELETE /api/budgets/
+Documents ★ POST /api/documents              multipart upload (jpg/png/pdf ≤15MB) —
+                                             desktop dropzone AND mobile camera/gallery
+            GET  /api/documents              review queue (status=pending)
+            GET  /api/documents/{id}         serves the file (ownership-checked)
+            POST /api/documents/{id}/review  approve edited extraction → dedup → transaction(s)
+            DELETE /api/documents/{id}       reject/remove
+Insights ★  GET  /api/insights               insight cards (trends, anomalies, advice)
+            GET  /api/insights/recurring     detected subscriptions/bills
+            GET  /api/insights/forecast      60–90 day daily balance simulation
+            GET  /api/insights/safe-to-spend the home-screen number
+            POST /api/insights/{id}/dismiss
+Reports     GET  /api/reports/monthly · /annual ★ · /compare   (per profile, one currency)
+Export      GET  /api/export/csv             active profile only — never merged
+Chat        POST /api/chat                   via the T5 provider layer
+Admin ★     GET/POST /api/admin/users · PUT /{id}/deactivate (auth data only, never financial)
+            GET/POST/PUT/DELETE /api/admin/categories        system categories
+            GET  /api/admin/status           last backup, pending documents
+            POST /api/admin/backup           runs scripts/backup.ps1 if present
+```
+
+Upload/scan paths on mobile: the Capture sheet uses `<input type="file" accept="image/*"
+capture="environment">` — opens the native camera on HTTPS/localhost and degrades to the
+photo-gallery picker over plain LAN HTTP (browsers require a secure context for live
+camera APIs). Desktop uses drag-and-drop onto the same `POST /api/documents` endpoint.
 
 ### Recurring detection (Phase I core)
 Group by merchant → check amount consistency (exact = subscription; ±20% = utility) and
@@ -218,8 +356,8 @@ only via the shared AI provider layer that checks the per-user toggle on every c
 no code path may call a cloud API directly. Silent fallback is banned: routing to cloud
 because Ollama is missing, without the user having opted in, is a bug.
 
-Everything else is local: Postgres in Docker, files on disk, exchange rates cached after
-one daily fetch. Backups are the user's responsibility but scheduled by the app's scripts
+Everything else is local: Postgres in Docker, files on disk, no other network calls
+exist. Backups are the user's responsibility but scheduled by the app's scripts
 (`DEVELOPMENT.md` §Backups).
 
 ---
@@ -231,4 +369,4 @@ one daily fetch. Backups are the user's responsibility but scheduled by the app'
 - **Migrations**: every schema change ships with an Alembic migration, up and down.
 - **Review**: every change is checked against `rules/code-review.md` before commit.
 - **Docs**: `plan.md` checkboxes updated with each phase; this file updated when the
-  architecture actually changes. Stale analysis reports go to `docs/archive/`, not here.
+  architecture actually changes. Stale content gets deleted — git history is the archive.

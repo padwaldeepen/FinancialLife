@@ -6,8 +6,9 @@
 
 ## How to work this file (rules for opencode / Claude Code / any tool)
 
-1. Pick the **lowest-numbered open ticket** whose dependencies are done. Do not skip
-   ahead, do not bundle tickets, do not invent work that isn't in a ticket.
+1. Pick the **lowest-numbered open ticket** whose dependencies are done (a ticket that
+   explicitly notes "can run in parallel" may be taken out of order). Do not skip ahead
+   otherwise, do not bundle tickets, do not invent work that isn't in a ticket.
 2. **Stay inside the ticket's scope.** If you notice something broken outside it, add a
    note under "Discovered" at the bottom of this file — do not fix it now.
 3. A ticket is done only when: all acceptance criteria pass · lint/format clean ·
@@ -17,6 +18,8 @@
    and in `plan.md`.
 4. Specs referenced everywhere: UI = `design-system.md` · schema = `architecture-and-goals.md`
    · AI allocation = `architecture-and-goals.md` §AI task allocation.
+5. Ticket numbering has gaps (D2, D4, S5 were retired during planning and removed) —
+   a missing ID is not an error and never gets reused.
 
 ---
 
@@ -62,8 +65,9 @@ hash verifies in a unit test; `pip list` shows no jose/passlib.
 ### [ ] T4 — Dependency & dead-code audit
 **Goal:** no dead or deprecated code left.
 **Build:** run `npm outdated`, `npx depcheck`, `pip list --outdated`; delete unused deps,
-unused components/endpoints/CSS found. Known suspects: README's TanStack Query claim
-(false — fix README), `core/cache.py` (check who imports it; if nobody, delete).
+unused components/endpoints/CSS found. Known suspects: README's structure/feature
+sections (describe the pre-rebuild app — align with current docs), `core/cache.py`
+(check who imports it; if nobody, delete).
 **Accept:** depcheck reports no unused deps; app builds and runs; README stack list
 matches package.json/requirements.
 **Depends:** T2 (don't audit what's about to be deleted).
@@ -71,8 +75,10 @@ matches package.json/requirements.
 ### [ ] T5 — Cloud AI opt-in toggle (per user, off by default)
 **Goal:** enforce the AI allocation table — private by default, cloud by informed choice,
 free tiers only.
-**Build:** backend: `ai_cloud_enabled` **per-user** column (default false); ALL cloud
-calls route through one provider layer that checks the requesting user's toggle —
+**Build:** backend: `ai_cloud_enabled` **per-user** column (default false; T5 runs
+before D1, so add it via a small migration here — D1's squash absorbs it into the clean
+initial schema); ALL cloud calls route through one provider layer that checks the
+requesting user's toggle —
 toggle off = cloud skipped entirely (rules/Ollama fallback); no code path may call a
 cloud API directly. **Consolidate to ONE cloud provider: Gemini** (free tier, already
 configured, does both text and vision) — delete the NVIDIA and Groq provider code,
@@ -96,56 +102,49 @@ environment.
 
 ## Phase D — Data Model v2
 
-### [ ] D1 — v2 schema + squashed migration
-**Goal:** the clean schema, once. Spec: `architecture-and-goals.md` §Data Model v2.
-**Build:** models: `Transaction.currency` (String(3), NOT NULL, default from user),
-`Transaction.source` (Literal: manual/quick_add/csv_import/document_scan, default manual),
-`Transaction.import_hash` (String, indexed, nullable), `Transaction.document_id`
-(FK documents, nullable), `User.base_currency` (String(3), default "USD"), new tables
-`documents` and `exchange_rates` (columns per spec, unique (date, base, quote)).
-Delete all Alembic versions; generate ONE initial migration from the v2 models.
-Pydantic response/request models updated. Every existing creation path sets `source`.
-**Accept:** fresh DB + `alembic upgrade head` builds everything; app runs; a quick-add
-transaction has `currency='USD'`, `source='quick_add'`; pytest green.
+### [ ] D1 — v2 schema + squashed migration (country-profile model)
+**Goal:** the clean schema, once. Spec: `architecture-and-goals.md` §Data Model v2 and
+§Country & currency rules.
+**Build:** new `profiles` table (user_id FK, country US/IN/CA, currency assigned from
+country, `UNIQUE(user_id, country)`); **every financial table re-keyed to `profile_id`**
+(accounts, transactions, merchants, bills, goals, budgets, documents) — `user_id`
+remains only on users/profiles; backend dependency `get_current_profile` validates the
+requested profile belongs to the JWT user on every financial route. **No currency
+columns anywhere below profiles; no `exchange_rates` table — profiles are sealed
+single-currency worlds, never merged.** Transaction additions: `source` (Literal:
+manual/quick_add/csv_import/document_scan), `import_hash` (String, indexed, nullable),
+`document_id` (FK documents, nullable). Users table = auth only + `ai_cloud_enabled` +
+first-registered-user-becomes-admin logic; explicit cascade rules user→profiles→all.
+Registration: country picker → user + first profile + default "Checking" account.
+"Add country" endpoint (creates additional profile, max one per country). New table
+`documents` (per spec). Frontend: active profile in store + localStorage; `X-Profile-Id`
+(or equivalent) on financial requests; `formatCurrency` uses the profile's locale
+(en-US/en-IN/en-CA — India gets ₹1,00,000 grouping). Delete all Alembic versions;
+generate ONE initial migration. Pydantic models updated; every creation path sets `source`.
+**Accept:** fresh DB + `alembic upgrade head` builds everything; first registered user
+`is_admin=true`, second not (test); registering with India → default account + amounts
+render ₹ lakh-style (Playwright); requesting profile B's data while active on profile A
+(or another user's profile) → 404 (tests); user with US+India profiles sees completely
+disjoint data per profile (test); hard-deleting a test user leaves zero orphans (test);
+pytest green.
 **Depends:** T1, T6.
-
-### [ ] D2 — FX service (Frankfurter + local cache)
-**Goal:** USD/INR/CAD conversion that works offline after one daily fetch.
-**Build:** `services/fx.py`: `get_rate(date, base, quote)` — check `exchange_rates`
-table first; on miss fetch `https://api.frankfurter.dev/v1/{date}?base=X&symbols=Y`,
-store, return; weekends/holidays fall back to most recent prior rate; `convert(amount:
-Decimal, from, to, date) -> Decimal` quantized to 2 places. No API key, max one network
-call per (date, pair).
-**Accept:** unit tests with mocked HTTP: cache hit does no network call; weekend falls
-back; conversion is Decimal-exact; app works with network blocked (uses cached rates).
-**Files:** `backend/services/fx.py`, `backend/tests/test_fx.py`.
-**Depends:** D1.
 
 ### [ ] D3 — Dedup service
 **Goal:** one gate every import path uses. Spec: `architecture-and-goals.md` §Deduplication.
-**Build:** `services/ingest/dedup.py`: `compute_import_hash(user_id, account_id, date,
+**Build:** `services/ingest/dedup.py`: `compute_import_hash(profile_id, account_id, date,
 amount, normalized_desc)` (sha256); `find_duplicates(candidate) -> exact | fuzzy[] | none`
 — fuzzy = same amount, date ±3 days, merchant similarity on normalized names.
-Pure functions + one DB lookup helper; no router wiring yet (S5/U4 wire it).
+Pure functions + one DB lookup helper; no router wiring yet (U4 and S3/S4 wire it).
 **Accept:** unit tests: exact dup detected; date-shifted dup flagged fuzzy; different
 amount not flagged; performance fine on 10k-row fixture.
 **Depends:** D1.
-
-### [ ] D4 — Base-currency-aware reports
-**Goal:** every aggregate converts to `user.base_currency`.
-**Build:** update report/insight queries: multiply by rate at transaction date via fx
-service (batch: fetch distinct (date, currency) pairs once per report, not per row).
-Display: native amount primary, converted value muted beneath when currencies mix
-(`design-system.md` §2 Numbers).
-**Accept:** fixture with USD+INR+CAD transactions produces exact expected USD totals
-(test); UI shows converted totals (Playwright, both viewports).
-**Depends:** D2.
 
 ### [ ] D5 — Typo-tolerant merchant matching
 **Goal:** "wallmart", "starbcks" never create duplicate merchants.
 **Build:** in merchant resolution (quick-add, CSV import, document scan all pass through
 it): normalize → exact match → else Levenshtein distance ≤2 (≤1 for names ≤5 chars)
-against the user's existing merchant `normalized_name`s → match found = use existing
+against the active profile's existing merchant `normalized_name`s (never across
+profiles) → match found = use existing
 merchant (surface "matched to Walmart" in the preview so the user can override) → no
 match = create new. Pure function in `services/merchant_service.py` + tests.
 **Accept:** unit tests: "wallmart"→Walmart, "starbcks"→Starbucks, "wal"≠Walmart (too
@@ -184,12 +183,17 @@ until I5), month summary (income/spent/net from reports API), upcoming bills, re
 activity, insight-card slots (empty-state per §4). Mobile: hero + next 3 bills +
 this-month-vs-last bar only. **Fix: "Total Balance" must exclude credit accounts** —
 show "Cash on hand" (checking+savings+cash) and "Credit owed" separately.
+**Profile switcher lands here:** country flag + name in the desktop top bar / mobile
+avatar row; switching swaps the active profile (store + localStorage), clears cached
+slice data, and reloads — profiles never blend on screen. Login with 2+ profiles asks
+"Which country?" once.
 **State cleanup here:** shared `useHomeData` hook in `shared/hooks/`; types imported from
 slices; staleness check added to `namespaceSlice` (skip refetch <30s; `force` param).
 **Accept:** navigating away/back within 30s does not refetch (assert no loading flash);
-credit no longer inflates the balance (test fixture + Playwright assertion); both
-viewports match §2 alignment rules.
-**Depends:** U1; D4 for converted totals (soft — can land with USD-only first).
+credit no longer inflates the balance (test fixture + Playwright assertion); switching
+profile shows entirely different data with the right currency formatting (Playwright,
+user with US+IN fixture profiles); both viewports match §2 alignment rules.
+**Depends:** U1, D1.
 
 ### [ ] U4 — Activity rebuild (desktop + mobile) + shared logic extraction
 **Goal:** replace the two ~1,100-line twins.
@@ -233,7 +237,8 @@ charts are Nivo-only, palette-compliant; Playwright desktop (+ absence on mobile
 **Goal:** one home for every maintenance UI.
 **Build:** Radix Tabs: Accounts / Categories (hierarchy CRUD) / Merchants (rename, merge,
 hide) / Goals (CRUD + contribute; progress stays on Home) / Import (CSV mapping UI moves
-here) / AI & Privacy (T5 toggle + Ollama endpoint) / Profile (password, base currency).
+here) / AI & Privacy (T5 toggle + Ollama endpoint) / Account (password; **Add country**
+— creates an additional country profile, max one per country, D1 endpoint).
 Old Settings/Categories/Merchants/Goals pages retire.
 **Accept:** every capability of the four retired pages reachable; `window.confirm` gone
 (Radix AlertDialog); Playwright desktop flows: create category child, merge merchants,
@@ -269,7 +274,9 @@ unused files (depcheck + manual); screenshots reviewed.
 ### [ ] I1 — Recurring detection engine
 **Goal:** find everything that repeats. Spec: `architecture-and-goals.md` §Recurring detection.
 **Build:** `services/insights/recurring.py`: `detect(transactions) -> list[RecurringCharge]`
-— group by merchant_id; amount consistency (exact → subscription; ±20% → variable bill);
+— group by merchant_id, **falling back to normalized description when merchant is NULL**
+(income like salary deposits often has no merchant — income detection must still work,
+I4 depends on it); amount consistency (exact → subscription; ±20% → variable bill);
 interval clustering vs 7/14/30/90/365 ±tolerance (3d for weekly, 5d monthly, 15d yearly);
 ≥3 occurrences; emit merchant, avg amount, cadence, monthly_equivalent (Decimal),
 next_expected_date, confidence. Endpoint `GET /api/insights/recurring`.
@@ -340,11 +347,12 @@ category_hint}; tier B fallback = cloud vision (Gemini) **only when the user's T
 tier C = Tesseract + regex (total/date/merchant heuristics) — the no-Ollama, no-opt-in
 path. All routing through the T5 provider layer. Store result in
 `documents.extracted_json`; category inference: merchant history first (rules), then hint.
+Extracted amounts flow through D5 merchant matching before the review screen.
 **Accept:** fixture receipts (clear, blurry, non-receipt) produce sane JSON or honest
 `{"confidence": "low"}`; with Ollama stopped + toggle off, tier C still returns totals on
 clear fixtures with zero outbound calls (assert); with toggle on, cloud fallback engages
 and is logged as such.
-**Depends:** S1.
+**Depends:** S1, T5 (provider layer), D5 (merchant matching).
 
 ### [ ] S3 — Review screen (nothing auto-commits)
 **Build:** desktop: pending documents queue → editable extracted fields side-by-side with
@@ -365,7 +373,16 @@ flag fuzzy).
 (Playwright + DB assert).
 **Depends:** S3.
 
-### [ ] S5 — (merged into S3/S4 — dedup is built into the review flow; keep ID reserved)
+### [ ] S6 — Mobile scan capture
+**Build:** enable U8's Scan button: camera via `<input type="file" accept="image/*"
+capture="environment">` (native camera on HTTPS/localhost; degrades to gallery picker
+over LAN HTTP per `DEVELOPMENT.md` §5). **One-line explainer before first camera use**
+("Snap the whole receipt — the app reads it on this device") — researched UX finding:
+a brief purpose note before the permission prompt dramatically raises camera acceptance.
+Then upload → extraction → mobile-simplified review (fields + dedup verdict) → save.
+**Accept:** Playwright 390×844 with fixture image upload → transaction saved; camera
+limitation documented in-UI when unavailable.
+**Depends:** S3, U8.
 
 ### [ ] S7 — Local-AI quick-add fallback (typed input)
 **Goal:** weird phrasing and messy typing still parse — privately.
@@ -380,22 +397,17 @@ preview (amount 30, Walmart matched, date = yesterday); Ollama stopped + toggle 
 degrades to rules result, zero outbound calls (assert); toggle on: cloud fallback engages.
 **Depends:** T1, D5, S2 (Ollama client exists).
 
-### [ ] S6 — Mobile scan capture
-**Build:** enable U8's Scan button: camera via `<input capture>` (works over LAN HTTP as
-gallery-upload fallback per `DEVELOPMENT.md` §5) → upload → extraction → mobile-simplified
-review (fields + dedup verdict) → save.
-**Accept:** Playwright 390×844 with fixture image upload → transaction saved; camera
-limitation documented in-UI when unavailable.
-**Depends:** S3, U8.
-
 ---
 
 ## Phase A — Admin Panel (desktop Manage tab, `is_admin` only)
 
 ### [ ] A1 — Admin API
 **Build:** `routers/admin.py` + `require_admin` dependency: user list/create/deactivate
-(**never** other users' financial data — isolation rule), system-category CRUD, job
-status (last fx fetch, last backup timestamp if configured, pending documents count).
+(**never** anyone's financial data — isolation rule), system-category CRUD, job
+status (last backup timestamp if configured, pending documents count),
+per-user export-all (each user can export only their own data; admin triggers nothing
+that reads another user's rows), backup-now trigger (runs `scripts/backup.ps1` when
+present; reports "not configured" otherwise).
 **Accept:** non-admin → 403 on every route (test); admin cannot fetch another user's
 transactions via any admin route (test proves absence).
 **Depends:** D1.

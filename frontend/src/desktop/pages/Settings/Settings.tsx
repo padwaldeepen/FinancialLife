@@ -26,12 +26,14 @@ import {
   CreditCard,
   TrendingUp,
   DollarSign,
+  Sparkles,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useAppTheme } from '../../../theme.tsx'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import api from '../../../auth/api.ts'
 import styles from './Settings.module.css'
 
 const accountIcons: Record<string, JSX.Element> = {
@@ -105,6 +107,26 @@ export const Settings = (): JSX.Element => {
   const [budgetDeleting, setBudgetDeleting] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
+
+  const [aiCloud, setAiCloud] = useState(false)
+
+  useEffect(() => {
+    api
+      .get('/api/auth/me')
+      .then((res) => setAiCloud(Boolean(res.data?.ai_cloud_enabled)))
+      .catch(() => {})
+  }, [])
+
+  const handleAiCloudToggle = async (enabled: boolean) => {
+    setAiCloud(enabled)
+    try {
+      await api.put('/api/auth/me/ai-settings', { ai_cloud_enabled: enabled })
+      toast.success(enabled ? 'Cloud AI enabled for your account' : 'Cloud AI disabled')
+    } catch {
+      setAiCloud(!enabled)
+      toast.error('Could not update AI settings')
+    }
+  }
 
   useEffect(() => {
     fetchAccounts()
@@ -397,6 +419,26 @@ export const Settings = (): JSX.Element => {
               </Box>
             </Flex>
             <Switch checked={dark} onCheckedChange={toggle} />
+          </Box>
+        </Card>
+      </Box>
+
+      <Box className={styles.section}>
+        <div className={styles.sectionTitle}>AI &amp; Privacy</div>
+        <Card className={styles.card}>
+          <Box className={styles.row}>
+            <Flex className={styles.labelGroup}>
+              <Sparkles size={18} />
+              <Box className={styles.labelText}>
+                <span className={styles.labelTextPrimary}>Cloud AI (Gemini)</span>
+                <span className={styles.labelTextSecondary}>
+                  When on, your financial text and scanned documents are sent to Google&apos;s AI
+                  service; the free tier may use them to train models. When off, nothing ever leaves
+                  this machine.
+                </span>
+              </Box>
+            </Flex>
+            <Switch checked={aiCloud} onCheckedChange={handleAiCloudToggle} />
           </Box>
         </Card>
       </Box>

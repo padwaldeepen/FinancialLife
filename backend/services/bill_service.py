@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -145,6 +146,7 @@ async def suggest_bill_match(
     db: AsyncSession,
 ) -> Bill | None:
     """Find a bill that likely matches this transaction."""
+    amount = Decimal(str(amount))  # Bill.amount is Decimal; float args would TypeError
     bills = await get_bills(user_id, db)
     today = date.date()
 

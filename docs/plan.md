@@ -65,13 +65,14 @@ The app today is a **working expense tracker** with a lot of surface area and so
 
 ### Phase T — Trust & Cleanup ← **do first, ~1 week**
 Make the foundation safe before building on it.
-- [ ] **T1 Tests on money paths**: pytest for NL parser (incl. relative dates + missing-amount contract), report aggregation, bill matching
-- [ ] **T2 Delete `ResponseCacheMiddleware`** — caches `/api/accounts/` (with balances) 60s; transaction writes never invalidate it → stale balances; pointless at localhost scale
-- [ ] **T3 Replace unmaintained auth libs**: `python-jose` → `PyJWT`, `passlib` → direct `bcrypt` (passlib abandoned; it's why bcrypt is pinned to 4.0.1)
-- [ ] **T4 Dead/deprecated audit**: `npm outdated` + depcheck + `pip list --outdated`; delete unused code/endpoints; fix README lies (TanStack Query)
-- [ ] **T5 Cloud AI opt-in**: per-user toggle, off by default, explicit warning; **consolidate to Gemini as the only cloud provider** — delete NVIDIA + Groq code
-- [ ] **T6 Setup verification**: clean clone → running app with zero undocumented steps
-- [x] Docs consolidated, stale reports archived
+- [x] **T1 Parser contract** (done 2026-07-17): relative dates ("yesterday", "last friday", "on the 1st", "N days ago", month+day), Decimal amounts, `missing: ["amount"]` contract, dates wired into parse/quick-add. **Decision: no pytest files — all verification via Playwright MCP against the running app** (owner's call; supersedes the original "pytest" wording)
+- [x] **T2 Deleted `ResponseCacheMiddleware`** (done 2026-07-17): stale-balance cache gone; balances update instantly after adding a transaction (verified)
+- [x] **T3 Auth libs replaced** (done 2026-07-17): PyJWT 2.10 + bcrypt 5.0; python-jose/passlib uninstalled; register→login→authed flows verified in the real app
+- [x] **T5 Cloud AI opt-in** (done 2026-07-17): per-user `ai_cloud_enabled` (migration c2d3e4f5a6b7), single provider layer, **NVIDIA + Groq deleted — Gemini only** (chat converted too); Settings toggle with warning on desktop + mobile; verified both directions (on → `ai_provider: gemini`; off → rules only, zero cloud calls)
+- [x] **T4 Dead-code pass** (done 2026-07-17): `core/cache.py` deleted (zero importers), README TanStack Query lie fixed, jose/passlib/NVIDIA/Groq config removed. *Remaining: full `depcheck`/`npm outdated` sweep*
+- [ ] **T6 Setup verification**: fresh containers + migrations + register→quick-add verified; *remaining: full clean-clone pass of the DEVELOPMENT.md §1 checklist (bills, reports, export)*
+- [x] Docs consolidated, stale reports deleted
+- [x] **Bonus fix**: `formatCurrency` used `Math.abs()` — negative balances displayed as positive money; fixed and verified (−$16.50 renders correctly)
 
 ### Phase D — Data Model v2 (~1 week)
 Schema changes are cheapest now, before intelligence and scanning are built on top.

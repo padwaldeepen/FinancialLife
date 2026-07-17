@@ -423,6 +423,14 @@ in fresh with own empty dashboard.
 
 ## Discovered (parking lot — do not act without a ticket)
 
-- README still describes the pre-rebuild app (fix in T4).
+- README structure/feature sections still describe the pre-rebuild app (finish in T4).
 - `docs/DEVELOPMENT.md` §2 backup script: create `scripts/backup.ps1` when backups
   activate (gate: before first real data — see plan.md Later).
+- **Timezone**: backend containers run UTC; "yesterday" typed at 11pm EDT resolves
+  against UTC-today. Fix candidate: client sends its local date with parse/quick-add
+  requests (fold into U-phase quick-add work), or set container TZ.
+- **Port 3000 IPv6 clash**: another dev server bound to `[::1]:3000` shadows the app for
+  `localhost` URLs — use `http://127.0.0.1:3000` (documented here so nobody debugs it twice).
+- Saving a transaction from the Quick Add dialog doesn't refresh Home's already-mounted
+  slices (needs reload) — already covered by U3's staleness/refresh work.
+- Desktop Settings renders the Profile card twice (duplicate block) — retires with U7 anyway.

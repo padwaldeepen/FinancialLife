@@ -524,6 +524,8 @@ class ParseResponse(BaseModel):
     category: str | None
     merchant: str | None = None
     ai_provider: str | None = None
+    date: datetime | None = None
+    missing: list[str] = []
     raw_text: str
 
 
@@ -535,9 +537,9 @@ class QuickAddRequest(BaseModel):
 @router.post("/parse", response_model=ParseResponse)
 async def parse_transaction_text(
     request: ParseRequest,
-    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    current_user: User = Depends(get_current_user),
 ):
-    ai_result = await ai_service.parse(request.text)
+    ai_result = await ai_service.parse(request.text, cloud_enabled=current_user.ai_cloud_enabled)
 
     if ai_result is not None:
         return ParseResponse(
@@ -547,6 +549,7 @@ async def parse_transaction_text(
             category=ai_result.category,
             merchant=ai_result.merchant,
             ai_provider="gemini",
+            missing=["amount"] if ai_result.amount is None else [],
             raw_text=request.text,
         )
 
@@ -556,6 +559,10 @@ async def parse_transaction_text(
         description=result["description"],
         type=result["type"],
         category=result["category"],
+        date=datetime.combine(result["date"], datetime.min.time())
+        if result["date_explicit"]
+        else None,
+        missing=result["missing"],
         raw_text=result["raw_text"],
     )
 
@@ -566,13 +573,14 @@ async def quick_add_transaction(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ai_result = await ai_service.parse(request.text)
+    ai_result = await ai_service.parse(request.text, cloud_enabled=current_user.ai_cloud_enabled)
     if ai_result is not None and ai_result.amount is not None:
         parsed_amount = ai_result.amount
         parsed_description = ai_result.description
         parsed_type = ai_result.transaction_type
         parsed_category = ai_result.category
         merchant_name = ai_result.merchant
+        parsed_date = datetime.now()
     else:
         parsed = parse_transaction(request.text)
 
@@ -587,6 +595,10 @@ async def quick_add_transaction(
         parsed_type = parsed["type"]
         parsed_category = parsed["category"]
         merchant_name = extract_merchant_from_description(parsed_description)
+        if parsed["date_explicit"]:
+            parsed_date = datetime.combine(parsed["date"], datetime.min.time())
+        else:
+            parsed_date = datetime.now()
 
     category = None
     if request.category_id is not None:
@@ -642,7 +654,7 @@ async def quick_add_transaction(
         category_id=category.id if category else None,
         merchant_id=merchant_id,
         user_id=current_user.id,
-        date=datetime.now(),
+        date=parsed_date,
         ai_categorized=True,
     )
 

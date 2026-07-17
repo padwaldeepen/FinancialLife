@@ -1,5 +1,10 @@
 export const formatCurrency = (amount: number): string => {
-  return `$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const formatted = Math.abs(amount).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  // Negative money must LOOK negative — hiding the sign turns debt into assets
+  return amount < 0 ? `-$${formatted}` : `$${formatted}`
 }
 
 export const formatDate = (dateStr: string): string => {

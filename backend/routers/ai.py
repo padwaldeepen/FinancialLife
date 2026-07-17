@@ -32,10 +32,12 @@ class CategorizeResponse(BaseModel):
 @router.post("/categorize", response_model=CategorizeResponse)
 async def categorize_transaction(
     request: CategorizeRequest,
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ai_result = await ai_service.parse(request.description)
+    ai_result = await ai_service.parse(
+        request.description, cloud_enabled=current_user.ai_cloud_enabled
+    )
 
     if ai_result is not None:
         category = ai_result.category or "Other"

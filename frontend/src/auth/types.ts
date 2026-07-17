@@ -4,6 +4,8 @@ export interface User {
   username?: string
   full_name?: string
   is_admin: boolean
+  is_active?: boolean
+  ai_cloud_enabled?: boolean
   name?: string
 }
 
@@ -18,4 +20,6 @@ export interface AuthActions {
   register: (email: string, password: string, name?: string, username?: string) => Promise<void>
   logout: () => void | Promise<void>
   verifyToken: () => Promise<void>
+  fetchCurrentUser: () => Promise<void>
+  updateAiCloudEnabled: (enabled: boolean) => Promise<void>
 }

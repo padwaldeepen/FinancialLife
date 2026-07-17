@@ -51,17 +51,24 @@ const frequencyLabel = (f: string) => {
 }
 
 export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
-  const { billHistory, fetchBillHistory, linkTransactionToBill, unlinkTransactionFromBill } =
-    useBoundStore(
-      useShallow((s) => ({
-        billHistory: s.bills.billHistory,
-        fetchBillHistory: s.fetchBillHistory,
-        linkTransactionToBill: s.linkTransactionToBill,
-        unlinkTransactionFromBill: s.unlinkTransactionFromBill,
-      })),
-    )
+  const {
+    billHistory,
+    fetchBillHistory,
+    linkTransactionToBill,
+    unlinkTransactionFromBill,
+    fetchTransactions,
+  } = useBoundStore(
+    useShallow((s) => ({
+      billHistory: s.bills.billHistory,
+      fetchBillHistory: s.fetchBillHistory,
+      linkTransactionToBill: s.linkTransactionToBill,
+      unlinkTransactionFromBill: s.unlinkTransactionFromBill,
+      fetchTransactions: s.fetchTransactions,
+    })),
+  )
   const transactions = useBoundStore((s) => s.transactions.items)
   const fetched = useRef(false)
+  const txFetchedForLink = useRef(false)
   const [linkOpen, setLinkOpen] = useState(false)
   const [linkSearch, setLinkSearch] = useState('')
 
@@ -71,6 +78,16 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
       fetchBillHistory(bill.id)
     }
   }, [bill.id, fetchBillHistory])
+
+  // The link dialog reads from the shared transactions list, but no page on the
+  // Bills route ever populates it — a user landing here without having visited
+  // Activity/Home first would see "no transactions found" even when matches exist.
+  useEffect(() => {
+    if (linkOpen && !txFetchedForLink.current) {
+      txFetchedForLink.current = true
+      fetchTransactions({ reset: true })
+    }
+  }, [linkOpen, fetchTransactions])
 
   const handleLink = async (transactionId: number) => {
     try {

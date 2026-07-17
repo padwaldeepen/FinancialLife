@@ -1,9 +1,46 @@
 # Design System — Minimalist, Three Colors
 
-> Last updated: 2026-07-16
+> Last updated: 2026-07-17
 > The rulebook for the Phase U redesign. `rules/ui-ux.md` enforces this during coding.
 > Philosophy: **a finance app should feel like a well-set ledger — quiet paper, clear ink,
 > one accent that means "act here", and money coloring only the money.**
+
+---
+
+## 0. What current fintech design research validates (grounding this doc)
+
+Researched 2026 fintech/UI trend sources before finalizing this spec (full list in §6).
+The findings didn't change the direction — they confirm it and sharpen a few details:
+
+- **Neutral + single accent + semantic success/error is the current standard color
+  structure** for fintech UI, not a constraint we're inventing — this doc's 3-color rule
+  already matches it exactly.
+- **"Elevated neutrals" over stark pure white**: 2026 palettes favor soft, slightly warm
+  greys over harsh `#FFFFFF` backgrounds. Radix `slate-1`/`slate-2` already aren't pure
+  white — this doc formalizes *never* dropping to true white or true black (§1).
+- **Flat cards, minimal-to-no shadows** is the dominant card treatment — validates §2's
+  existing "no shadows" rule.
+- **Bottom nav for 3–5 destinations, thumb-reachable** is the confirmed mobile pattern —
+  validates the 3-tab + Capture structure in §3 exactly (research even cites bottom-tab
+  vs. hamburger A/B results: ~40% faster task completion).
+- **70% of users abandon a fintech app over complex navigation** — the strongest
+  available argument for the question-shaped 5-page IA over the old 8-tables-as-pages
+  structure. This number is now the standing justification for §3.
+- **New addition: "calm interfaces."** 2026's dominant UX direction is explicitly
+  *reducing* cognitive load and decision count, not just visual minimalism — motion
+  becomes functional-only (state changes), never decorative or celebratory. New rule
+  added to §4.
+- **New addition: "transparent AI."** Users expect to see *why* a suggestion appeared,
+  how confident the system is, and a clear way to override or dismiss it — not a black
+  box. This became a hard requirement on every insight/recommendation card (§4), and it
+  reinforces a rule already implicit in Phase I: no insight number without visible
+  evidence.
+- **New addition: data storytelling over static reports.** The trend is away from flat
+  monthly statements toward interactive timelines the user can scrub through spending
+  history on. Folded into the Insights page spec (§3).
+- **Cross-platform consistency means consistent *data*, not consistent *UI*** — the
+  research explicitly separates these. This validates the existing device-role split
+  (shared logic/store, separate layouts) rather than contradicting it.
 
 ---
 
@@ -38,6 +75,9 @@ They color *numbers*, never containers, never badges, never charts backgrounds, 
 4. Accent is scarce. If a screen has more than ~3 accent elements visible, it's wrong —
    accent means "this is the action", and everything can't be the action.
 5. Dark mode = same three roles, Radix flips the scales. Never hand-pick dark variants.
+6. **No stark white or black backgrounds.** Page background is `slate-1`/`slate-2`, not
+   `#FFFFFF`; deepest dark-mode surface is `slate-1` dark, not `#000000`. "Elevated
+   neutral," not paper-white — see §0.
 
 ---
 
@@ -78,11 +118,13 @@ Feature parity between devices is a **non-goal**.
 | **Home** | Am I okay right now? | safe-to-spend hero, forecast curve, insight cards, next bills, recent activity |
 | **Activity** | What happened? | transactions table, search/filters, bulk edit, import + dedup review queue |
 | **Recurring** | What repeats, what's due? | bills + auto-detected subscriptions + budgets in one view; total-per-month headline; predicted next dates |
-| **Insights** | Where does my money go? | monthly/annual breakdowns, MoM/YoY trends, category & merchant analytics |
+| **Insights** | Where does my money go? | monthly/annual breakdowns, MoM/YoY trends, category & merchant analytics, **an interactive spending timeline** (scrub through months to see when/why spending spiked — data storytelling over a static table, §0) |
 | **Manage** | Fix or configure something | accounts, categories, merchants, goals CRUD, CSV import, AI settings; admin panel (`is_admin` only) |
 
 Goals: progress surfaces on Home/Insights; CRUD lives in Manage. No top-level Goals page.
-Keyboard: `Cmd/Ctrl+N` quick-add, `/` search, `Esc` closes every dialog.
+Keyboard: `Cmd/Ctrl+N` quick-add, `/` search, `Esc` closes every dialog. The fixed
+240px sidebar is a standard **navigation rail** — the current desktop equivalent of
+mobile bottom nav (§0) — icon + label, active item in accent, nothing else colored.
 
 ### Mobile — 3 tabs + capture button
 | Tab | Contents |
@@ -92,7 +134,9 @@ Keyboard: `Cmd/Ctrl+N` quick-add, `/` search, `Esc` closes every dialog.
 | **Capture** (center) | *Scan* (camera → document pipeline) / *Type* (NL quick-add) — two taps from anywhere to a saved transaction |
 
 Settings behind the avatar. **Categories, Merchants, Reports, Goals, and More pages do
-not exist on mobile** — deleting those cramped duplicates *is* the redesign.
+not exist on mobile** — deleting those cramped duplicates *is* the redesign. Home +
+Activity + Capture is exactly 3 primary destinations — inside the 3–5 range research
+confirms is the ceiling before mobile navigation quality collapses (§0).
 
 ### Patterns borrowed from the best apps in the market
 - **Safe-to-spend hero** (Simplifi): the one number users check daily; automated
@@ -133,6 +177,19 @@ Logic, hooks, formatting, store slices — shared. Layout CSS — never shared.
 - **Charts**: Nivo only — no other chart library, no hand-rolled SVG charts. Colors follow
   §1 rule 3 (accent for the selected series, slate steps for the rest); axes/labels in ink;
   no chart legends when direct labeling fits.
+- **Motion — functional only** (§0 "calm interfaces"): animation communicates a state
+  change (loading, saved, expanded/collapsed, page transition) — never decoration.
+  Banned: confetti/celebration effects, bouncy/elastic easing, animated number
+  count-ups on every render, anything that exists purely to feel "delightful." A saved
+  transaction gets a brief, calm confirmation (e.g. a checkmark fade) — not a burst.
+- **Transparent AI — every insight/recommendation card must show its evidence** (§0):
+  the number(s) the claim is based on, visible inline or one tap away (never a bare
+  claim with no receipt) — this is also `docs/backlog.md` I6's existing "no number
+  without evidence" rule, now traced to the same research finding. Each card has a
+  visible **dismiss**, and dismissing something the app got wrong measurably suppresses
+  that insight type going forward (I2's "not a subscription" pattern generalizes here).
+  Cloud-AI-generated text (when the user's opt-in is on) is visually marked as such —
+  never presented identically to a rule-based, evidence-backed insight.
 
 ## 4b. Inspiration (calibrate the eye before building)
 
@@ -163,3 +220,17 @@ build new pages fresh; delete retired ones as their contents are absorbed.
 9. Sweep: delete all retired pages/CSS, dark-mode audit, alignment audit against §2
 
 Each step lands as its own commit, checked against this doc + `rules/code-review.md`.
+
+---
+
+## 6. Sources (§0 research, 2026-07-17)
+
+- [Muzli — 50 Best Dashboard Design Examples for 2026](https://muz.li/blog/best-dashboard-design-examples-inspirations-for-2026/)
+- [Onething Design — Top 10 Fintech UX Practices 2026](https://www.onething.design/post/top-10-fintech-ux-design-practices-2026)
+- [Yellow Slice — Fintech UX Design Trends 2026](https://www.yellowslice.in/blog/fintech-ux-design-trends-you-must-know)
+- [Recursion Agency — The Modern Color Palette: UI/UX Color Trends 2026](https://www.recursion.agency/blog/ui-color-trends-2026)
+- [IxDF — UI Color Palette 2026: Best Practices](https://ixdf.org/literature/article/ui-color-palette)
+- [Design Studio UIUX — Mobile Navigation UX Best Practices 2026](https://www.designstudiouiux.com/blog/mobile-navigation-ux/)
+- [UXPin — Mobile Navigation Design: 8 Types, Examples & Best Practices 2026](https://www.uxpin.com/studio/blog/mobile-navigation-examples/)
+- [Envato Elements — UX/UI Design Trends 2026: Calm Interfaces, Transparent AI, End of Visual Theatrics](https://elements.envato.com/learn/ux-ui-design-trends)
+- [Index.dev — 12 UI/UX Design Trends That Will Dominate 2026](https://www.index.dev/blog/ui-ux-design-trends)

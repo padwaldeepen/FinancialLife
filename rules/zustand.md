@@ -1,5 +1,27 @@
 # Zustand Rules
 
+## When state goes in Zustand vs `useState`
+
+**The trigger is ownership, not count.** A component with five `useState` calls for a
+form's fields is correct if that data is transient and local until submit — nobody else
+needs it, and it doesn't survive the component unmounting. A component with exactly one
+`useState` for data that's shared across components or persisted on the server is wrong.
+
+- **Zustand**: state that (a) more than one component reads/writes, (b) is fetched from
+  or persisted to the API, or (c) must survive navigation/unmount. Example: a user
+  setting like `ai_cloud_enabled` — it's server-owned, shown in both desktop and mobile
+  Settings, and other code (AI call sites) may need to read it later. This was fixed
+  2026-07-17: the AI toggle originally lived as local `useState` + its own `useEffect`
+  fetch duplicated in both Settings.tsx files — moved into `authSlice` (`user.ai_cloud_enabled`
+  + `updateAiCloudEnabled` action) so there's one fetch, one source of truth, both trees
+  read the same field.
+- **`useState`**: transient, single-component, form-local values — dialog open/closed,
+  in-progress form fields before submit, a `saving` spinner flag. Multiple `useState`
+  calls in one component are fine when every one of them is local by this test.
+
+If unsure, ask: "if the user opens this same data in the other device tree (desktop vs
+mobile) or navigates away and back, should it be there already?" Yes → Zustand.
+
 ## Store Architecture
 
 - Single bound store at `store/useBoundStore.ts` combining all slices
@@ -76,6 +98,18 @@ export const useBoundStore = create<StoreState>()(
     useShallow((s) => ({ user: s.auth.user, token: s.auth.token })),
   )
   ```
+
+## Gotcha: `get()` inside a slice only sees that slice's STATE, not its actions
+
+`namespaceSlice`'s `get` parameter returns `state.<namespace>` — the state fields object
+only. Actions are merged flat at the top level of the store, not under the namespace, so
+`get().someActionInThisSameSlice()` is `undefined()` and throws — silently breaking any
+`await` chain built on it (this shipped once: `login()` called `get().fetchCurrentUser()`,
+which crashed after a successful login and the app never navigated away from `/login`).
+**Fix**: call another action in the same slice by closing over `set`/logic directly (a
+local helper function inside the slice creator), not by fetching it off `get()`.
+`get()` is fine for reading this slice's *state* (e.g. `get().user` to read current value
+before an optimistic update) — just not for calling sibling actions.
 
 ## Outside React (Interceptors, Helpers)
 

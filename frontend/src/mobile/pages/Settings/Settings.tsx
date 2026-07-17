@@ -34,7 +34,6 @@ import { useShallow } from 'zustand/react/shallow'
 import { useAppTheme } from '../../../theme.tsx'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
-import api from '../../../auth/api.ts'
 import styles from './Settings.module.css'
 
 const accountIcons: Record<string, JSX.Element> = {
@@ -65,6 +64,8 @@ export const Settings = (): JSX.Element => {
   const {
     user,
     logout,
+    fetchCurrentUser,
+    updateAiCloudEnabled,
     accounts,
     fetchAccounts,
     createAccount,
@@ -79,6 +80,8 @@ export const Settings = (): JSX.Element => {
     useShallow((s) => ({
       user: s.auth.user,
       logout: s.logout,
+      fetchCurrentUser: s.fetchCurrentUser,
+      updateAiCloudEnabled: s.updateAiCloudEnabled,
       accounts: s.accounts.items,
       fetchAccounts: s.fetchAccounts,
       createAccount: s.createAccount,
@@ -109,22 +112,11 @@ export const Settings = (): JSX.Element => {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [deleteConfirmName, setDeleteConfirmName] = useState('')
 
-  const [aiCloud, setAiCloud] = useState(false)
-
-  useEffect(() => {
-    api
-      .get('/api/auth/me')
-      .then((res) => setAiCloud(Boolean(res.data?.ai_cloud_enabled)))
-      .catch(() => {})
-  }, [])
-
   const handleAiCloudToggle = async (enabled: boolean) => {
-    setAiCloud(enabled)
     try {
-      await api.put('/api/auth/me/ai-settings', { ai_cloud_enabled: enabled })
+      await updateAiCloudEnabled(enabled)
       toast.success(enabled ? 'Cloud AI enabled for your account' : 'Cloud AI disabled')
     } catch {
-      setAiCloud(!enabled)
       toast.error('Could not update AI settings')
     }
   }
@@ -132,7 +124,8 @@ export const Settings = (): JSX.Element => {
   useEffect(() => {
     fetchAccounts()
     fetchBudgets()
-  }, [fetchAccounts, fetchBudgets])
+    if (user && user.ai_cloud_enabled === undefined) fetchCurrentUser()
+  }, [fetchAccounts, fetchBudgets, fetchCurrentUser, user])
 
   const handleLogout = async () => {
     await logout()
@@ -424,7 +417,10 @@ export const Settings = (): JSX.Element => {
                 </Text>
               </Box>
             </Flex>
-            <Switch checked={aiCloud} onCheckedChange={handleAiCloudToggle} />
+            <Switch
+              checked={Boolean(user?.ai_cloud_enabled)}
+              onCheckedChange={handleAiCloudToggle}
+            />
           </Box>
         </Card>
       </Box>

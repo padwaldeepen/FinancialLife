@@ -69,10 +69,52 @@ Make the foundation safe before building on it.
 - [x] **T2 Deleted `ResponseCacheMiddleware`** (done 2026-07-17): stale-balance cache gone; balances update instantly after adding a transaction (verified)
 - [x] **T3 Auth libs replaced** (done 2026-07-17): PyJWT 2.10 + bcrypt 5.0; python-jose/passlib uninstalled; register→login→authed flows verified in the real app
 - [x] **T5 Cloud AI opt-in** (done 2026-07-17): per-user `ai_cloud_enabled` (migration c2d3e4f5a6b7), single provider layer, **NVIDIA + Groq deleted — Gemini only** (chat converted too); Settings toggle with warning on desktop + mobile; verified both directions (on → `ai_provider: gemini`; off → rules only, zero cloud calls)
-- [x] **T4 Dead-code pass** (done 2026-07-17): `core/cache.py` deleted (zero importers), README TanStack Query lie fixed, jose/passlib/NVIDIA/Groq config removed. *Remaining: full `depcheck`/`npm outdated` sweep*
-- [ ] **T6 Setup verification**: fresh containers + migrations + register→quick-add verified; *remaining: full clean-clone pass of the DEVELOPMENT.md §1 checklist (bills, reports, export)*
+- [x] **T4 Dead-code pass — complete** (done 2026-07-17): `core/cache.py` deleted (zero
+  importers), README TanStack Query lie fixed, jose/passlib/NVIDIA/Groq config removed.
+  Depcheck sweep: `@nivo/core` was an unused direct dependency (Nivo's chart packages
+  pull it in transitively) — removed, build re-verified clean. `ruff check .` on backend:
+  zero issues. `pip list --outdated`: only patch/minor bumps available (alembic, asyncpg,
+  fastapi, PyJWT, uvicorn) — noted, not chased; no urgent/major versions pending
+- [x] **T6 Setup verification — complete** (done 2026-07-17): full `DEVELOPMENT.md` §1
+  checklist run against the running app via Playwright MCP — register→login, quick-add
+  (`coffee 4.50` → parsed correctly, saved, appears in Activity), bill create, bill
+  linking, Reports charts, CSV export (file downloaded and its contents verified byte-for-byte
+  correct). **Two real bugs found and fixed along the way** (exactly what this ticket
+  exists to catch):
+  1. 🔴 `GET /api/bills/{id}/history` **500 error** — `func.date_trunc("month", ...)`
+     called separately in `select()`/`group_by()`/`order_by()` created three distinct
+     bind parameters; Postgres rejected the query as an invalid GROUP BY (`"transactions.date"
+     must appear in the GROUP BY clause"`) even though the SQL was textually identical
+     across clauses. Fixed by building the expression once and reusing the same object
+     (`backend/services/bill_service.py`) — the standard SQLAlchemy fix for this class of bug.
+  2. 🔴 **Bill→transaction linking silently broken from a cold start** — `BillDetail.tsx`
+     (both desktop and mobile) read the "link transaction" candidate list from the shared
+     `transactions` Zustand slice but never fetched it themselves; the list only had data
+     if the user happened to visit Activity/Home first in the same session. A user going
+     straight to Bills → Link Transaction after login saw "No unlinked transactions found"
+     even with matching transactions in the database. Fixed: both `BillDetail.tsx` files
+     now fetch transactions when the link dialog opens if not already loaded.
+  - **Known, deliberately deferred to Phase U** (not a T6 blocker — cosmetic staleness,
+    not incorrect data): after quick-add saves from the dashboard modal, Home's balance/
+    recent-activity don't refresh until the next navigation — the underlying transaction
+    *is* saved correctly (verified via Activity), Home's slices just aren't force-refreshed
+    on modal-close. `docs/backlog.md` U3/U4 need an explicit "force refresh on mutation
+    from elsewhere" step, not just the 30s staleness skip currently scoped there.
 - [x] Docs consolidated, stale reports deleted
 - [x] **Bonus fix**: `formatCurrency` used `Math.abs()` — negative balances displayed as positive money; fixed and verified (−$16.50 renders correctly)
+- [x] **State-ownership fix** (done 2026-07-17, caught by the project owner reviewing the
+  T5 diff): the AI cloud toggle was built as local `useState` + its own `useEffect` fetch,
+  duplicated in both desktop and mobile Settings — violates "Zustand for shared/server
+  state" (`rules/zustand.md`, which now documents the ownership test explicitly). Moved
+  into `authSlice`: `login`/`register`/`verifyToken` now hydrate the full user profile via
+  a new `fetchCurrentUser` action (`GET /api/auth/me`) so `auth.user` carries
+  `full_name`/`username`/`ai_cloud_enabled` everywhere instead of the slim token-response
+  fields; `updateAiCloudEnabled` action added with optimistic update + revert. **Found and
+  fixed a real bug while doing this**: called a sibling action via `get().fetchCurrentUser()`,
+  which is `undefined` inside `namespaceSlice` (get() only exposes state, not actions) —
+  broke the post-login promise chain silently (login succeeded but never navigated).
+  Fixed by closing over `set` directly; re-verified login/toggle end-to-end on both
+  viewports after the fix (`rules/zustand.md` now documents this trap for future work)
 
 ### Phase D — Data Model v2 (~1 week)
 Schema changes are cheapest now, before intelligence and scanning are built on top.
@@ -89,6 +131,14 @@ Full schema in `architecture-and-goals.md`. Summary:
 table-shaped (one page per DB table = Excel thinking). Keep the shell (auth flow,
 routing, axios interceptor, store infrastructure, theme); build the question-shaped
 page map from `design-system.md` §3 fresh; delete retired pages as they're absorbed.
+**Grounded in 2026 fintech UI/UX research** (`design-system.md` §0 — sources in §6):
+neutral+accent+semantic color structure, elevated-neutral (never pure white/black)
+backgrounds, flat/shadowless cards, bottom-nav-for-3-5-destinations (validates the
+3-tab mobile structure exactly), and two new rules the research surfaced — **calm
+motion** (functional only, no decorative/celebratory animation) and **transparent AI**
+(every insight card shows its evidence + a dismiss, cloud-generated text visually
+marked). The "70% of users abandon apps over complex navigation" finding is the
+standing justification for replacing the old 8-page table-shaped IA.
 - [ ] Design tokens + `theme.tsx` encode the 3-color system; every off-palette color deleted
 - [ ] **Desktop (5 pages)**: Home · Activity · Recurring (bills + subscriptions + budgets) · Insights (absorbs Reports + category analytics) · Manage (absorbs Settings, Categories, Merchants, Goals CRUD)
 - [ ] **Mobile (3 tabs + capture)**: Home · Activity · Capture; settings behind avatar; Categories/Merchants/Reports/Goals/More pages deleted

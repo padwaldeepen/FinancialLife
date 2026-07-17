@@ -105,9 +105,16 @@ async def get_bill_history(bill_id: int, user_id: int, db: AsyncSession) -> list
     )
     txs = result.scalars().all()
 
+    # Reuse a single date_trunc() expression object across select/group_by/order_by.
+    # Calling func.date_trunc("month", ...) separately in each clause creates a
+    # distinct bind parameter per call ($1, $5, $6, ...); Postgres then sees three
+    # different expressions and rejects the query ("must appear in GROUP BY"), even
+    # though they're textually identical. Reusing the same object makes SQLAlchemy
+    # reuse one bind parameter, so Postgres recognizes them as the same expression.
+    month_trunc = func.date_trunc("month", Transaction.date)
     monthly_result = await db.execute(
         select(
-            func.date_trunc("month", Transaction.date),
+            month_trunc,
             func.sum(Transaction.amount),
         )
         .where(
@@ -115,8 +122,8 @@ async def get_bill_history(bill_id: int, user_id: int, db: AsyncSession) -> list
             Transaction.user_id == user_id,
             Transaction.transaction_type == "expense",
         )
-        .group_by(func.date_trunc("month", Transaction.date))
-        .order_by(func.date_trunc("month", Transaction.date))
+        .group_by(month_trunc)
+        .order_by(month_trunc)
     )
     monthly_chart = [
         {"month": row[0].strftime("%Y-%m"), "amount": float(row[1])} for row in monthly_result.all()

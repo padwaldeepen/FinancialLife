@@ -16,6 +16,7 @@ import toast from 'react-hot-toast'
 import { useBoundStore } from '../../../../store/useBoundStore.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { formatCurrency } from '../../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../../shared/hooks/useActiveCurrency.ts'
 import styles from './BillDetail.module.css'
 
 interface BillDetailProps {
@@ -51,6 +52,7 @@ const frequencyLabel = (f: string) => {
 }
 
 export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
+  const currency = useActiveCurrency()
   const {
     billHistory,
     fetchBillHistory,
@@ -134,7 +136,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
               </Badge>
             )}
             <Text size="4" weight="bold">
-              {formatCurrency(bill.amount)}
+              {formatCurrency(bill.amount, currency)}
             </Text>
           </Flex>
         </Flex>
@@ -236,7 +238,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                   </Flex>
                   <Flex align="center" gap="2">
                     <Text size="2" weight="bold" className={styles.nowrap}>
-                      {formatCurrency(Number(tx.amount))}
+                      {formatCurrency(Number(tx.amount), currency)}
                     </Text>
                     <Button
                       size="1"
@@ -293,7 +295,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                     </Text>
                   </Flex>
                   <Text size="2" weight="bold">
-                    {formatCurrency(tx.amount)}
+                    {formatCurrency(tx.amount, currency)}
                   </Text>
                 </Flex>
               ))

@@ -17,6 +17,7 @@ import toast from 'react-hot-toast'
 import { useBoundStore } from '../../../../store/useBoundStore.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { formatCurrency } from '../../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../../shared/hooks/useActiveCurrency.ts'
 import styles from './BillDetail.module.css'
 
 interface BillDetailProps {
@@ -52,6 +53,7 @@ const frequencyLabel = (f: string) => {
 }
 
 export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
+  const currency = useActiveCurrency()
   const {
     billHistory,
     fetchBillHistory,
@@ -131,11 +133,11 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
           <Flex align="center" gap="2">
             {bill.is_variable && <Badge color="orange">Variable</Badge>}
             <Text size="5" weight="bold">
-              {formatCurrency(bill.amount)}
+              {formatCurrency(bill.amount, currency)}
               {bill.is_variable && bill.amount_estimated && (
                 <Text size="1" color="gray">
                   {' '}
-                  (est. {formatCurrency(bill.amount_estimated)})
+                  (est. {formatCurrency(bill.amount_estimated, currency)})
                 </Text>
               )}
             </Text>
@@ -245,7 +247,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                     </Flex>
                     <Flex align="center" gap="2">
                       <Text size="2" weight="bold">
-                        {formatCurrency(Number(tx.amount))}
+                        {formatCurrency(Number(tx.amount), currency)}
                       </Text>
                       <Button
                         size="1"
@@ -302,7 +304,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                       </Text>
                     </Flex>
                     <Text size="2" weight="bold">
-                      {formatCurrency(tx.amount)}
+                      {formatCurrency(tx.amount, currency)}
                     </Text>
                   </Flex>
                 ))

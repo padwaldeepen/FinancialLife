@@ -27,10 +27,13 @@ backend/
 - Consistent error format: `{ "detail": "message" }`
 
 ## Authentication
-- JWT via python-jose with HS256
-- Passwords hashed with bcrypt via passlib
+- JWT via `PyJWT` with HS256
+- Passwords hashed with `bcrypt` directly (no passlib — unmaintained)
 - Token expiry configurable via settings (default 30 min)
-- Protected routes use `get_current_user` dependency from `routers/auth.py`
+- Protected routes use `get_current_user` dependency from `routers/auth.py`; every
+  financial route additionally depends on `get_current_profile` (validates the
+  requested country profile belongs to the authenticated user — see `rules/database.md`
+  and `docs/architecture-and-goals.md`)
 
 ## AI / NL Parsing
 - No paid API calls (no OpenAI, no external services)
@@ -46,7 +49,8 @@ backend/
 ## Code Style
 - Type hints on all functions and parameters
 - Async for all route handlers; services can be sync if no I/O
-- No raw SQL — always use SQLAlchemy ORM
+- **Raw SQL via asyncpg, no ORM** — see `rules/database.md` for the full contract
+  (parameterized queries, connection pool, dataclass row types)
 - Use modern Python 3.12+ syntax: `list[str]` not `List[str]`, `str | None` not `Optional[str]`
 
 ## Formatting & Linting

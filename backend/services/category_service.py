@@ -1,6 +1,4 @@
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+import asyncpg
 
 from database.models import Category
 
@@ -87,128 +85,133 @@ SYSTEM_CATEGORIES: list[dict] = [
 ]
 
 
-async def seed_system_categories(db: AsyncSession) -> None:
-    result = await db.execute(select(Category.name).where(Category.is_system.is_(True)))
-    existing = {row[0] for row in result.all()}
+def _row_to_category(row: asyncpg.Record) -> Category:
+    return Category(**dict(row))
 
-    for group in SYSTEM_CATEGORIES:
-        if group["name"] in existing:
-            continue
 
-        parent = Category(
-            name=group["name"],
-            color=group["color"],
-            is_system=True,
-            user_id=None,
-        )
-        db.add(parent)
-        await db.flush()
+async def seed_system_categories(conn: asyncpg.Connection) -> None:
+    existing_rows = await conn.fetch("SELECT name FROM categories WHERE is_system = TRUE")
+    existing = {row["name"] for row in existing_rows}
 
-        for child_data in group["children"]:
-            child = Category(
-                name=child_data["name"],
-                color=child_data["color"],
-                is_system=True,
-                user_id=None,
-                parent_id=parent.id,
+    async with conn.transaction():
+        for group in SYSTEM_CATEGORIES:
+            if group["name"] in existing:
+                continue
+
+            parent_id = await conn.fetchval(
+                """INSERT INTO categories (name, color, is_system, user_id)
+                   VALUES ($1, $2, TRUE, NULL) RETURNING id""",
+                group["name"],
+                group["color"],
             )
-            db.add(child)
 
-    await db.commit()
+            for child in group["children"]:
+                await conn.execute(
+                    """INSERT INTO categories (name, color, is_system, user_id, parent_id)
+                       VALUES ($1, $2, TRUE, NULL, $3)""",
+                    child["name"],
+                    child["color"],
+                    parent_id,
+                )
 
 
-async def get_categories_for_user(user_id: int, db: AsyncSession) -> list[Category]:
-    result = await db.execute(
-        select(Category)
-        .options(selectinload(Category.children))
-        .where((Category.user_id == user_id) | (Category.is_system.is_(True)))
-        .order_by(Category.name)
+async def get_categories_for_user(user_id: int, conn: asyncpg.Connection) -> list[Category]:
+    rows = await conn.fetch(
+        """SELECT * FROM categories
+           WHERE user_id = $1 OR is_system = TRUE
+           ORDER BY name""",
+        user_id,
     )
-    return result.scalars().all()
+    return [_row_to_category(row) for row in rows]
 
 
-async def get_category(category_id: int, user_id: int | None, db: AsyncSession) -> Category | None:
-    stmt = select(Category).where(Category.id == category_id)
+async def get_category(
+    category_id: int, user_id: int | None, conn: asyncpg.Connection
+) -> Category | None:
     if user_id is not None:
-        stmt = stmt.where((Category.user_id == user_id) | (Category.is_system.is_(True)))
-    result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+        row = await conn.fetchrow(
+            """SELECT * FROM categories
+               WHERE id = $1 AND (user_id = $2 OR is_system = TRUE)""",
+            category_id,
+            user_id,
+        )
+    else:
+        row = await conn.fetchrow("SELECT * FROM categories WHERE id = $1", category_id)
+    return _row_to_category(row) if row else None
 
 
 async def create_category(
-    user_id: int, name: str, color: str, parent_id: int | None, db: AsyncSession
+    user_id: int, name: str, color: str, parent_id: int | None, conn: asyncpg.Connection
 ) -> Category:
-    category = Category(
-        name=name,
-        color=color,
-        user_id=user_id,
-        parent_id=parent_id,
-        is_system=False,
+    row = await conn.fetchrow(
+        """INSERT INTO categories (name, color, user_id, parent_id, is_system)
+           VALUES ($1, $2, $3, $4, FALSE) RETURNING *""",
+        name,
+        color,
+        user_id,
+        parent_id,
     )
-    db.add(category)
-    await db.flush()
-    return category
+    return _row_to_category(row)
 
 
 async def update_category(
     category_id: int,
     user_id: int,
     update_data: dict,
-    db: AsyncSession,
+    conn: asyncpg.Connection,
 ) -> Category | None:
-    category = await get_category(category_id, user_id, db)
+    category = await get_category(category_id, user_id, conn)
     if not category or category.is_system:
         return None
-    for field, value in update_data.items():
-        setattr(category, field, value)
-    await db.flush()
-    return category
+    if not update_data:
+        return category
+
+    set_clauses = [f"{field} = ${i + 2}" for i, field in enumerate(update_data)]
+    values = list(update_data.values())
+    row = await conn.fetchrow(
+        f"UPDATE categories SET {', '.join(set_clauses)} WHERE id = $1 RETURNING *",
+        category_id,
+        *values,
+    )
+    return _row_to_category(row)
 
 
-async def delete_category(category_id: int, user_id: int, db: AsyncSession) -> bool:
-    category = await get_category(category_id, user_id, db)
+async def delete_category(category_id: int, user_id: int, conn: asyncpg.Connection) -> bool:
+    category = await get_category(category_id, user_id, conn)
     if not category or category.is_system:
         return False
-    await db.delete(category)
-    await db.flush()
+    await conn.execute("DELETE FROM categories WHERE id = $1", category_id)
     return True
 
 
-async def get_system_categories(db: AsyncSession) -> list[Category]:
-    result = await db.execute(
-        select(Category)
-        .options(selectinload(Category.children))
-        .where(Category.is_system.is_(True))
-        .order_by(Category.name)
-    )
-    return result.scalars().all()
+async def get_system_categories(conn: asyncpg.Connection) -> list[Category]:
+    rows = await conn.fetch("SELECT * FROM categories WHERE is_system = TRUE ORDER BY name")
+    return [_row_to_category(row) for row in rows]
 
 
-async def get_category_descendants(category_id: int, user_id: int, db: AsyncSession) -> list[int]:
+async def get_category_descendants(
+    category_id: int, user_id: int, conn: asyncpg.Connection
+) -> list[int]:
     """Recursively get all descendant category IDs under the given category."""
     ids: list[int] = [category_id]
-    result = await db.execute(
-        select(Category.id).where(
-            Category.parent_id == category_id,
-            (Category.user_id == user_id) | (Category.is_system.is_(True)),
-        )
+    rows = await conn.fetch(
+        """SELECT id FROM categories
+           WHERE parent_id = $1 AND (user_id = $2 OR is_system = TRUE)""",
+        category_id,
+        user_id,
     )
-    child_ids = result.scalars().all()
-    for child_id in child_ids:
-        descendant_ids = await get_category_descendants(child_id, user_id, db)
-        ids.extend(descendant_ids)
+    for row in rows:
+        ids.extend(await get_category_descendants(row["id"], user_id, conn))
     return ids
 
 
-async def get_leaf_categories(user_id: int, db: AsyncSession) -> list[Category]:
+async def get_leaf_categories(user_id: int, conn: asyncpg.Connection) -> list[Category]:
     """Get all categories that have no children (leaf nodes)."""
-    result = await db.execute(
-        select(Category)
-        .options(selectinload(Category.children))
-        .where(
-            (Category.user_id == user_id) | (Category.is_system.is_(True)),
-        )
-        .order_by(Category.name)
+    rows = await conn.fetch(
+        """SELECT c.* FROM categories c
+           WHERE (c.user_id = $1 OR c.is_system = TRUE)
+             AND NOT EXISTS (SELECT 1 FROM categories child WHERE child.parent_id = c.id)
+           ORDER BY c.name""",
+        user_id,
     )
-    all_cats = result.scalars().all()
-    return [c for c in all_cats if not c.children]
+    return [_row_to_category(row) for row in rows]

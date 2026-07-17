@@ -1,225 +1,170 @@
+"""Type hints only — NOT database-mapped. No ORM anywhere in this project (see
+rules/database.md). Each dataclass is a typed bag of the columns for one row, built
+manually from an asyncpg Record after a raw SQL query: `Account(**dict(row))`.
+Related data (e.g. a transaction's category name) comes from an explicit JOIN in the
+query, never from touching an attribute — there is no lazy loading."""
+
+from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-    ForeignKey,
-    Index,
-    Integer,
-    Numeric,
-    String,
-    Text,
-    UniqueConstraint,
-    func,
-)
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from database.session import Base
+# Country -> currency is fixed at profile creation (architecture-and-goals.md
+# "Country & currency rules"). One profile = one currency, always, forever.
+COUNTRY_CURRENCY: dict[str, str] = {"US": "USD", "IN": "INR", "CA": "CAD"}
 
 
-class Merchant(Base):
-    __tablename__ = "merchants"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    name: Mapped[str] = mapped_column(String)
-    normalized_name: Mapped[str] = mapped_column(String, index=True)
-    aliases: Mapped[list[str] | None] = mapped_column(JSONB, default=None)
-    is_hidden: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-    user: Mapped["User"] = relationship(back_populates="merchants")
-    transactions: Mapped[list["Transaction"]] = relationship(back_populates="merchant")
-
-
-class User(Base):
-    __tablename__ = "users"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    email: Mapped[str] = mapped_column(String, unique=True, index=True)
-    username: Mapped[str] = mapped_column(String, unique=True, index=True)
-    hashed_password: Mapped[str] = mapped_column(String)
-    full_name: Mapped[str | None] = mapped_column(String, default=None)
-    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    ai_cloud_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
-
-    accounts: Mapped[list["Account"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
-    transactions: Mapped[list["Transaction"]] = relationship(back_populates="user")
-    budgets: Mapped[list["Budget"]] = relationship(back_populates="user")
-    categories: Mapped[list["Category"]] = relationship(back_populates="user")
-    merchants: Mapped[list["Merchant"]] = relationship(back_populates="user")
-    bills: Mapped[list["Bill"]] = relationship(back_populates="user")
-    goals: Mapped[list["Goal"]] = relationship(back_populates="user")
+@dataclass
+class User:
+    id: int
+    email: str
+    username: str
+    hashed_password: str
+    full_name: str | None
+    is_admin: bool
+    is_active: bool
+    ai_cloud_enabled: bool
+    created_at: datetime
+    updated_at: datetime | None = None
 
 
-class Category(Base):
-    __tablename__ = "categories"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    name: Mapped[str] = mapped_column(String)
-    color: Mapped[str] = mapped_column(String, default="#6B7280")
-    icon: Mapped[str | None] = mapped_column(String, default=None)
-    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
-    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
-    parent_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-    user: Mapped[User | None] = relationship(back_populates="categories")
-    parent: Mapped["Category | None"] = relationship(
-        back_populates="children", remote_side="Category.id"
-    )
-    children: Mapped[list["Category"]] = relationship(back_populates="parent")
-    transactions: Mapped[list["Transaction"]] = relationship(back_populates="category")
-    budgets: Mapped[list["Budget"]] = relationship(back_populates="category")
+@dataclass
+class Profile:
+    id: int
+    user_id: int
+    country: str
+    currency: str
+    created_at: datetime
 
 
-class Account(Base):
-    __tablename__ = "accounts"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    name: Mapped[str] = mapped_column(String)
-    type: Mapped[str] = mapped_column(String)
-    currency: Mapped[str] = mapped_column(String, default="USD")
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
-
-    user: Mapped[User] = relationship(back_populates="accounts")
-    transactions: Mapped[list["Transaction"]] = relationship(back_populates="account")
+@dataclass
+class Category:
+    id: int
+    name: str
+    color: str
+    icon: str | None
+    user_id: int | None
+    is_system: bool
+    parent_id: int | None
+    created_at: datetime
 
 
-class Transaction(Base):
-    __tablename__ = "transactions"
-
-    __table_args__ = (
-        Index("ix_transactions_user_date", "user_id", "date"),
-        Index("ix_transactions_user_type", "user_id", "transaction_type"),
-        Index("ix_transactions_account", "account_id"),
-        Index("ix_transactions_category", "category_id"),
-        Index("ix_transactions_merchant", "merchant_id"),
-    )
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    amount: Mapped[float] = mapped_column(Numeric(12, 2))
-    description: Mapped[str] = mapped_column(String)
-    transaction_type: Mapped[str] = mapped_column(String)
-    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    merchant_id: Mapped[int | None] = mapped_column(ForeignKey("merchants.id"), default=None)
-    bill_id: Mapped[int | None] = mapped_column(ForeignKey("bills.id"), default=None)
-    goal_id: Mapped[int | None] = mapped_column(ForeignKey("goals.id"), default=None)
-    is_pending: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
-    date: Mapped[datetime] = mapped_column(DateTime)
-    notes: Mapped[str | None] = mapped_column(Text, default=None)
-    ai_categorized: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
-
-    user: Mapped[User] = relationship(back_populates="transactions")
-    account: Mapped[Account] = relationship(back_populates="transactions")
-    category: Mapped[Category | None] = relationship(back_populates="transactions")
-    merchant: Mapped["Merchant | None"] = relationship(back_populates="transactions")
-    bill_links: Mapped[list["TransactionBillLink"]] = relationship(
-        back_populates="transaction", cascade="all, delete-orphan"
-    )
+@dataclass
+class Merchant:
+    id: int
+    profile_id: int
+    name: str
+    normalized_name: str
+    aliases: list[str] | None
+    is_hidden: bool
+    created_at: datetime
 
 
-class Budget(Base):
-    __tablename__ = "budgets"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    name: Mapped[str] = mapped_column(String)
-    amount: Mapped[float] = mapped_column(Numeric(12, 2))
-    period: Mapped[str] = mapped_column(String)
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    start_date: Mapped[datetime] = mapped_column(DateTime)
-    end_date: Mapped[datetime | None] = mapped_column(DateTime, default=None)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
-
-    user: Mapped[User] = relationship(back_populates="budgets")
-    category: Mapped[Category | None] = relationship(back_populates="budgets")
-
-    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_budget_user_name"),)
+@dataclass
+class Account:
+    id: int
+    profile_id: int
+    name: str
+    type: str
+    is_active: bool
+    sort_order: int
+    created_at: datetime
+    updated_at: datetime | None = None
 
 
-class Bill(Base):
-    __tablename__ = "bills"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    name: Mapped[str] = mapped_column(String)
-    amount: Mapped[float] = mapped_column(Numeric(12, 2))
-    amount_estimated: Mapped[float | None] = mapped_column(Numeric(12, 2), default=None)
-    frequency: Mapped[str] = mapped_column(String)
-    due_day: Mapped[int] = mapped_column(Integer)
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
-    merchant_id: Mapped[int | None] = mapped_column(ForeignKey("merchants.id"))
-    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    is_variable: Mapped[bool] = mapped_column(Boolean, default=False)
-    notes: Mapped[str | None] = mapped_column(Text, default=None)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
-
-    user: Mapped[User] = relationship(back_populates="bills")
-    category: Mapped[Category | None] = relationship()
-    merchant: Mapped["Merchant | None"] = relationship()
-    account: Mapped["Account"] = relationship()
-    transaction_links: Mapped[list["TransactionBillLink"]] = relationship(
-        back_populates="bill", cascade="all, delete-orphan"
-    )
+@dataclass
+class Transaction:
+    id: int
+    amount: float
+    description: str
+    transaction_type: str
+    account_id: int
+    profile_id: int
+    category_id: int | None = None
+    merchant_id: int | None = None
+    bill_id: int | None = None
+    goal_id: int | None = None
+    is_pending: bool = False
+    is_recurring: bool = False
+    date: datetime | None = None
+    notes: str | None = None
+    ai_categorized: bool = False
+    source: str = "manual"
+    import_hash: str | None = None
+    document_id: int | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
-class TransactionBillLink(Base):
-    __tablename__ = "transaction_bill_links"
-
-    __table_args__ = (
-        UniqueConstraint("transaction_id", "bill_id", name="uq_transaction_bill_link"),
-    )
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    transaction_id: Mapped[int] = mapped_column(ForeignKey("transactions.id"), index=True)
-    bill_id: Mapped[int] = mapped_column(ForeignKey("bills.id"), index=True)
-    period_start: Mapped[datetime] = mapped_column(DateTime)
-    period_end: Mapped[datetime] = mapped_column(DateTime)
-    is_auto_linked: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-    transaction: Mapped["Transaction"] = relationship()
-    bill: Mapped["Bill"] = relationship(back_populates="transaction_links")
+@dataclass
+class Budget:
+    id: int
+    name: str
+    amount: float
+    period: str
+    profile_id: int
+    start_date: datetime
+    category_id: int | None = None
+    end_date: datetime | None = None
+    is_active: bool = True
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
-class Goal(Base):
-    __tablename__ = "goals"
+@dataclass
+class Bill:
+    id: int
+    profile_id: int
+    name: str
+    amount: float
+    frequency: str
+    due_day: int
+    account_id: int
+    amount_estimated: float | None = None
+    category_id: int | None = None
+    merchant_id: int | None = None
+    is_active: bool = True
+    is_variable: bool = False
+    notes: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    name: Mapped[str] = mapped_column(String)
-    target_amount: Mapped[float] = mapped_column(Numeric(12, 2))
-    current_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    monthly_contribution: Mapped[float | None] = mapped_column(Numeric(12, 2), default=None)
-    type: Mapped[str] = mapped_column(String)
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
-    deadline: Mapped[datetime | None] = mapped_column(DateTime, default=None)
-    icon: Mapped[str | None] = mapped_column(String, default=None)
-    color: Mapped[str | None] = mapped_column(String, default=None)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
-    user: Mapped[User] = relationship(back_populates="goals")
-    category: Mapped[Category | None] = relationship()
+@dataclass
+class TransactionBillLink:
+    id: int
+    transaction_id: int
+    bill_id: int
+    period_start: datetime
+    period_end: datetime
+    is_auto_linked: bool
+    created_at: datetime
+
+
+@dataclass
+class Goal:
+    id: int
+    profile_id: int
+    name: str
+    target_amount: float
+    type: str
+    current_amount: float = 0.0
+    monthly_contribution: float | None = None
+    category_id: int | None = None
+    deadline: datetime | None = None
+    icon: str | None = None
+    color: str | None = None
+    is_active: bool = True
+    sort_order: int = 0
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass
+class Document:
+    id: int
+    profile_id: int
+    kind: str
+    file_path: str
+    mime_type: str
+    status: str
+    extracted_json: dict | None
+    uploaded_at: datetime

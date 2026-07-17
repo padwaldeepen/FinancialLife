@@ -5,6 +5,7 @@ import { Wallet, PiggyBank, CreditCard, TrendingUp, RefreshCw } from 'lucide-rea
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency, formatDate } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Home.module.css'
 
 interface Transaction {
@@ -48,6 +49,7 @@ const accountColors: Record<string, string> = {
 const PULL_THRESHOLD = 80
 
 export const Home = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const navigate = useNavigate()
   const {
     accounts,
@@ -173,7 +175,7 @@ export const Home = (): JSX.Element => {
             Total Balance
           </Text>
           <Heading size="7" className={styles.balanceAmount}>
-            {formatCurrency(totalBalance)}
+            {formatCurrency(totalBalance, currency)}
           </Heading>
           <Text size="1" color="gray">
             {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
@@ -207,7 +209,7 @@ export const Home = (): JSX.Element => {
                     </Text>
                   </Box>
                   <Text size="4" weight="bold" className={styles.accountBalance}>
-                    {formatCurrency(account.balance)}
+                    {formatCurrency(account.balance, currency)}
                   </Text>
                 </Flex>
               </Card>
@@ -247,7 +249,7 @@ export const Home = (): JSX.Element => {
                     color={t.transaction_type === 'income' ? 'green' : 'red'}
                   >
                     {t.transaction_type === 'income' ? '+' : '-'}
-                    {formatCurrency(t.amount)}
+                    {formatCurrency(t.amount, currency)}
                   </Text>
                 </Flex>
               ))}
@@ -282,7 +284,7 @@ export const Home = (): JSX.Element => {
                   </Flex>
                   <Text size="2" weight="bold" color={bill.has_paid ? 'green' : undefined}>
                     {bill.has_paid ? '✓ ' : ''}
-                    {formatCurrency(bill.amount)}
+                    {formatCurrency(bill.amount, currency)}
                   </Text>
                 </Flex>
               ))}

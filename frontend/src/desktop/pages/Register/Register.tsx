@@ -1,31 +1,68 @@
-import { useState, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Box, Flex, Heading, Text, Button, Card, TextField } from '@radix-ui/themes'
+import { Box, Flex, Heading, Text, Button, Card, TextField, Select } from '@radix-ui/themes'
 import { Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import type { Country } from '../../../auth/types.ts'
+import type { RegisterFormErrors } from '../../../store/slices/registerFormSlice.ts'
 import styles from './Register.module.css'
 
+const COUNTRIES: { value: Country; label: string }[] = [
+  { value: 'US', label: 'United States (USD)' },
+  { value: 'IN', label: 'India (INR)' },
+  { value: 'CA', label: 'Canada (CAD)' },
+]
+
 export const Register = (): JSX.Element => {
-  const register = useBoundStore((s) => s.register)
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(false)
-  const [fullName, setFullName] = useState('')
-  const [username, setUsername] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [errors, setErrors] = useState<{
-    fullName?: string
-    username?: string
-    email?: string
-    password?: string
-    confirmPassword?: string
-  }>({})
+  const {
+    register,
+    fullName,
+    username,
+    email,
+    password,
+    confirmPassword,
+    country,
+    showPassword,
+    submitting,
+    errors,
+    setField,
+    toggleShowPassword,
+    setSubmitting,
+    setErrors,
+    clearFieldError,
+    resetForm,
+  } = useBoundStore(
+    useShallow((s) => ({
+      register: s.register,
+      fullName: s.registerForm.fullName,
+      username: s.registerForm.username,
+      email: s.registerForm.email,
+      password: s.registerForm.password,
+      confirmPassword: s.registerForm.confirmPassword,
+      country: s.registerForm.country,
+      showPassword: s.registerForm.showPassword,
+      submitting: s.registerForm.submitting,
+      errors: s.registerForm.errors,
+      setField: s.setRegisterField,
+      toggleShowPassword: s.toggleRegisterShowPassword,
+      setSubmitting: s.setRegisterSubmitting,
+      setErrors: s.setRegisterErrors,
+      clearFieldError: s.clearRegisterFieldError,
+      resetForm: s.resetRegisterForm,
+    })),
+  )
+
+  // A form left half-filled on a previous visit must never leak into a fresh one.
+  useEffect(() => {
+    resetForm()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const validate = () => {
-    const e: typeof errors = {}
+    const e: RegisterFormErrors = {}
     if (!fullName) e.fullName = 'Full name is required'
     else if (fullName.trim().length < 2) e.fullName = 'Minimum 2 characters'
     if (!username) e.username = 'Username is required'
@@ -47,9 +84,10 @@ export const Register = (): JSX.Element => {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validate()) return
-    setLoading(true)
+    setSubmitting(true)
     try {
-      await register(email, password, fullName, username)
+      await register(email, password, country, fullName, username)
+      resetForm()
       navigate('/')
     } catch (error: any) {
       const detail = error.response?.data?.detail
@@ -58,7 +96,7 @@ export const Register = (): JSX.Element => {
         : detail || 'Registration failed'
       toast.error(msg)
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -91,8 +129,8 @@ export const Register = (): JSX.Element => {
                   placeholder="Jane Doe"
                   value={fullName}
                   onChange={(e) => {
-                    setFullName(e.target.value)
-                    setErrors((p) => ({ ...p, fullName: undefined }))
+                    setField('fullName', e.target.value)
+                    clearFieldError('fullName')
                   }}
                   autoComplete="name"
                   className={styles.input}
@@ -115,8 +153,8 @@ export const Register = (): JSX.Element => {
                   placeholder="janedoe"
                   value={username}
                   onChange={(e) => {
-                    setUsername(e.target.value)
-                    setErrors((p) => ({ ...p, username: undefined }))
+                    setField('username', e.target.value)
+                    clearFieldError('username')
                   }}
                   autoComplete="username"
                   className={styles.input}
@@ -139,8 +177,8 @@ export const Register = (): JSX.Element => {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => {
-                    setEmail(e.target.value)
-                    setErrors((p) => ({ ...p, email: undefined }))
+                    setField('email', e.target.value)
+                    clearFieldError('email')
                   }}
                   autoComplete="email"
                   className={styles.input}
@@ -163,8 +201,8 @@ export const Register = (): JSX.Element => {
                   placeholder="At least 8 characters"
                   value={password}
                   onChange={(e) => {
-                    setPassword(e.target.value)
-                    setErrors((p) => ({ ...p, password: undefined }))
+                    setField('password', e.target.value)
+                    clearFieldError('password')
                   }}
                   autoComplete="new-password"
                   className={styles.input}
@@ -174,7 +212,7 @@ export const Register = (): JSX.Element => {
                       variant="ghost"
                       size="1"
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={toggleShowPassword}
                       tabIndex={-1}
                     >
                       {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -199,8 +237,8 @@ export const Register = (): JSX.Element => {
                   placeholder="Re-enter password"
                   value={confirmPassword}
                   onChange={(e) => {
-                    setConfirmPassword(e.target.value)
-                    setErrors((p) => ({ ...p, confirmPassword: undefined }))
+                    setField('confirmPassword', e.target.value)
+                    clearFieldError('confirmPassword')
                   }}
                   autoComplete="new-password"
                   className={styles.input}
@@ -212,7 +250,29 @@ export const Register = (): JSX.Element => {
                 )}
               </Flex>
 
-              <Button type="submit" size="3" loading={loading} mt="2">
+              <Flex direction="column" gap="1">
+                <Text size="2" weight="medium">
+                  Country
+                </Text>
+                <Select.Root
+                  value={country}
+                  onValueChange={(v) => setField('country', v as Country)}
+                >
+                  <Select.Trigger className={styles.input} />
+                  <Select.Content>
+                    {COUNTRIES.map((c) => (
+                      <Select.Item key={c.value} value={c.value}>
+                        {c.label}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select.Root>
+                <Text size="1" color="gray">
+                  Sets your currency — you can add another country later in Manage
+                </Text>
+              </Flex>
+
+              <Button type="submit" size="3" loading={submitting} mt="2">
                 Create account
               </Button>
             </Flex>

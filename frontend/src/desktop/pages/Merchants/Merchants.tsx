@@ -20,9 +20,11 @@ import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Merchants.module.css'
 
 export const Merchants = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const {
     merchants,
     loading,
@@ -233,7 +235,7 @@ export const Merchants = (): JSX.Element => {
                 </Text>
               </Box>
               <Text size="3" weight="bold" color="red">
-                {formatCurrency(merchant.total_spent)}
+                {formatCurrency(merchant.total_spent, currency)}
               </Text>
             </Flex>
           </Card>
@@ -262,7 +264,7 @@ export const Merchants = (): JSX.Element => {
                     Total Spent
                   </Text>
                   <Text size="5" weight="bold" color="red">
-                    {formatCurrency(detail.total_spent)}
+                    {formatCurrency(detail.total_spent, currency)}
                   </Text>
                 </Box>
                 <Box>
@@ -301,7 +303,7 @@ export const Merchants = (): JSX.Element => {
                     Total Income
                   </Text>
                   <Text size="3" weight="bold" color="green">
-                    {formatCurrency(detail.total_income)}
+                    {formatCurrency(detail.total_income, currency)}
                   </Text>
                 </Box>
               )}
@@ -374,7 +376,7 @@ export const Merchants = (): JSX.Element => {
                               <Text size="2">{c.category_name}</Text>
                             </Flex>
                             <Text size="2">
-                              {formatCurrency(c.total)} ({c.count}x)
+                              {formatCurrency(c.total, currency)} ({c.count}x)
                             </Text>
                           </Flex>
                         ))}
@@ -405,7 +407,7 @@ export const Merchants = (): JSX.Element => {
                             color={tx.transaction_type === 'expense' ? 'red' : 'green'}
                           >
                             {tx.transaction_type === 'expense' ? '-' : '+'}
-                            {formatCurrency(tx.amount)}
+                            {formatCurrency(tx.amount, currency)}
                           </Text>
                         </Flex>
                       ))}
@@ -506,7 +508,7 @@ export const Merchants = (): JSX.Element => {
                         {pair.merchant_a.name}
                       </Text>
                       <Text size="1" color="gray">
-                        {formatCurrency(pair.merchant_a.total_spent)} spent
+                        {formatCurrency(pair.merchant_a.total_spent, currency)} spent
                       </Text>
                     </Box>
                     <Text size="1" color="gray">
@@ -517,7 +519,7 @@ export const Merchants = (): JSX.Element => {
                         {pair.merchant_b.name}
                       </Text>
                       <Text size="1" color="gray">
-                        {formatCurrency(pair.merchant_b.total_spent)} spent
+                        {formatCurrency(pair.merchant_b.total_spent, currency)} spent
                       </Text>
                     </Box>
                   </Flex>

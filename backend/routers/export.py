@@ -2,14 +2,13 @@ import csv
 import io
 from datetime import date, datetime, timedelta
 
+import asyncpg
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Account, Category, Merchant, Transaction, User
+from database.models import Profile
 from database.session import get_db
-from routers.auth import get_current_user
+from routers.auth import get_current_profile
 
 router = APIRouter()
 
@@ -18,77 +17,60 @@ router = APIRouter()
 async def export_csv(
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    conditions = [Transaction.user_id == current_user.id]
+    conditions = ["t.profile_id = $1"]
+    params: list = [profile.id]
 
     if date_from:
         try:
             dt_from = datetime.strptime(date_from, "%Y-%m-%d")
-            conditions.append(Transaction.date >= dt_from)
+            params.append(dt_from)
+            conditions.append(f"t.date >= ${len(params)}")
         except ValueError:
             pass
     else:
-        conditions.append(Transaction.date >= datetime.now() - timedelta(days=365))
+        params.append(datetime.now() - timedelta(days=365))
+        conditions.append(f"t.date >= ${len(params)}")
 
     if date_to:
         try:
             dt_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
-            conditions.append(Transaction.date < dt_to)
+            params.append(dt_to)
+            conditions.append(f"t.date < ${len(params)}")
         except ValueError:
             pass
 
-    result = await db.execute(
-        select(Transaction).where(*conditions).order_by(Transaction.date.desc())
+    rows = await conn.fetch(
+        f"""SELECT t.date, t.description, t.amount, t.transaction_type, t.notes,
+                   c.name AS category_name, m.name AS merchant_name, a.name AS account_name
+            FROM transactions t
+            LEFT JOIN categories c ON c.id = t.category_id
+            LEFT JOIN merchants m ON m.id = t.merchant_id
+            LEFT JOIN accounts a ON a.id = t.account_id
+            WHERE {" AND ".join(conditions)}
+            ORDER BY t.date DESC""",
+        *params,
     )
-    transactions = result.scalars().all()
-
-    cat_ids = {tx.category_id for tx in transactions if tx.category_id}
-    merchant_ids = {tx.merchant_id for tx in transactions if tx.merchant_id}
-    account_ids = {tx.account_id for tx in transactions if tx.account_id}
-
-    cats = {}
-    if cat_ids:
-        cat_result = await db.execute(select(Category).where(Category.id.in_(cat_ids)))
-        cats = {c.id: c.name for c in cat_result.scalars()}
-
-    merchants = {}
-    if merchant_ids:
-        m_result = await db.execute(select(Merchant).where(Merchant.id.in_(merchant_ids)))
-        merchants = {m.id: m.name for m in m_result.scalars()}
-
-    accounts = {}
-    if account_ids:
-        a_result = await db.execute(select(Account).where(Account.id.in_(account_ids)))
-        accounts = {a.id: a.name for a in a_result.scalars()}
 
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
-        [
-            "Date",
-            "Description",
-            "Amount",
-            "Type",
-            "Category",
-            "Merchant",
-            "Account",
-            "Notes",
-        ]
+        ["Date", "Description", "Amount", "Type", "Category", "Merchant", "Account", "Notes"]
     )
 
-    for tx in transactions:
+    for row in rows:
         writer.writerow(
             [
-                tx.date.strftime("%Y-%m-%d"),
-                tx.description,
-                f"{tx.amount:.2f}",
-                tx.transaction_type,
-                cats.get(tx.category_id, ""),
-                merchants.get(tx.merchant_id, ""),
-                accounts.get(tx.account_id, ""),
-                tx.notes or "",
+                row["date"].strftime("%Y-%m-%d"),
+                row["description"],
+                f"{float(row['amount']):.2f}",
+                row["transaction_type"],
+                row["category_name"] or "",
+                row["merchant_name"] or "",
+                row["account_name"] or "",
+                row["notes"] or "",
             ]
         )
 

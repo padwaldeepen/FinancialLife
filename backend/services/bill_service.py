@@ -1,38 +1,47 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+import asyncpg
 
 from core.logging import get_logger
-from database.models import Bill, Transaction, TransactionBillLink
+from database.models import TransactionBillLink
 
 log = get_logger(__name__)
 
+_BILL_JOIN = """
+    SELECT b.*, c.name AS category_name, c.color AS category_color,
+           m.name AS merchant_name, a.name AS account_name
+    FROM bills b
+    LEFT JOIN categories c ON c.id = b.category_id
+    LEFT JOIN merchants m ON m.id = b.merchant_id
+    LEFT JOIN accounts a ON a.id = b.account_id
+"""
 
-async def get_bills(user_id: int, db: AsyncSession) -> list[Bill]:
-    result = await db.execute(
-        select(Bill)
-        .options(joinedload(Bill.category), joinedload(Bill.account), joinedload(Bill.merchant))
-        .where(Bill.user_id == user_id, Bill.is_active)
-        .order_by(Bill.due_day, Bill.name)
+
+def _row_to_bill_dict(row: asyncpg.Record) -> dict:
+    return dict(row)
+
+
+async def get_bills(profile_id: int, conn: asyncpg.Connection) -> list[dict]:
+    rows = await conn.fetch(
+        _BILL_JOIN + " WHERE b.profile_id = $1 AND b.is_active ORDER BY b.due_day, b.name",
+        profile_id,
     )
-    return result.unique().scalars().all()
+    return [_row_to_bill_dict(r) for r in rows]
 
 
-async def get_bill(bill_id: int, user_id: int, db: AsyncSession) -> Bill | None:
-    result = await db.execute(
-        select(Bill)
-        .options(joinedload(Bill.category), joinedload(Bill.account), joinedload(Bill.merchant))
-        .where(Bill.id == bill_id, Bill.user_id == user_id)
+async def get_bill(bill_id: int, profile_id: int, conn: asyncpg.Connection) -> dict | None:
+    row = await conn.fetchrow(
+        _BILL_JOIN + " WHERE b.id = $1 AND b.profile_id = $2",
+        bill_id,
+        profile_id,
     )
-    return result.scalar_one_or_none()
+    return _row_to_bill_dict(row) if row else None
 
 
 async def create_bill(
-    db: AsyncSession,
-    user_id: int,
+    conn: asyncpg.Connection,
+    profile_id: int,
     name: str,
     amount: float,
     frequency: str,
@@ -43,134 +52,121 @@ async def create_bill(
     amount_estimated: float | None = None,
     is_variable: bool = False,
     notes: str | None = None,
-) -> Bill:
-    bill = Bill(
-        user_id=user_id,
-        name=name,
-        amount=amount,
-        amount_estimated=amount_estimated,
-        frequency=frequency,
-        due_day=due_day,
-        category_id=category_id,
-        merchant_id=merchant_id,
-        account_id=account_id,
-        is_active=True,
-        is_variable=is_variable,
-        notes=notes,
+) -> dict:
+    bill_id = await conn.fetchval(
+        """INSERT INTO bills
+             (profile_id, name, amount, amount_estimated, frequency, due_day,
+              category_id, merchant_id, account_id, is_active, is_variable, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, $10, $11)
+           RETURNING id""",
+        profile_id,
+        name,
+        amount,
+        amount_estimated,
+        frequency,
+        due_day,
+        category_id,
+        merchant_id,
+        account_id,
+        is_variable,
+        notes,
     )
-    db.add(bill)
-    await db.flush()
-    await db.refresh(bill)
-    result = await db.execute(
-        select(Bill)
-        .options(joinedload(Bill.category), joinedload(Bill.account), joinedload(Bill.merchant))
-        .where(Bill.id == bill.id)
-    )
-    return result.unique().scalar_one()
+    return await get_bill(bill_id, profile_id, conn)
 
 
-async def update_bill(bill_id: int, user_id: int, data: dict, db: AsyncSession) -> Bill | None:
-    bill = await get_bill(bill_id, user_id, db)
-    if not bill:
+async def update_bill(
+    bill_id: int, profile_id: int, data: dict, conn: asyncpg.Connection
+) -> dict | None:
+    existing = await get_bill(bill_id, profile_id, conn)
+    if not existing:
         return None
-    for field, value in data.items():
-        setattr(bill, field, value)
-    await db.flush()
-    result = await db.execute(
-        select(Bill)
-        .options(joinedload(Bill.category), joinedload(Bill.account), joinedload(Bill.merchant))
-        .where(Bill.id == bill.id)
-    )
-    return result.unique().scalar_one_or_none()
-
-
-async def delete_bill(bill_id: int, user_id: int, db: AsyncSession) -> bool:
-    bill = await get_bill(bill_id, user_id, db)
-    if not bill:
-        return False
-    await db.delete(bill)
-    await db.flush()
-    return True
-
-
-async def get_bill_history(bill_id: int, user_id: int, db: AsyncSession) -> list[dict]:
-    result = await db.execute(
-        select(Transaction)
-        .options(joinedload(Transaction.category))
-        .where(
-            Transaction.bill_id == bill_id,
-            Transaction.user_id == user_id,
+    if data:
+        set_clauses = [f"{field} = ${i + 3}" for i, field in enumerate(data)]
+        await conn.execute(
+            f"UPDATE bills SET {', '.join(set_clauses)} WHERE id = $1 AND profile_id = $2",
+            bill_id,
+            profile_id,
+            *data.values(),
         )
-        .order_by(Transaction.date.desc())
-    )
-    txs = result.scalars().all()
+    return await get_bill(bill_id, profile_id, conn)
 
-    # Reuse a single date_trunc() expression object across select/group_by/order_by.
-    # Calling func.date_trunc("month", ...) separately in each clause creates a
-    # distinct bind parameter per call ($1, $5, $6, ...); Postgres then sees three
-    # different expressions and rejects the query ("must appear in GROUP BY"), even
-    # though they're textually identical. Reusing the same object makes SQLAlchemy
-    # reuse one bind parameter, so Postgres recognizes them as the same expression.
-    month_trunc = func.date_trunc("month", Transaction.date)
-    monthly_result = await db.execute(
-        select(
-            month_trunc,
-            func.sum(Transaction.amount),
-        )
-        .where(
-            Transaction.bill_id == bill_id,
-            Transaction.user_id == user_id,
-            Transaction.transaction_type == "expense",
-        )
-        .group_by(month_trunc)
-        .order_by(month_trunc)
+
+async def delete_bill(bill_id: int, profile_id: int, conn: asyncpg.Connection) -> bool:
+    result = await conn.execute(
+        "DELETE FROM bills WHERE id = $1 AND profile_id = $2", bill_id, profile_id
     )
-    monthly_chart = [
-        {"month": row[0].strftime("%Y-%m"), "amount": float(row[1])} for row in monthly_result.all()
-    ]
+    return result != "DELETE 0"
+
+
+async def get_bill_history(bill_id: int, profile_id: int, conn: asyncpg.Connection) -> dict:
+    txs = await conn.fetch(
+        """SELECT t.id, t.amount, t.description, t.date, c.name AS category_name
+           FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+           WHERE t.bill_id = $1 AND t.profile_id = $2
+           ORDER BY t.date DESC""",
+        bill_id,
+        profile_id,
+    )
+
+    # 'month' is a hardcoded literal, not user input — inlining it directly avoids
+    # the classic SQLAlchemy pitfall (separate bind params per date_trunc() call
+    # making Postgres see mismatched GROUP BY expressions). Not an issue with raw
+    # SQL since the literal is identical text in SELECT/GROUP BY/ORDER BY.
+    monthly = await conn.fetch(
+        """SELECT date_trunc('month', date) AS month, SUM(amount) AS total
+           FROM transactions
+           WHERE bill_id = $1 AND profile_id = $2 AND transaction_type = 'expense'
+           GROUP BY date_trunc('month', date)
+           ORDER BY date_trunc('month', date)""",
+        bill_id,
+        profile_id,
+    )
 
     return {
         "transactions": [
             {
-                "id": t.id,
-                "amount": t.amount,
-                "description": t.description,
-                "date": t.date.isoformat(),
-                "category_name": t.category.name if t.category else None,
+                "id": t["id"],
+                "amount": float(t["amount"]),
+                "description": t["description"],
+                "date": t["date"].isoformat(),
+                "category_name": t["category_name"],
             }
             for t in txs
         ],
-        "monthly_spending": monthly_chart,
+        "monthly_spending": [
+            {"month": row["month"].strftime("%Y-%m"), "amount": float(row["total"])}
+            for row in monthly
+        ],
     }
 
 
 async def suggest_bill_match(
-    user_id: int,
+    profile_id: int,
     description: str,
     amount: float,
-    date: datetime,
+    tx_date: datetime,
     merchant_id: int | None,
-    db: AsyncSession,
-) -> Bill | None:
+    conn: asyncpg.Connection,
+) -> dict | None:
     """Find a bill that likely matches this transaction."""
-    amount = Decimal(str(amount))  # Bill.amount is Decimal; float args would TypeError
-    bills = await get_bills(user_id, db)
-    today = date.date()
+    amount_dec = Decimal(str(amount))
+    bills = await get_bills(profile_id, conn)
+    today = tx_date.date()
 
     for bill in bills:
-        if bill.merchant_id and bill.merchant_id == merchant_id:
-            next_due = _next_due_date(bill.due_day, bill.frequency)
+        if bill["merchant_id"] and bill["merchant_id"] == merchant_id:
+            next_due = _next_due_date(bill["due_day"], bill["frequency"])
             days_diff = abs((next_due - today).days)
             if days_diff <= 5:
-                amount_diff = abs(bill.amount - amount)
-                if amount_diff <= bill.amount * 0.2:
+                amount_diff = abs(Decimal(str(bill["amount"])) - amount_dec)
+                if amount_diff <= Decimal(str(bill["amount"])) * Decimal("0.2"):
                     return bill
 
     for bill in bills:
         desc_lower = description.lower()
-        bill_lower = bill.name.lower()
+        bill_lower = bill["name"].lower()
         if bill_lower in desc_lower or desc_lower in bill_lower:
-            next_due = _next_due_date(bill.due_day, bill.frequency)
+            next_due = _next_due_date(bill["due_day"], bill["frequency"])
             days_diff = abs((next_due - today).days)
             if days_diff <= 7:
                 return bill
@@ -181,28 +177,30 @@ async def suggest_bill_match(
 async def auto_link_transaction(
     transaction_id: int,
     bill_id: int,
-    db: AsyncSession,
+    conn: asyncpg.Connection,
     is_auto: bool = True,
 ) -> TransactionBillLink | None:
-    result = await db.execute(select(Bill).where(Bill.id == bill_id))
-    bill = result.scalar_one_or_none()
-    if not bill:
+    bill_row = await conn.fetchrow("SELECT due_day, frequency FROM bills WHERE id = $1", bill_id)
+    if not bill_row:
         return None
 
-    next_due = _next_due_date(bill.due_day, bill.frequency)
+    next_due = _next_due_date(bill_row["due_day"], bill_row["frequency"])
     period_start = next_due - timedelta(days=30)
     period_end = next_due + timedelta(days=1)
 
-    link = TransactionBillLink(
-        transaction_id=transaction_id,
-        bill_id=bill_id,
-        period_start=datetime.combine(period_start, datetime.min.time()),
-        period_end=datetime.combine(period_end, datetime.min.time()),
-        is_auto_linked=is_auto,
+    row = await conn.fetchrow(
+        """INSERT INTO transaction_bill_links
+             (transaction_id, bill_id, period_start, period_end, is_auto_linked)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (transaction_id, bill_id) DO NOTHING
+           RETURNING *""",
+        transaction_id,
+        bill_id,
+        datetime.combine(period_start, datetime.min.time()),
+        datetime.combine(period_end, datetime.min.time()),
+        is_auto,
     )
-    db.add(link)
-    await db.flush()
-    return link
+    return TransactionBillLink(**dict(row)) if row else None
 
 
 def _next_due_date(due_day: int, frequency: str) -> date:
@@ -273,96 +271,39 @@ def _next_due_date(due_day: int, frequency: str) -> date:
     return today + timedelta(days=30)
 
 
-def compute_upcoming(
-    bills: list[Bill],
-    days: int = 7,
-    db: AsyncSession | None = None,  # noqa: ARG001
-) -> list[dict]:
-    """Compute upcoming bills within the next N days, checking for paid status.
-
-    NOTE: db must be provided to check paid status. If db is None, has_paid defaults to False.
-    The caller should use compute_upcoming_async for proper async db access.
-    """
-    today = date.today()
-    cutoff = today + timedelta(days=days)
-    upcoming: list[dict] = []
-
-    for bill in bills:
-        next_due = _next_due_date(bill.due_day, bill.frequency)
-        if today <= next_due <= cutoff:
-            category_name = bill.category.name if bill.category else None
-            account_name = bill.account.name if bill.account else None
-            merchant_name = bill.merchant.name if bill.merchant else None
-
-            upcoming.append(
-                {
-                    "id": bill.id,
-                    "name": bill.name,
-                    "amount": float(bill.amount),
-                    "amount_estimated": float(bill.amount_estimated)
-                    if bill.amount_estimated
-                    else None,
-                    "frequency": bill.frequency,
-                    "due_day": bill.due_day,
-                    "next_due": next_due.isoformat(),
-                    "days_until": (next_due - today).days,
-                    "category_name": category_name,
-                    "account_name": account_name,
-                    "merchant_name": merchant_name,
-                    "is_variable": bill.is_variable,
-                    "has_paid": False,
-                }
-            )
-
-    upcoming.sort(key=lambda b: b["days_until"])
-    return upcoming
-
-
 async def compute_upcoming_async(
-    bills: list[Bill], days: int = 7, db: AsyncSession | None = None
+    bills: list[dict], days: int, conn: asyncpg.Connection
 ) -> list[dict]:
-    """Async version of compute_upcoming that properly checks paid status."""
     today = date.today()
     cutoff = today + timedelta(days=days)
     upcoming: list[dict] = []
 
     for bill in bills:
-        next_due = _next_due_date(bill.due_day, bill.frequency)
+        next_due = _next_due_date(bill["due_day"], bill["frequency"])
         if today <= next_due <= cutoff:
-            category_name = bill.category.name if bill.category else None
-            account_name = bill.account.name if bill.account else None
-            merchant_name = bill.merchant.name if bill.merchant else None
-
-            has_paid = False
-            if db is not None:
-                paid_result = await db.execute(
-                    select(TransactionBillLink).where(
-                        TransactionBillLink.bill_id == bill.id,
-                        TransactionBillLink.period_start
-                        <= datetime.combine(today, datetime.min.time()),
-                        TransactionBillLink.period_end
-                        >= datetime.combine(today, datetime.min.time()),
-                    )
-                )
-                has_paid = paid_result.scalar_one_or_none() is not None
-
+            has_paid_row = await conn.fetchrow(
+                """SELECT 1 FROM transaction_bill_links
+                   WHERE bill_id = $1 AND period_start <= $2 AND period_end >= $2""",
+                bill["id"],
+                datetime.combine(today, datetime.min.time()),
+            )
             upcoming.append(
                 {
-                    "id": bill.id,
-                    "name": bill.name,
-                    "amount": float(bill.amount),
-                    "amount_estimated": float(bill.amount_estimated)
-                    if bill.amount_estimated
+                    "id": bill["id"],
+                    "name": bill["name"],
+                    "amount": float(bill["amount"]),
+                    "amount_estimated": float(bill["amount_estimated"])
+                    if bill["amount_estimated"]
                     else None,
-                    "frequency": bill.frequency,
-                    "due_day": bill.due_day,
+                    "frequency": bill["frequency"],
+                    "due_day": bill["due_day"],
                     "next_due": next_due.isoformat(),
                     "days_until": (next_due - today).days,
-                    "category_name": category_name,
-                    "account_name": account_name,
-                    "merchant_name": merchant_name,
-                    "is_variable": bill.is_variable,
-                    "has_paid": has_paid,
+                    "category_name": bill["category_name"],
+                    "account_name": bill["account_name"],
+                    "merchant_name": bill["merchant_name"],
+                    "is_variable": bill["is_variable"],
+                    "has_paid": has_paid_row is not None,
                 }
             )
 

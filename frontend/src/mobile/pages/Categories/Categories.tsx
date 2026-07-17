@@ -18,6 +18,7 @@ import { ResponsivePie } from '@nivo/pie'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Categories.module.css'
 
 const COLOR_OPTIONS = [
@@ -44,6 +45,7 @@ const emptyForm = (): CategoryFormData => ({ name: '', color: '#6B7280', parent_
 const PULL_THRESHOLD = 80
 
 export const Categories = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const {
     tree,
     loading,
@@ -283,7 +285,7 @@ export const Categories = (): JSX.Element => {
                       {s.name}
                     </Text>
                     <Text size="2" weight="medium">
-                      {formatCurrency(s.total)}
+                      {formatCurrency(s.total, currency)}
                     </Text>
                     <Text size="1" color="gray" className={styles.colRight}>
                       {s.percentage}%

@@ -1,10 +1,9 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+import asyncpg
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.logging import get_logger
@@ -15,7 +14,7 @@ from core.security import (
     verify_password,
     verify_token,
 )
-from database.models import User
+from database.models import COUNTRY_CURRENCY, Profile, User
 from database.session import get_db
 from services.account_service import create_default_account
 
@@ -33,11 +32,25 @@ class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=50)
     password: str = Field(min_length=8, max_length=128)
     full_name: str | None = None
+    country: str = Field(pattern="^(US|IN|CA)$")
 
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+
+class ProfileResponse(BaseModel):
+    id: int
+    country: str
+    currency: str
+
+    class Config:
+        from_attributes = True
+
+
+class ProfileCreate(BaseModel):
+    country: str = Field(pattern="^(US|IN|CA)$")
 
 
 class Token(BaseModel):
@@ -46,6 +59,7 @@ class Token(BaseModel):
     user_id: int
     email: str
     is_admin: bool
+    profiles: list[ProfileResponse]
 
 
 class UserResponse(BaseModel):
@@ -65,6 +79,14 @@ class AISettingsUpdate(BaseModel):
     ai_cloud_enabled: bool
 
 
+def _row_to_user(row: asyncpg.Record) -> User:
+    return User(**dict(row))
+
+
+def _row_to_profile(row: asyncpg.Record) -> Profile:
+    return Profile(**dict(row))
+
+
 def _set_refresh_cookie(response: Response, token: str, request: Request | None = None) -> None:
     secure = request.url.scheme == "https" if request else True
     response.set_cookie(
@@ -82,25 +104,37 @@ def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(key=REFRESH_COOKIE_KEY, path=REFRESH_COOKIE_PATH)
 
 
-def _issue_tokens(user: User, response: Response, request: Request | None = None) -> dict:
+async def _issue_tokens(
+    user: User,
+    response: Response,
+    conn: asyncpg.Connection,
+    request: Request | None = None,
+    profiles: list[Profile] | None = None,
+) -> dict:
     access_token = create_access_token(
         data={"sub": str(user.id)},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
     _set_refresh_cookie(response, refresh_token, request)
+
+    if profiles is None:
+        rows = await conn.fetch("SELECT * FROM profiles WHERE user_id = $1", user.id)
+        profiles = [_row_to_profile(r) for r in rows]
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "user_id": user.id,
         "email": user.email,
         "is_admin": user.is_admin,
+        "profiles": [ProfileResponse.model_validate(p) for p in profiles],
     }
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
 ) -> User:
     token = credentials.credentials
     payload = verify_token(token)
@@ -119,16 +153,46 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    result = await db.execute(select(User).where(User.id == int(user_id_str)))
-    user = result.scalar_one_or_none()
-    if user is None or not user.is_active:
+    row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", int(user_id_str))
+    if row is None or not row["is_active"]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return user
+    return _row_to_user(row)
+
+
+async def get_current_profile(
+    x_profile_id: str | None = Header(default=None, alias="X-Profile-Id"),
+    current_user: User = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db),
+) -> Profile:
+    """Every financial route depends on this, never on get_current_user directly.
+    Validates the requested profile belongs to the authenticated user — this is the
+    country-profile isolation boundary (architecture-and-goals.md), one level below
+    the user isolation get_current_user already provides."""
+    if x_profile_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="X-Profile-Id header is required",
+        )
+    try:
+        profile_id = int(x_profile_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid X-Profile-Id"
+        ) from None
+
+    row = await conn.fetchrow(
+        "SELECT * FROM profiles WHERE id = $1 AND user_id = $2",
+        profile_id,
+        current_user.id,
+    )
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    return _row_to_profile(row)
 
 
 @router.post("/register", response_model=Token)
@@ -136,39 +200,61 @@ async def register(
     user_data: UserCreate,
     request: Request,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
     log.info("Registration attempt — email=%s", user_data.email)
 
-    result = await db.execute(
-        select(User).where((User.email == user_data.email) | (User.username == user_data.username))
+    existing = await conn.fetchrow(
+        "SELECT id FROM users WHERE email = $1 OR username = $2",
+        user_data.email,
+        user_data.username,
     )
-    existing_user = result.scalar_one_or_none()
-
-    if existing_user:
+    if existing is not None:
         log.warning("Registration failed — email already exists: %s", user_data.email)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email or username already registered",
         )
 
+    # First registered user in the whole app becomes admin. Deliberate personal-app
+    # bootstrap rule, not a general invariant — see architecture-and-goals.md.
+    user_count = await conn.fetchval("SELECT COUNT(*) FROM users")
+    is_first_user = user_count == 0
+
     hashed_password = get_password_hash(user_data.password)
-    db_user = User(
-        email=user_data.email,
-        username=user_data.username,
-        hashed_password=hashed_password,
-        full_name=user_data.full_name,
+
+    async with conn.transaction():
+        user_row = await conn.fetchrow(
+            """INSERT INTO users (email, username, hashed_password, full_name, is_admin)
+               VALUES ($1, $2, $3, $4, $5) RETURNING *""",
+            user_data.email,
+            user_data.username,
+            hashed_password,
+            user_data.full_name,
+            is_first_user,
+        )
+        db_user = _row_to_user(user_row)
+
+        profile_row = await conn.fetchrow(
+            """INSERT INTO profiles (user_id, country, currency)
+               VALUES ($1, $2, $3) RETURNING *""",
+            db_user.id,
+            user_data.country,
+            COUNTRY_CURRENCY[user_data.country],
+        )
+        profile = _row_to_profile(profile_row)
+
+        await create_default_account(profile, conn)
+
+    log.info(
+        "Registration successful — user_id=%d email=%s country=%s is_admin=%s",
+        db_user.id,
+        db_user.email,
+        user_data.country,
+        is_first_user,
     )
-    db.add(db_user)
-    await db.flush()
 
-    await create_default_account(db_user, db)
-    await db.commit()
-    await db.refresh(db_user)
-
-    log.info("Registration successful — user_id=%d email=%s", db_user.id, db_user.email)
-
-    return Token(**_issue_tokens(db_user, response, request))
+    return Token(**await _issue_tokens(db_user, response, conn, request, profiles=[profile]))
 
 
 @router.post("/login", response_model=Token)
@@ -176,19 +262,19 @@ async def login(
     user_credentials: UserLogin,
     request: Request,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
     log.info("Login attempt — email=%s", user_credentials.email)
 
-    result = await db.execute(select(User).where(User.email == user_credentials.email))
-    user = result.scalar_one_or_none()
-    if not user:
+    row = await conn.fetchrow("SELECT * FROM users WHERE email = $1", user_credentials.email)
+    if not row:
         log.warning("Login failed — user not found: %s", user_credentials.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    user = _row_to_user(row)
 
     if not verify_password(user_credentials.password, user.hashed_password):
         log.warning("Login failed — wrong password for: %s", user_credentials.email)
@@ -208,14 +294,14 @@ async def login(
 
     log.info("Login successful — user_id=%d email=%s", user.id, user.email)
 
-    return Token(**_issue_tokens(user, response, request))
+    return Token(**await _issue_tokens(user, response, conn, request))
 
 
 @router.post("/refresh", response_model=Token)
 async def refresh_token(
     request: Request,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
     cookie: str | None = Cookie(None, alias=REFRESH_COOKIE_KEY),
 ):
     payload = verify_token(cookie)
@@ -234,16 +320,15 @@ async def refresh_token(
             detail="Invalid refresh token payload",
         )
 
-    result = await db.execute(select(User).where(User.id == int(user_id_str)))
-    user = result.scalar_one_or_none()
-    if not user or not user.is_active:
+    row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", int(user_id_str))
+    if not row or not row["is_active"]:
         _clear_refresh_cookie(response)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive",
         )
 
-    return Token(**_issue_tokens(user, response, request))
+    return Token(**await _issue_tokens(_row_to_user(row), response, conn, request))
 
 
 @router.post("/logout")
@@ -262,13 +347,63 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 async def update_ai_settings(
     payload: AISettingsUpdate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
     """Per-user cloud-AI opt-in. Off (default) = this user's data never goes to Gemini."""
-    current_user.ai_cloud_enabled = payload.ai_cloud_enabled
-    await db.commit()
-    await db.refresh(current_user)
+    row = await conn.fetchrow(
+        "UPDATE users SET ai_cloud_enabled = $1 WHERE id = $2 RETURNING *",
+        payload.ai_cloud_enabled,
+        current_user.id,
+    )
     log.info(
         "AI cloud toggle set — user_id=%d enabled=%s", current_user.id, payload.ai_cloud_enabled
     )
-    return current_user
+    return _row_to_user(row)
+
+
+@router.get("/profiles", response_model=list[ProfileResponse])
+async def list_profiles(
+    current_user: User = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db),
+):
+    rows = await conn.fetch("SELECT * FROM profiles WHERE user_id = $1", current_user.id)
+    return [_row_to_profile(r) for r in rows]
+
+
+@router.post("/profiles", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED)
+async def add_profile(
+    payload: ProfileCreate,
+    current_user: User = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db),
+):
+    """Add a second/third country profile — max one per country per user
+    (enforced by the DB unique constraint, checked here for a clean error)."""
+    existing = await conn.fetchrow(
+        "SELECT id FROM profiles WHERE user_id = $1 AND country = $2",
+        current_user.id,
+        payload.country,
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"You already have a {payload.country} profile",
+        )
+
+    async with conn.transaction():
+        row = await conn.fetchrow(
+            """INSERT INTO profiles (user_id, country, currency)
+               VALUES ($1, $2, $3) RETURNING *""",
+            current_user.id,
+            payload.country,
+            COUNTRY_CURRENCY[payload.country],
+        )
+        profile = _row_to_profile(row)
+        await create_default_account(profile, conn)
+
+    log.info(
+        "Profile added — user_id=%d country=%s profile_id=%d",
+        current_user.id,
+        payload.country,
+        profile.id,
+    )
+    return profile

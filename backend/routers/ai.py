@@ -1,9 +1,8 @@
+import asyncpg
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Category, User
+from database.models import User
 from database.session import get_db
 from routers.auth import get_current_user
 from services.ai.ai_service import AIService
@@ -33,7 +32,7 @@ class CategorizeResponse(BaseModel):
 async def categorize_transaction(
     request: CategorizeRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
     ai_result = await ai_service.parse(
         request.description, cloud_enabled=current_user.ai_cloud_enabled
@@ -57,9 +56,10 @@ async def categorize_transaction(
         )
         transaction_type = result.get("type", "expense")
 
-    system_cats = await db.execute(select(Category).where(Category.is_system.is_(True)))
-    valid_names = {cat.name for cat in system_cats.scalars().all()}
-
+    valid_names = {
+        row["name"]
+        for row in await conn.fetch("SELECT name FROM categories WHERE is_system = TRUE")
+    }
     if category not in valid_names:
         category = "Other"
 
@@ -76,14 +76,10 @@ async def categorize_transaction(
 @router.get("/categories")
 async def get_available_categories(
     _current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    system_cats = await db.execute(
-        select(Category).where(Category.is_system.is_(True)).order_by(Category.name)
-    )
-    categories = system_cats.scalars().all()
-
-    expense_categories = [c.name for c in categories if c.name != "Income"]
+    rows = await conn.fetch("SELECT name FROM categories WHERE is_system = TRUE ORDER BY name")
+    expense_categories = [r["name"] for r in rows if r["name"] != "Income"]
     income_categories = ["Salary", "Freelance", "Investment", "Gift", "Refund", "Other"]
 
     return {

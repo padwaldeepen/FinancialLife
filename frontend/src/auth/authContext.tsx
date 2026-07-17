@@ -23,9 +23,15 @@ const processQueue = (error: unknown, token: string | null = null) => {
 
 api.interceptors.request.use(
   (config) => {
-    const { token } = useBoundStore.getState().auth
+    const { token, activeProfileId } = useBoundStore.getState().auth
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    }
+    // Every financial route requires this — the backend's get_current_profile
+    // dependency 404s without it. Auth-only routes (login/register/refresh/me/
+    // profiles) ignore it, so it's safe to always attach when known.
+    if (activeProfileId != null) {
+      config.headers['X-Profile-Id'] = String(activeProfileId)
     }
     return config
   },

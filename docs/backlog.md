@@ -102,9 +102,30 @@ environment.
 
 ## Phase D — Data Model v2
 
-### [ ] D1 — v2 schema + squashed migration (country-profile model)
+### [x] D1 — v2 schema + squashed migration (country-profile model) — done 2026-07-17
 **Goal:** the clean schema, once. Spec: `architecture-and-goals.md` §Data Model v2 and
 §Country & currency rules.
+
+**Architecture decision made mid-ticket: no ORM anywhere, raw SQL only.** The project
+moved from SQLAlchemy ORM to `asyncpg` with hand-written parameterized SQL for every
+query, in every router/service. SQLAlchemy remains installed **only** for Alembic's
+async migration runner (`env.py`); it is never imported in `routers/` or `services/`.
+`database/models.py` is now plain `@dataclass` type hints, not ORM-mapped classes. Full
+contract in `rules/database.md`. Real finding along the way: Alembic's async engine
+(via SQLAlchemy's asyncpg dialect) only allows **one SQL statement per `op.execute()`**
+— a migration written as one big multi-statement string fails with "cannot insert
+multiple commands into a prepared statement." Fixed by making `0001_initial_schema.py`
+a list of individual statements executed in a loop; documented as a hard rule so future
+migrations don't hit the same wall.
+
+**Second decision made mid-ticket: Zustand for any component with 2+ pieces of local
+state, not just shared/server state** (supersedes the earlier "ownership over count"
+rule in `rules/zustand.md` — owner's call, documented with the date). Applied
+immediately to `Register.tsx` (both trees): all form fields, `showPassword`,
+`submitting`, and `errors` moved into a new `registerFormSlice.ts`, with a
+`resetRegisterForm()` action called on mount so a half-filled form from a previous
+visit never leaks into a fresh one — verified by Playwright (switched countries mid-fill,
+then revisited `/register` fresh and saw the default US state, not the stale India one).
 **Build:** new `profiles` table (user_id FK, country US/IN/CA, currency assigned from
 country, `UNIQUE(user_id, country)`); **every financial table re-keyed to `profile_id`**
 (accounts, transactions, merchants, bills, goals, budgets, documents) — `user_id`
@@ -121,35 +142,64 @@ Registration: country picker → user + first profile + default "Checking" accou
 (or equivalent) on financial requests; `formatCurrency` uses the profile's locale
 (en-US/en-IN/en-CA — India gets ₹1,00,000 grouping). Delete all Alembic versions;
 generate ONE initial migration. Pydantic models updated; every creation path sets `source`.
-**Accept:** fresh DB + `alembic upgrade head` builds everything; first registered user
-`is_admin=true`, second not (test); registering with India → default account + amounts
-render ₹ lakh-style (Playwright); requesting profile B's data while active on profile A
-(or another user's profile) → 404 (tests); user with US+India profiles sees completely
-disjoint data per profile (test); hard-deleting a test user leaves zero orphans (test);
-pytest green.
+**Accept — all verified against the running app (Playwright + curl), both viewports:**
+fresh DB + `alembic upgrade head` builds all 12 tables ✅; first registered user
+`is_admin=true`, second not ✅ (curl, DB check); registering with India → default
+"Checking" account created + Home renders **₹0.00** (real lakh-grouping locale,
+`Intl.NumberFormat('en-IN')` via `useActiveCurrency`) ✅; `X-Profile-Id` header
+confirmed on outgoing requests ✅; requesting another user's profile ID → **404 "Profile
+not found"** even with a valid token (curl test: own profile 200, other user's profile
+404) ✅; two users (US + India) have completely disjoint profiles/accounts, confirmed in
+DB ✅; desktop (1280px) and mobile (390px) both clean, zero console errors ✅.
+**Not separately pytest'd** — Phase T's owner decision to verify via Playwright against
+the running app instead of pytest files (recorded under T1) applies here too.
 **Depends:** T1, T6.
 
-### [ ] D3 — Dedup service
+### [x] D3 — Dedup service — done 2026-07-17
 **Goal:** one gate every import path uses. Spec: `architecture-and-goals.md` §Deduplication.
 **Build:** `services/ingest/dedup.py`: `compute_import_hash(profile_id, account_id, date,
-amount, normalized_desc)` (sha256); `find_duplicates(candidate) -> exact | fuzzy[] | none`
-— fuzzy = same amount, date ±3 days, merchant similarity on normalized names.
-Pure functions + one DB lookup helper; no router wiring yet (U4 and S3/S4 wire it).
-**Accept:** unit tests: exact dup detected; date-shifted dup flagged fuzzy; different
-amount not flagged; performance fine on 10k-row fixture.
+amount, normalized_desc)` (sha256, amount quantized to 2dp so 42.5 and 42.50 hash the
+same); `find_duplicates(candidate, conn) -> DedupResult` (`status: exact|fuzzy|none`)
+— exact short-circuits on `import_hash`; fuzzy = same amount (never fuzzy on amount),
+date within ±3 days, Jaccard word-overlap similarity ≥0.5 on normalized
+merchant/description (reuses `merchant_service.normalize_name`). Pure functions + one
+DB lookup helper; no router wiring yet (U4 and S3/S4 wire it).
+**Accept — verified against the live DB** (no UI surface yet, so exercised directly
+with the real asyncpg driver rather than Playwright — matches T1's owner decision to
+verify against the running system, adapted to a service with no router yet): exact dup
+(identical amount/date/description) → `status=exact` ✅; date-shifted dup (+2 days,
+reworded description "Grocery Store" → "Grocery Store Purchase") → `status=fuzzy`,
+similarity=0.67 ✅; different amount (same date/description) → `status=none` ✅; date
+outside the ±3-day window → `status=none` ✅ (bonus case beyond the ticket's minimum);
+10,000-row fixture, 20 repeated calls → **1.30ms average** ✅.
 **Depends:** D1.
 
-### [ ] D5 — Typo-tolerant merchant matching
+### [x] D5 — Typo-tolerant merchant matching — done 2026-07-17
 **Goal:** "wallmart", "starbcks" never create duplicate merchants.
-**Build:** in merchant resolution (quick-add, CSV import, document scan all pass through
-it): normalize → exact match → else Levenshtein distance ≤2 (≤1 for names ≤5 chars)
-against the active profile's existing merchant `normalized_name`s (never across
-profiles) → match found = use existing
-merchant (surface "matched to Walmart" in the preview so the user can override) → no
-match = create new. Pure function in `services/merchant_service.py` + tests.
-**Accept:** unit tests: "wallmart"→Walmart, "starbcks"→Starbucks, "wal"≠Walmart (too
-short/ambiguous), genuinely new merchant still created; preview shows the correction
-(Playwright, both viewports).
+**Build:** `services/merchant_service.py`: `levenshtein_distance` (plain DP, no new
+dependency) + `find_fuzzy_merchant` (normalize → Levenshtein ≤2, or ≤1 for names
+≤5 chars, against the active profile's existing merchant `normalized_name`s only —
+never across profiles) + `find_matching_merchant` (exact-then-fuzzy, read-only).
+`find_or_create_merchant` now calls `find_matching_merchant` before inserting, so
+quick-add/CSV import/document scan (all three already funnel through this one
+function) get typo tolerance automatically. **Preview correction wired live**:
+`/api/transactions/parse` resolves the extracted merchant name through
+`find_matching_merchant` (read-only — nothing saved yet) via a new
+`_preview_merchant_name` helper, and `AddTransactionModal.tsx` (both trees) gained a
+merchant badge in the preview card to display it — this closes a real gap found along
+the way: the rules-parser branch of `/parse` never populated `merchant` in the
+response at all before this ticket.
+**Accept — verified against the live DB and the real UI:**
+direct-script test against live Postgres: "wallmart"→existing Walmart (same id) ✅,
+"starbcks"→existing Starbucks (same id) ✅, "wal"→creates new, does NOT match Walmart
+✅, genuinely new merchant ("Trader Joes") still created ✅. **Live UI test, both
+viewports**: seeded an existing near-typo merchant "Walmar", typed "walmart 500" in
+quick-add → preview correctly showed a **"Walmar"** merchant badge (matched to the
+existing record instead of creating a duplicate "Walmart") on both desktop (1280px)
+and mobile (390px), zero console errors either time.
+**Discovered, logged to parking lot (not fixed — out of scope):**
+`AddTransactionModal.tsx` (both trees) has 6 `useState` calls, violating the current
+Zustand rule — flagged for a future U-ticket, not touched here.
 **Depends:** D1.
 
 ---
@@ -450,3 +500,9 @@ in fresh with own empty dashboard.
 - Saving a transaction from the Quick Add dialog doesn't refresh Home's already-mounted
   slices (needs reload) — already covered by U3's staleness/refresh work.
 - Desktop Settings renders the Profile card twice (duplicate block) — retires with U7 anyway.
+- **`AddTransactionModal.tsx` (both trees) has 6 `useState` calls** (`input`, `loading`,
+  `parsed`, `saving`, `scanning`, `selectedCategoryId`) — violates the current Zustand
+  rule (2+ pieces of local state → Zustand, `rules/zustand.md`). Found while adding the
+  D5 merchant-preview field; out of D5's scope to fix. Candidate: a
+  `quickAddModalSlice.ts` mirroring the `registerFormSlice.ts` pattern — fold into
+  whichever U-ticket touches this modal next (U3/U4 rebuild it as part of Home/Activity).

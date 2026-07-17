@@ -18,6 +18,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import api from '../../../auth/api.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Activity.module.css'
 
 type Transaction = {
@@ -60,6 +61,7 @@ function getDateGroup(dateStr: string): DateGroup {
 }
 
 export const Activity = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const {
     items: transactions,
     loading,
@@ -442,7 +444,7 @@ export const Activity = (): JSX.Element => {
     return (
       <Text size="2" weight="bold" color={t.transaction_type === 'income' ? 'green' : 'red'}>
         {sign}
-        {formatCurrency(t.amount)}
+        {formatCurrency(t.amount, currency)}
       </Text>
     )
   }
@@ -821,7 +823,7 @@ export const Activity = (): JSX.Element => {
                       color={selected.transaction_type === 'income' ? 'green' : 'red'}
                     >
                       {selected.transaction_type === 'income' ? '+' : '-'}
-                      {formatCurrency(selected.amount)}
+                      {formatCurrency(selected.amount, currency)}
                     </Text>
                     <Badge color={selected.transaction_type === 'income' ? 'green' : 'red'}>
                       {selected.transaction_type}
@@ -956,7 +958,7 @@ export const Activity = (): JSX.Element => {
                     {bill.name}
                   </Text>
                   <Text size="2" color="gray">
-                    {formatCurrency(bill.amount)}
+                    {formatCurrency(bill.amount, currency)}
                   </Text>
                 </Flex>
               ))
@@ -1083,7 +1085,7 @@ export const Activity = (): JSX.Element => {
                       </Flex>
                       <Flex align="center" gap="2">
                         <Text size="2" weight="bold">
-                          {formatCurrency(Math.abs(rawAmount))}
+                          {formatCurrency(Math.abs(rawAmount), currency)}
                         </Text>
                         <Badge color={txType === 'income' ? 'green' : 'red'}>{txType}</Badge>
                       </Flex>

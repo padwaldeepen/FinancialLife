@@ -1,26 +1,31 @@
 from datetime import date, datetime
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+import asyncpg
 
-from database.models import Goal
+_GOAL_JOIN = """
+    SELECT g.*, c.name AS category_name
+    FROM goals g LEFT JOIN categories c ON c.id = g.category_id
+"""
 
 
-async def get_goals(user_id: int, db: AsyncSession) -> list[Goal]:
-    result = await db.execute(
-        select(Goal).where(Goal.user_id == user_id).order_by(Goal.sort_order, Goal.created_at)
+async def get_goals(profile_id: int, conn: asyncpg.Connection) -> list[dict]:
+    rows = await conn.fetch(
+        _GOAL_JOIN + " WHERE g.profile_id = $1 ORDER BY g.sort_order, g.created_at",
+        profile_id,
     )
-    return list(result.scalars().all())
+    return [dict(r) for r in rows]
 
 
-async def get_goal(goal_id: int, user_id: int, db: AsyncSession) -> Goal | None:
-    result = await db.execute(select(Goal).where(Goal.id == goal_id, Goal.user_id == user_id))
-    return result.scalar_one_or_none()
+async def get_goal(goal_id: int, profile_id: int, conn: asyncpg.Connection) -> dict | None:
+    row = await conn.fetchrow(
+        _GOAL_JOIN + " WHERE g.id = $1 AND g.profile_id = $2", goal_id, profile_id
+    )
+    return dict(row) if row else None
 
 
 async def create_goal(
-    db: AsyncSession,
-    user_id: int,
+    conn: asyncpg.Connection,
+    profile_id: int,
     name: str,
     target_amount: float,
     type: str,
@@ -30,51 +35,61 @@ async def create_goal(
     deadline: date | None = None,
     icon: str | None = None,
     color: str | None = None,
-) -> Goal:
-    goal = Goal(
-        user_id=user_id,
-        name=name,
-        target_amount=target_amount,
-        current_amount=current_amount,
-        monthly_contribution=monthly_contribution,
-        type=type,
-        category_id=category_id,
-        deadline=datetime.combine(deadline, datetime.min.time()) if deadline else None,
-        icon=icon,
-        color=color,
+) -> dict:
+    goal_id = await conn.fetchval(
+        """INSERT INTO goals
+             (profile_id, name, target_amount, current_amount, monthly_contribution,
+              type, category_id, deadline, icon, color)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING id""",
+        profile_id,
+        name,
+        target_amount,
+        current_amount,
+        monthly_contribution,
+        type,
+        category_id,
+        datetime.combine(deadline, datetime.min.time()) if deadline else None,
+        icon,
+        color,
     )
-    db.add(goal)
-    await db.flush()
-    return goal
+    return await get_goal(goal_id, profile_id, conn)
 
 
 async def update_goal(
-    goal_id: int, user_id: int, update_data: dict, db: AsyncSession
-) -> Goal | None:
-    goal = await get_goal(goal_id, user_id, db)
-    if not goal:
+    goal_id: int, profile_id: int, update_data: dict, conn: asyncpg.Connection
+) -> dict | None:
+    existing = await get_goal(goal_id, profile_id, conn)
+    if not existing:
         return None
-    for key, value in update_data.items():
-        setattr(goal, key, value)
-    await db.flush()
-    return goal
+    if update_data:
+        set_clauses = [f"{field} = ${i + 3}" for i, field in enumerate(update_data)]
+        await conn.execute(
+            f"UPDATE goals SET {', '.join(set_clauses)} WHERE id = $1 AND profile_id = $2",
+            goal_id,
+            profile_id,
+            *update_data.values(),
+        )
+    return await get_goal(goal_id, profile_id, conn)
 
 
-async def delete_goal(goal_id: int, user_id: int, db: AsyncSession) -> bool:
-    goal = await get_goal(goal_id, user_id, db)
-    if not goal:
-        return False
-    await db.delete(goal)
-    await db.flush()
-    return True
+async def delete_goal(goal_id: int, profile_id: int, conn: asyncpg.Connection) -> bool:
+    result = await conn.execute(
+        "DELETE FROM goals WHERE id = $1 AND profile_id = $2", goal_id, profile_id
+    )
+    return result != "DELETE 0"
 
 
 async def contribute_to_goal(
-    goal_id: int, user_id: int, amount: float, db: AsyncSession
-) -> Goal | None:
-    goal = await get_goal(goal_id, user_id, db)
-    if not goal:
+    goal_id: int, profile_id: int, amount: float, conn: asyncpg.Connection
+) -> dict | None:
+    existing = await get_goal(goal_id, profile_id, conn)
+    if not existing:
         return None
-    goal.current_amount += amount
-    await db.flush()
-    return goal
+    await conn.execute(
+        "UPDATE goals SET current_amount = current_amount + $1 WHERE id = $2 AND profile_id = $3",
+        amount,
+        goal_id,
+        profile_id,
+    )
+    return await get_goal(goal_id, profile_id, conn)

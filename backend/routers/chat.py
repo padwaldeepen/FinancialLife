@@ -1,16 +1,16 @@
+import re
 from datetime import datetime, timedelta
 
+import asyncpg
 import httpx
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.logging import get_logger
-from database.models import Category, Transaction, User
+from database.models import Profile
 from database.session import get_db
-from routers.auth import get_current_user
+from routers.auth import get_current_profile
 from services.transaction_service import parse_transaction
 
 log = get_logger(__name__)
@@ -55,78 +55,75 @@ def _looks_like_transaction(text: str) -> bool:
     return has_amount and (has_keyword or len(lower.split()) <= 4)
 
 
-async def _get_user_summary(db: AsyncSession, user_id: int) -> str:
+async def _get_profile_summary(conn: asyncpg.Connection, profile_id: int) -> str:
     now = datetime.now()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     last_month_start = (month_start - timedelta(days=1)).replace(day=1)
 
-    income_result = await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.user_id == user_id,
-            Transaction.transaction_type == "income",
-            Transaction.date >= month_start,
-        )
+    this_month_income = round(
+        float(
+            await conn.fetchval(
+                """SELECT COALESCE(SUM(amount), 0) FROM transactions
+                   WHERE profile_id = $1 AND transaction_type = 'income' AND date >= $2""",
+                profile_id,
+                month_start,
+            )
+        ),
+        2,
     )
-    this_month_income = round(income_result.scalar() or 0, 2)
+    this_month_expense = round(
+        float(
+            await conn.fetchval(
+                """SELECT COALESCE(SUM(amount), 0) FROM transactions
+                   WHERE profile_id = $1 AND transaction_type = 'expense' AND date >= $2""",
+                profile_id,
+                month_start,
+            )
+        ),
+        2,
+    )
+    prev_income = round(
+        float(
+            await conn.fetchval(
+                """SELECT COALESCE(SUM(amount), 0) FROM transactions
+                   WHERE profile_id = $1 AND transaction_type = 'income'
+                     AND date >= $2 AND date < $3""",
+                profile_id,
+                last_month_start,
+                month_start,
+            )
+        ),
+        2,
+    )
+    prev_expense = round(
+        float(
+            await conn.fetchval(
+                """SELECT COALESCE(SUM(amount), 0) FROM transactions
+                   WHERE profile_id = $1 AND transaction_type = 'expense'
+                     AND date >= $2 AND date < $3""",
+                profile_id,
+                last_month_start,
+                month_start,
+            )
+        ),
+        2,
+    )
+    tx_count = await conn.fetchval(
+        "SELECT COUNT(*) FROM transactions WHERE profile_id = $1 AND date >= $2",
+        profile_id,
+        month_start,
+    )
 
-    expense_result = await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.user_id == user_id,
-            Transaction.transaction_type == "expense",
-            Transaction.date >= month_start,
-        )
+    top_cat_rows = await conn.fetch(
+        """SELECT c.name, SUM(t.amount) AS total
+           FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+           WHERE t.profile_id = $1 AND t.transaction_type = 'expense'
+             AND t.category_id IS NOT NULL AND t.date >= $2
+           GROUP BY c.name ORDER BY SUM(t.amount) DESC LIMIT 3""",
+        profile_id,
+        month_start,
     )
-    this_month_expense = round(expense_result.scalar() or 0, 2)
-
-    prev_income_result = await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.user_id == user_id,
-            Transaction.transaction_type == "income",
-            Transaction.date >= last_month_start,
-            Transaction.date < month_start,
-        )
-    )
-    prev_income = round(prev_income_result.scalar() or 0, 2)
-
-    prev_expense_result = await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.user_id == user_id,
-            Transaction.transaction_type == "expense",
-            Transaction.date >= last_month_start,
-            Transaction.date < month_start,
-        )
-    )
-    prev_expense = round(prev_expense_result.scalar() or 0, 2)
-
-    tx_count_result = await db.execute(
-        select(func.count(Transaction.id)).where(
-            Transaction.user_id == user_id,
-            Transaction.date >= month_start,
-        )
-    )
-    tx_count = tx_count_result.scalar() or 0
-
-    top_cat_result = await db.execute(
-        select(
-            Transaction.category_id,
-            func.sum(Transaction.amount).label("total"),
-        )
-        .where(
-            Transaction.user_id == user_id,
-            Transaction.transaction_type == "expense",
-            Transaction.category_id.isnot(None),
-            Transaction.date >= month_start,
-        )
-        .group_by(Transaction.category_id)
-        .order_by(func.sum(Transaction.amount).desc())
-        .limit(3)
-    )
-    top_cats = []
-    for row in top_cat_result.all():
-        cat_result = await db.execute(select(Category).where(Category.id == row.category_id))
-        cat = cat_result.scalar_one_or_none()
-        if cat:
-            top_cats.append(f"{cat.name}: ${row.total:.2f}")
+    top_cats = [f"{r['name']}: ${float(r['total']):.2f}" for r in top_cat_rows if r["name"]]
 
     return (
         f"This month: Income ${this_month_income:.2f}, Expenses ${this_month_expense:.2f}, "
@@ -151,7 +148,6 @@ GEMINI_URL = (
 
 
 async def _ask_llm(question: str, user_summary: str, cloud_enabled: bool) -> str:
-    # Gemini only, and only for users who opted in — otherwise answer from data locally.
     if not cloud_enabled or not settings.GEMINI_API_KEY:
         return _answer_from_data(question, user_summary)
 
@@ -186,7 +182,6 @@ def _answer_from_data(question: str, summary: str) -> str:
     lower = question.lower()
 
     income = expense = net = 0.0
-    import re
 
     m = re.search(r"Income \$([0-9,.]+)", summary)
     if m:
@@ -223,8 +218,8 @@ def _answer_from_data(question: str, summary: str) -> str:
 @router.post("/", response_model=ChatResponse)
 async def chat(
     msg: ChatMessage,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
     text = msg.message.strip()
 
@@ -249,7 +244,10 @@ async def chat(
                 )
             )
 
-    summary = await _get_user_summary(db, current_user.id)
-    reply = await _ask_llm(text, summary, cloud_enabled=current_user.ai_cloud_enabled)
+    summary = await _get_profile_summary(conn, profile.id)
+    user_row = await conn.fetchrow(
+        "SELECT ai_cloud_enabled FROM users WHERE id = $1", profile.user_id
+    )
+    reply = await _ask_llm(text, summary, cloud_enabled=user_row["ai_cloud_enabled"])
 
     return ChatResponse(reply=reply)

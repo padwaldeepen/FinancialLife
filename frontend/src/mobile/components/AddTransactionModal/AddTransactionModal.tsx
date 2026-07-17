@@ -17,6 +17,7 @@ import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import api from '../../../auth/api.ts'
 import { extractTextFromImage, cleanOcrText } from '../../../utils/ocr.ts'
 import styles from './AddTransactionModal.module.css'
@@ -26,9 +27,11 @@ interface ParsedResult {
   description: string
   type: string
   category: string | null
+  merchant?: string | null
 }
 
 export const AddTransactionModal = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const { addModalOpen, closeAddModal, categories, fetchCategories } = useBoundStore(
     useShallow((s) => ({
       addModalOpen: s.ui.addModalOpen,
@@ -200,7 +203,7 @@ export const AddTransactionModal = (): JSX.Element => {
                       {parsed.description}
                     </Text>
                     <Text weight="bold" size="4">
-                      {formatCurrency(parsed.amount || 0)}
+                      {formatCurrency(parsed.amount || 0, currency)}
                     </Text>
                   </Flex>
 
@@ -208,6 +211,15 @@ export const AddTransactionModal = (): JSX.Element => {
                     <Badge color={parsed.type === 'income' ? 'green' : 'orange'}>
                       {parsed.type}
                     </Badge>
+                    {parsed.merchant && (
+                      <Badge
+                        color="gray"
+                        variant="soft"
+                        title="Merchant — matched to an existing one if the name was close"
+                      >
+                        {parsed.merchant}
+                      </Badge>
+                    )}
                     <Popover.Root>
                       <Popover.Trigger>
                         <Box>

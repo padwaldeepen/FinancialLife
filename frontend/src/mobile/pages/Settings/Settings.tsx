@@ -34,6 +34,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useAppTheme } from '../../../theme.tsx'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Settings.module.css'
 
 const accountIcons: Record<string, JSX.Element> = {
@@ -61,6 +62,7 @@ interface AccountForm {
 const defaultForm: AccountForm = { name: '', type: 'checking', currency: 'USD' }
 
 export const Settings = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const {
     user,
     logout,
@@ -297,7 +299,7 @@ export const Settings = (): JSX.Element => {
                   <Box className={styles.labelText}>
                     <Text size="2">{account.name}</Text>
                     <Text size="1" color="gray" className={styles.capitalize}>
-                      {account.type} — {formatCurrency(account.balance)}
+                      {account.type} — {formatCurrency(account.balance, currency)}
                     </Text>
                   </Box>
                 </Flex>

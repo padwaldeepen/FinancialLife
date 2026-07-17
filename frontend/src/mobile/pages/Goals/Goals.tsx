@@ -17,6 +17,7 @@ import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Goals.module.css'
 
 const goalIcons: Record<string, JSX.Element> = {
@@ -34,6 +35,7 @@ const goalLabels: Record<string, string> = {
 const PULL_THRESHOLD = 80
 
 export const Goals = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const { goals, loading, fetchGoals, createGoal, updateGoal, contributeToGoal, deleteGoal } =
     useBoundStore(
       useShallow((s) => ({
@@ -345,7 +347,8 @@ export const Goals = (): JSX.Element => {
                       {goal.progress_pct}%
                     </Text>
                     <Text size="2" weight="medium" color={achieved ? 'green' : undefined}>
-                      {formatCurrency(goal.current_amount)} / {formatCurrency(goal.target_amount)}
+                      {formatCurrency(goal.current_amount, currency)} /{' '}
+                      {formatCurrency(goal.target_amount, currency)}
                     </Text>
                   </Flex>
 
@@ -393,8 +396,8 @@ export const Goals = (): JSX.Element => {
                               Progress
                             </Text>
                             <Text size="2" weight="medium">
-                              {formatCurrency(detailGoal.current_amount)} /{' '}
-                              {formatCurrency(detailGoal.target_amount)}
+                              {formatCurrency(detailGoal.current_amount, currency)} /{' '}
+                              {formatCurrency(detailGoal.target_amount, currency)}
                             </Text>
                           </Flex>
                           <Box className={styles.barOuter}>
@@ -420,7 +423,7 @@ export const Goals = (): JSX.Element => {
                                 Monthly contribution
                               </Text>
                               <Text size="2">
-                                {formatCurrency(detailGoal.monthly_contribution)}
+                                {formatCurrency(detailGoal.monthly_contribution, currency)}
                               </Text>
                             </Flex>
                           )}

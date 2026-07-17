@@ -20,6 +20,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import api from '../../../auth/api.ts'
 import { formatCurrency, getAmountColor } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Activity.module.css'
 
 type Transaction = {
@@ -62,6 +63,7 @@ function getDateGroup(dateStr: string): DateGroup {
 }
 
 export const Activity = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const {
     items: transactions,
     loading,
@@ -427,7 +429,7 @@ export const Activity = (): JSX.Element => {
     return (
       <span className={styles.txAmount} style={{ color: getAmountColor(t.transaction_type) }}>
         {sign}
-        {formatCurrency(t.amount)}
+        {formatCurrency(t.amount, currency)}
       </span>
     )
   }
@@ -775,7 +777,7 @@ export const Activity = (): JSX.Element => {
                       }}
                     >
                       {selected.transaction_type === 'income' ? '+' : '-'}
-                      {formatCurrency(selected.amount)}
+                      {formatCurrency(selected.amount, currency)}
                     </span>
                     <Badge color={selected.transaction_type === 'income' ? 'green' : 'red'}>
                       {selected.transaction_type}
@@ -900,7 +902,7 @@ export const Activity = (): JSX.Element => {
                     {bill.name}
                   </Text>
                   <Text size="2" color="gray">
-                    {formatCurrency(bill.amount)}
+                    {formatCurrency(bill.amount, currency)}
                   </Text>
                 </Flex>
               ))
@@ -1025,7 +1027,7 @@ export const Activity = (): JSX.Element => {
                         <Table.Row key={i}>
                           <Table.Cell>{row[dateCol]}</Table.Cell>
                           <Table.Cell>{row[descCol]}</Table.Cell>
-                          <Table.Cell>{formatCurrency(Math.abs(rawAmount))}</Table.Cell>
+                          <Table.Cell>{formatCurrency(Math.abs(rawAmount), currency)}</Table.Cell>
                           <Table.Cell>
                             <Badge color={txType === 'income' ? 'green' : 'red'}>{txType}</Badge>
                           </Table.Cell>

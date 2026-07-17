@@ -5,11 +5,13 @@ import { ResponsiveBar } from '@nivo/bar'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Reports.module.css'
 
 const PULL_THRESHOLD = 80
 
 export const Reports = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const [year, setYear] = useState(new Date().getFullYear().toString())
   const [refreshing, setRefreshing] = useState(false)
   const [pullDistance, setPullDistance] = useState(0)
@@ -128,7 +130,7 @@ export const Reports = (): JSX.Element => {
                 Income (30d)
               </Text>
               <Heading size="4" className={styles.incomeText}>
-                {formatCurrency(summary.total_income)}
+                {formatCurrency(summary.total_income, currency)}
               </Heading>
             </Flex>
           </Card>
@@ -138,7 +140,7 @@ export const Reports = (): JSX.Element => {
                 Expenses (30d)
               </Text>
               <Heading size="4" className={styles.expenseText}>
-                {formatCurrency(summary.total_expense)}
+                {formatCurrency(summary.total_expense, currency)}
               </Heading>
             </Flex>
           </Card>
@@ -148,7 +150,7 @@ export const Reports = (): JSX.Element => {
                 Net
               </Text>
               <Heading size="4" color={summary.net >= 0 ? undefined : 'red'}>
-                {formatCurrency(summary.net)}
+                {formatCurrency(summary.net, currency)}
               </Heading>
             </Flex>
           </Card>
@@ -163,7 +165,7 @@ export const Reports = (): JSX.Element => {
               </Text>
               {summary.top_category_amount && (
                 <Text size="2" color="gray">
-                  {formatCurrency(summary.top_category_amount)}
+                  {formatCurrency(summary.top_category_amount, currency)}
                 </Text>
               )}
             </Flex>
@@ -196,7 +198,7 @@ export const Reports = (): JSX.Element => {
                 </Text>
                 <Flex align="center" gap="2">
                   <Text size="2" weight="medium">
-                    {formatCurrency(row.current)}
+                    {formatCurrency(row.current, currency)}
                   </Text>
                   <Text
                     size="1"
@@ -269,7 +271,7 @@ export const Reports = (): JSX.Element => {
                   {cat.transaction_count}
                 </Badge>
                 <Text size="2" weight="medium">
-                  {formatCurrency(cat.total)}
+                  {formatCurrency(cat.total, currency)}
                 </Text>
                 <Text size="1" color="gray" className={styles.colCount}>
                   {cat.percentage}%

@@ -1,106 +1,100 @@
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+import asyncpg
 
-from database.models import Account, Transaction, User
+from database.models import Account, Profile
 
 
-async def create_default_account(user: User, db: AsyncSession) -> Account:
-    account = Account(
-        user_id=user.id,
-        name="Cash",
-        type="checking",
-        currency="USD",
-        sort_order=0,
+def _row_to_account(row: asyncpg.Record) -> Account:
+    return Account(**dict(row))
+
+
+async def create_default_account(profile: Profile, conn: asyncpg.Connection) -> Account:
+    row = await conn.fetchrow(
+        """INSERT INTO accounts (profile_id, name, type, sort_order)
+           VALUES ($1, 'Checking', 'checking', 0) RETURNING *""",
+        profile.id,
     )
-    db.add(account)
-    await db.flush()
-    return account
+    return _row_to_account(row)
 
 
-async def get_accounts(user_id: int, db: AsyncSession) -> list[Account]:
-    result = await db.execute(
-        select(Account)
-        .where(Account.user_id == user_id, Account.is_active)
-        .order_by(Account.sort_order)
+async def get_accounts(profile_id: int, conn: asyncpg.Connection) -> list[Account]:
+    rows = await conn.fetch(
+        """SELECT * FROM accounts WHERE profile_id = $1 AND is_active
+           ORDER BY sort_order""",
+        profile_id,
     )
-    return result.scalars().all()
+    return [_row_to_account(row) for row in rows]
 
 
-async def get_account(account_id: int, user_id: int, db: AsyncSession) -> Account | None:
-    result = await db.execute(
-        select(Account).where(
-            Account.id == account_id,
-            Account.user_id == user_id,
-        )
+async def get_account(account_id: int, profile_id: int, conn: asyncpg.Connection) -> Account | None:
+    row = await conn.fetchrow(
+        "SELECT * FROM accounts WHERE id = $1 AND profile_id = $2",
+        account_id,
+        profile_id,
     )
-    return result.scalar_one_or_none()
+    return _row_to_account(row) if row else None
 
 
 async def create_account(
-    user_id: int, name: str, type: str, currency: str, db: AsyncSession
+    profile_id: int, name: str, type: str, conn: asyncpg.Connection
 ) -> Account:
-    account = Account(
-        user_id=user_id,
-        name=name,
-        type=type,
-        currency=currency,
+    row = await conn.fetchrow(
+        """INSERT INTO accounts (profile_id, name, type) VALUES ($1, $2, $3) RETURNING *""",
+        profile_id,
+        name,
+        type,
     )
-    db.add(account)
-    await db.flush()
-    return account
+    return _row_to_account(row)
 
 
 async def update_account(
-    account_id: int, user_id: int, data: dict, db: AsyncSession
+    account_id: int, profile_id: int, data: dict, conn: asyncpg.Connection
 ) -> Account | None:
-    account = await get_account(account_id, user_id, db)
-    if not account:
+    existing = await get_account(account_id, profile_id, conn)
+    if not existing:
         return None
-    for field, value in data.items():
-        setattr(account, field, value)
-    await db.flush()
-    return account
+    if not data:
+        return existing
 
-
-async def delete_account(account_id: int, user_id: int, db: AsyncSession) -> bool:
-    account = await get_account(account_id, user_id, db)
-    if not account:
-        return False
-    await db.delete(account)
-    await db.flush()
-    return True
-
-
-async def get_account_balances(user_id: int, db: AsyncSession) -> dict[int, float]:
-    result = await db.execute(
-        select(
-            Transaction.account_id,
-            func.coalesce(
-                func.sum(Transaction.amount).filter(Transaction.transaction_type == "income"), 0
-            ),
-            func.coalesce(
-                func.sum(Transaction.amount).filter(Transaction.transaction_type == "expense"), 0
-            ),
-        )
-        .where(Transaction.user_id == user_id)
-        .group_by(Transaction.account_id)
+    set_clauses = [f"{field} = ${i + 3}" for i, field in enumerate(data)]
+    values = list(data.values())
+    row = await conn.fetchrow(
+        f"""UPDATE accounts SET {", ".join(set_clauses)}
+            WHERE id = $1 AND profile_id = $2 RETURNING *""",
+        account_id,
+        profile_id,
+        *values,
     )
-    balances: dict[int, float] = {}
-    for account_id, income, expense in result.all():
-        balances[account_id] = float(income) - float(expense)
-    return balances
+    return _row_to_account(row)
 
 
-async def get_account_balance(account_id: int, db: AsyncSession) -> float:
-    result = await db.execute(
-        select(
-            func.coalesce(
-                func.sum(Transaction.amount).filter(Transaction.transaction_type == "income"), 0
-            ),
-            func.coalesce(
-                func.sum(Transaction.amount).filter(Transaction.transaction_type == "expense"), 0
-            ),
-        ).where(Transaction.account_id == account_id)
+async def delete_account(account_id: int, profile_id: int, conn: asyncpg.Connection) -> bool:
+    result = await conn.execute(
+        "DELETE FROM accounts WHERE id = $1 AND profile_id = $2",
+        account_id,
+        profile_id,
     )
-    row = result.one()
-    return float(row[0]) - float(row[1])
+    return result != "DELETE 0"
+
+
+async def get_account_balances(profile_id: int, conn: asyncpg.Connection) -> dict[int, float]:
+    rows = await conn.fetch(
+        """SELECT account_id,
+                  COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'income'), 0) AS income,
+                  COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'expense'), 0) AS expense
+           FROM transactions
+           WHERE profile_id = $1
+           GROUP BY account_id""",
+        profile_id,
+    )
+    return {row["account_id"]: float(row["income"]) - float(row["expense"]) for row in rows}
+
+
+async def get_account_balance(account_id: int, conn: asyncpg.Connection) -> float:
+    row = await conn.fetchrow(
+        """SELECT
+             COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'income'), 0) AS income,
+             COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'expense'), 0) AS expense
+           FROM transactions WHERE account_id = $1""",
+        account_id,
+    )
+    return float(row["income"]) - float(row["expense"])

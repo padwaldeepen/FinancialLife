@@ -16,10 +16,12 @@ import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import { BillDetail } from './BillDetail/BillDetail.tsx'
 import styles from './Bills.module.css'
 
 export const Bills = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const {
     bills,
     upcoming,
@@ -300,7 +302,7 @@ export const Bills = (): JSX.Element => {
                       </Text>
                     </Flex>
                     <Text size="2" weight="bold">
-                      {formatCurrency(bill.amount)}
+                      {formatCurrency(bill.amount, currency)}
                     </Text>
                   </Flex>
                 ))}
@@ -336,7 +338,7 @@ export const Bills = (): JSX.Element => {
                   </Flex>
                   <Flex align="center" gap="3">
                     <Text size="3" weight="bold" className={styles.nowrap}>
-                      {formatCurrency(bill.amount)}
+                      {formatCurrency(bill.amount, currency)}
                     </Text>
                     <IconButton
                       variant="ghost"

@@ -10,14 +10,16 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from core.config import settings
-from database.models import Base
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = Base.metadata
+# No ORM models — migrations are hand-written raw SQL (rules/database.md), so there is
+# no metadata to diff against. `alembic revision --autogenerate` is not used; write
+# revisions by hand with `alembic revision -m "description"`.
+target_metadata = None
 
 
 def get_url():

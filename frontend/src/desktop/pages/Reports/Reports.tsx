@@ -6,9 +6,11 @@ import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import api from '../../../auth/api.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Reports.module.css'
 
 export const Reports = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const [year, setYear] = useState(new Date().getFullYear().toString())
   const { monthly, summary, categories, comparison, loading, fetchReports } = useBoundStore(
     useShallow((s) => ({
@@ -95,7 +97,7 @@ export const Reports = (): JSX.Element => {
             <Flex align="center" gap="2">
               <TrendingUp size={18} className={styles.incomeIcon} />
               <span className={`${styles.statValue} ${styles.incomeText}`}>
-                {formatCurrency(summary.total_income)}
+                {formatCurrency(summary.total_income, currency)}
               </span>
             </Flex>
           </Card>
@@ -104,7 +106,7 @@ export const Reports = (): JSX.Element => {
             <Flex align="center" gap="2">
               <TrendingDown size={18} className={styles.expenseIcon} />
               <span className={`${styles.statValue} ${styles.expenseText}`}>
-                {formatCurrency(summary.total_expense)}
+                {formatCurrency(summary.total_expense, currency)}
               </span>
             </Flex>
           </Card>
@@ -117,7 +119,7 @@ export const Reports = (): JSX.Element => {
                   summary.net >= 0 ? styles.netPositive : styles.netNegative
                 }`}
               >
-                {formatCurrency(summary.net)}
+                {formatCurrency(summary.net, currency)}
               </span>
             </Flex>
           </Card>
@@ -128,7 +130,7 @@ export const Reports = (): JSX.Element => {
               <span className={styles.statValue}>{summary.top_category || 'N/A'}</span>
               {summary.top_category_amount && (
                 <Text size="2" color="gray">
-                  {formatCurrency(summary.top_category_amount)}
+                  {formatCurrency(summary.top_category_amount, currency)}
                 </Text>
               )}
             </Flex>
@@ -162,8 +164,10 @@ export const Reports = (): JSX.Element => {
             <div key={row.field} className={styles.comparisonRow}>
               <span className={styles.comparisonFieldName}>{row.field}</span>
               <div className={styles.comparisonValues}>
-                <span className={styles.comparisonCurrent}>{formatCurrency(row.current)}</span>
-                <span className={styles.comparisonPrev}>{formatCurrency(row.prev)}</span>
+                <span className={styles.comparisonCurrent}>
+                  {formatCurrency(row.current, currency)}
+                </span>
+                <span className={styles.comparisonPrev}>{formatCurrency(row.prev, currency)}</span>
                 <span
                   className={`${styles.comparisonChange} ${
                     row.pct === null
@@ -239,7 +243,7 @@ export const Reports = (): JSX.Element => {
                   {cat.transaction_count} tx
                 </Badge>
                 <Text size="2" weight="medium" className={styles.colAmount}>
-                  {formatCurrency(cat.total)}
+                  {formatCurrency(cat.total, currency)}
                 </Text>
                 <Text size="1" color="gray" className={styles.colCount}>
                   {cat.percentage}%

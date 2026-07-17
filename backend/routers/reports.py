@@ -1,13 +1,12 @@
 from datetime import date, datetime, timedelta
 
+import asyncpg
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Category, Transaction, User
+from database.models import Profile
 from database.session import get_db
-from routers.auth import get_current_user
+from routers.auth import get_current_profile
 
 router = APIRouter()
 
@@ -67,111 +66,99 @@ MONTH_NAMES = [
 ]
 
 
+async def _period_totals(
+    profile_id: int, start: datetime, end: datetime, conn: asyncpg.Connection
+) -> tuple[float, float]:
+    income = await conn.fetchval(
+        """SELECT COALESCE(SUM(amount), 0) FROM transactions
+           WHERE profile_id = $1 AND transaction_type = 'income' AND date >= $2 AND date <= $3""",
+        profile_id,
+        start,
+        end,
+    )
+    expense = await conn.fetchval(
+        """SELECT COALESCE(SUM(amount), 0) FROM transactions
+           WHERE profile_id = $1 AND transaction_type = 'expense' AND date >= $2 AND date <= $3""",
+        profile_id,
+        start,
+        end,
+    )
+    return round(float(income), 2), round(float(expense), 2)
+
+
 @router.get("/monthly", response_model=list[MonthlyEntry])
 async def monthly_report(
     year: int = Query(default_factory=lambda: date.today().year),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
     results = []
     for m in range(1, 13):
         month_start = datetime(year, m, 1)
-        if m == 12:
-            month_end = datetime(year + 1, 1, 1) - timedelta(days=1)
-        else:
-            month_end = datetime(year, m + 1, 1) - timedelta(days=1)
-
-        income_result = await db.execute(
-            select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-                Transaction.user_id == current_user.id,
-                Transaction.transaction_type == "income",
-                Transaction.date >= month_start,
-                Transaction.date <= month_end,
-            )
+        month_end = (datetime(year + 1, 1, 1) if m == 12 else datetime(year, m + 1, 1)) - timedelta(
+            days=1
         )
-        income = income_result.scalar() or 0
-
-        expense_result = await db.execute(
-            select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-                Transaction.user_id == current_user.id,
-                Transaction.transaction_type == "expense",
-                Transaction.date >= month_start,
-                Transaction.date <= month_end,
-            )
-        )
-        expense = expense_result.scalar() or 0
-
+        income, expense = await _period_totals(profile.id, month_start, month_end, conn)
         results.append(
             MonthlyEntry(
                 month=MONTH_NAMES[m - 1],
-                income=round(income, 2),
-                expense=round(expense, 2),
+                income=income,
+                expense=expense,
                 net=round(income - expense, 2),
             )
         )
-
     return results
 
 
 @router.get("/summary", response_model=SummaryResponse)
 async def report_summary(
     days: int = Query(30),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
     cutoff = datetime.combine(date.today(), datetime.min.time()) - timedelta(days=days)
 
-    income_result = await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.user_id == current_user.id,
-            Transaction.transaction_type == "income",
-            Transaction.date >= cutoff,
-        )
+    total_income = round(
+        float(
+            await conn.fetchval(
+                """SELECT COALESCE(SUM(amount), 0) FROM transactions
+                   WHERE profile_id = $1 AND transaction_type = 'income' AND date >= $2""",
+                profile.id,
+                cutoff,
+            )
+        ),
+        2,
     )
-    total_income = round(income_result.scalar() or 0, 2)
-
-    expense_result = await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.user_id == current_user.id,
-            Transaction.transaction_type == "expense",
-            Transaction.date >= cutoff,
-        )
+    total_expense = round(
+        float(
+            await conn.fetchval(
+                """SELECT COALESCE(SUM(amount), 0) FROM transactions
+                   WHERE profile_id = $1 AND transaction_type = 'expense' AND date >= $2""",
+                profile.id,
+                cutoff,
+            )
+        ),
+        2,
     )
-    total_expense = round(expense_result.scalar() or 0, 2)
-
-    count_result = await db.execute(
-        select(func.count(Transaction.id)).where(
-            Transaction.user_id == current_user.id,
-            Transaction.date >= cutoff,
-        )
+    tx_count = await conn.fetchval(
+        "SELECT COUNT(*) FROM transactions WHERE profile_id = $1 AND date >= $2",
+        profile.id,
+        cutoff,
     )
-    tx_count = count_result.scalar() or 0
-
     avg_daily = round(total_expense / max(days, 1), 2)
 
-    top_cat_result = await db.execute(
-        select(
-            Transaction.category_id,
-            func.sum(Transaction.amount).label("total"),
-        )
-        .where(
-            Transaction.user_id == current_user.id,
-            Transaction.transaction_type == "expense",
-            Transaction.category_id.isnot(None),
-            Transaction.date >= cutoff,
-        )
-        .group_by(Transaction.category_id)
-        .order_by(func.sum(Transaction.amount).desc())
-        .limit(1)
+    top_row = await conn.fetchrow(
+        """SELECT t.category_id, c.name AS category_name, SUM(t.amount) AS total
+           FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+           WHERE t.profile_id = $1 AND t.transaction_type = 'expense'
+             AND t.category_id IS NOT NULL AND t.date >= $2
+           GROUP BY t.category_id, c.name
+           ORDER BY SUM(t.amount) DESC LIMIT 1""",
+        profile.id,
+        cutoff,
     )
-    top_row = top_cat_result.first()
-    top_category = None
-    top_amount = None
-    if top_row:
-        cat_result = await db.execute(select(Category).where(Category.id == top_row.category_id))
-        cat = cat_result.scalar_one_or_none()
-        top_category = cat.name if cat else None
-        top_amount = round(top_row.total, 2)
+    top_category = top_row["category_name"] if top_row else None
+    top_amount = round(float(top_row["total"]), 2) if top_row else None
 
     return SummaryResponse(
         total_income=total_income,
@@ -187,73 +174,35 @@ async def report_summary(
 @router.get("/categories", response_model=list[CategoryTotal])
 async def report_categories(
     days: int = Query(90),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
     cutoff = datetime.combine(date.today(), datetime.min.time()) - timedelta(days=days)
 
-    rows_result = await db.execute(
-        select(
-            Transaction.category_id,
-            func.sum(Transaction.amount).label("total"),
-            func.count(Transaction.id).label("tx_count"),
-        )
-        .where(
-            Transaction.user_id == current_user.id,
-            Transaction.transaction_type == "expense",
-            Transaction.category_id.isnot(None),
-            Transaction.date >= cutoff,
-        )
-        .group_by(Transaction.category_id)
-        .order_by(func.sum(Transaction.amount).desc())
+    rows = await conn.fetch(
+        """SELECT t.category_id, c.name AS category_name, c.color AS category_color,
+                  SUM(t.amount) AS total, COUNT(t.id) AS tx_count
+           FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+           WHERE t.profile_id = $1 AND t.transaction_type = 'expense'
+             AND t.category_id IS NOT NULL AND t.date >= $2
+           GROUP BY t.category_id, c.name, c.color
+           ORDER BY SUM(t.amount) DESC""",
+        profile.id,
+        cutoff,
     )
-    rows = rows_result.all()
 
-    grand_total = sum(r.total for r in rows) or 0
-
-    result = []
-    for r in rows:
-        cat_result = await db.execute(select(Category).where(Category.id == r.category_id))
-        cat = cat_result.scalar_one_or_none()
-        result.append(
-            CategoryTotal(
-                category_id=r.category_id,
-                category_name=cat.name if cat else "Unknown",
-                category_color=cat.color if cat else "#6B7280",
-                total=round(r.total, 2),
-                percentage=round((r.total / grand_total * 100), 1) if grand_total > 0 else 0,
-                transaction_count=r.tx_count,
-            )
+    grand_total = sum(float(r["total"]) for r in rows) or 0
+    return [
+        CategoryTotal(
+            category_id=r["category_id"],
+            category_name=r["category_name"] or "Unknown",
+            category_color=r["category_color"] or "#6B7280",
+            total=round(float(r["total"]), 2),
+            percentage=round((float(r["total"]) / grand_total * 100), 1) if grand_total > 0 else 0,
+            transaction_count=r["tx_count"],
         )
-    return result
-
-
-async def _get_period_totals(
-    db: AsyncSession,
-    user_id: int,
-    start: datetime,
-    end: datetime,
-) -> tuple[float, float]:
-    income_result = await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.user_id == user_id,
-            Transaction.transaction_type == "income",
-            Transaction.date >= start,
-            Transaction.date <= end,
-        )
-    )
-    income = round(income_result.scalar() or 0, 2)
-
-    expense_result = await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.user_id == user_id,
-            Transaction.transaction_type == "expense",
-            Transaction.date >= start,
-            Transaction.date <= end,
-        )
-    )
-    expense = round(expense_result.scalar() or 0, 2)
-    return income, expense
+        for r in rows
+    ]
 
 
 def _pct_change(current: float, previous: float) -> float | None:
@@ -266,28 +215,26 @@ def _pct_change(current: float, previous: float) -> float | None:
 async def report_comparison(
     year: int = Query(default_factory=lambda: date.today().year),
     month: int = Query(default_factory=lambda: date.today().month),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
     cur_start = datetime(year, month, 1)
-    if month == 12:
-        cur_end = datetime(year + 1, 1, 1) - timedelta(days=1)
-    else:
-        cur_end = datetime(year, month + 1, 1) - timedelta(days=1)
+    cur_end = (
+        datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+    ) - timedelta(days=1)
 
-    prev_month = month - 1
-    prev_year = year
+    prev_month, prev_year = month - 1, year
     if prev_month == 0:
-        prev_month = 12
-        prev_year -= 1
+        prev_month, prev_year = 12, year - 1
     prev_start = datetime(prev_year, prev_month, 1)
-    if prev_month == 12:
-        prev_end = datetime(prev_year + 1, 1, 1) - timedelta(days=1)
-    else:
-        prev_end = datetime(prev_year, prev_month + 1, 1) - timedelta(days=1)
+    prev_end = (
+        datetime(prev_year + 1, 1, 1)
+        if prev_month == 12
+        else datetime(prev_year, prev_month + 1, 1)
+    ) - timedelta(days=1)
 
-    cur_income, cur_expense = await _get_period_totals(db, current_user.id, cur_start, cur_end)
-    prev_income, prev_expense = await _get_period_totals(db, current_user.id, prev_start, prev_end)
+    cur_income, cur_expense = await _period_totals(profile.id, cur_start, cur_end, conn)
+    prev_income, prev_expense = await _period_totals(profile.id, prev_start, prev_end, conn)
 
     cur_net = round(cur_income - cur_expense, 2)
     prev_net = round(prev_income - prev_expense, 2)

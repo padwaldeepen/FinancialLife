@@ -1,10 +1,8 @@
 import re
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+import asyncpg
 
-from database.models import Merchant, Transaction
+from database.models import Merchant
 
 ALIAS_MAP: dict[str, str] = {
     "amzn": "Amazon",
@@ -26,6 +24,39 @@ def normalize_name(raw: str) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9\s]", "", raw).strip().lower()
     cleaned = re.sub(r"\s+", " ", cleaned)
     return cleaned
+
+
+# Typo-tolerant matching thresholds (D5). Short normalized names get a tighter bound
+# — "cvs" vs "cbs" (distance 1) are both plausible-but-different 3-letter merchants,
+# so at short lengths only a distance of exactly 1 is trusted; longer names ("wallmart"
+# vs "walmart") can tolerate up to 2.
+FUZZY_MATCH_SHORT_NAME_LEN = 5
+FUZZY_MATCH_SHORT_MAX_DISTANCE = 1
+FUZZY_MATCH_MAX_DISTANCE = 2
+
+
+def levenshtein_distance(a: str, b: str) -> int:
+    """Classic O(len(a)*len(b)) edit-distance DP — small inputs (merchant names),
+    no need for a library."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+
+    prev_row = list(range(len(b) + 1))
+    for i, ca in enumerate(a, start=1):
+        curr_row = [i] + [0] * len(b)
+        for j, cb in enumerate(b, start=1):
+            cost = 0 if ca == cb else 1
+            curr_row[j] = min(
+                prev_row[j] + 1,  # deletion
+                curr_row[j - 1] + 1,  # insertion
+                prev_row[j - 1] + cost,  # substitution
+            )
+        prev_row = curr_row
+    return prev_row[len(b)]
 
 
 def extract_merchant_from_description(description: str) -> str | None:
@@ -77,146 +108,237 @@ def extract_merchant_from_description(description: str) -> str | None:
     return None
 
 
-async def find_or_create_merchant(user_id: int, name: str, db: AsyncSession) -> Merchant | None:
+def _row_to_merchant(row: asyncpg.Record) -> Merchant:
+    return Merchant(**dict(row))
+
+
+async def find_fuzzy_merchant(
+    profile_id: int, name: str, conn: asyncpg.Connection
+) -> Merchant | None:
+    """Typo-tolerant match against the active profile's existing merchants only
+    (never across profiles — architecture-and-goals.md). Call after an exact-match
+    miss. Returns the closest merchant within the distance threshold, or None if
+    nothing is close enough / the input is too short to trust a fuzzy match."""
+    normalized = normalize_name(name)
+    if not normalized:
+        return None
+    threshold = (
+        FUZZY_MATCH_SHORT_MAX_DISTANCE
+        if len(normalized) <= FUZZY_MATCH_SHORT_NAME_LEN
+        else FUZZY_MATCH_MAX_DISTANCE
+    )
+
+    rows = await conn.fetch("SELECT * FROM merchants WHERE profile_id = $1", profile_id)
+    best: tuple[Merchant, int] | None = None
+    for row in rows:
+        candidate = _row_to_merchant(row)
+        distance = levenshtein_distance(normalized, candidate.normalized_name)
+        if distance <= threshold and (best is None or distance < best[1]):
+            best = (candidate, distance)
+    return best[0] if best else None
+
+
+async def find_matching_merchant(
+    profile_id: int, name: str, conn: asyncpg.Connection
+) -> Merchant | None:
+    """Exact match, then typo-tolerant fallback. Read-only — never creates, so it's
+    safe to call from a preview/parse path before anything is saved."""
+    if not name:
+        return None
+    normalized = normalize_name(name)
+    row = await conn.fetchrow(
+        "SELECT * FROM merchants WHERE profile_id = $1 AND normalized_name = $2",
+        profile_id,
+        normalized,
+    )
+    if row:
+        return _row_to_merchant(row)
+    return await find_fuzzy_merchant(profile_id, name, conn)
+
+
+async def find_or_create_merchant(
+    profile_id: int, name: str, conn: asyncpg.Connection
+) -> Merchant | None:
     if not name:
         return None
 
-    normalized = normalize_name(name)
-
-    result = await db.execute(
-        select(Merchant).where(
-            Merchant.user_id == user_id,
-            Merchant.normalized_name == normalized,
-        )
-    )
-    existing = result.scalar_one_or_none()
+    existing = await find_matching_merchant(profile_id, name, conn)
     if existing:
         return existing
 
-    merchant = Merchant(
-        user_id=user_id,
-        name=name,
-        normalized_name=normalized,
+    normalized = normalize_name(name)
+    row = await conn.fetchrow(
+        """INSERT INTO merchants (profile_id, name, normalized_name)
+           VALUES ($1, $2, $3) RETURNING *""",
+        profile_id,
+        name,
+        normalized,
     )
-    db.add(merchant)
-    await db.flush()
-    return merchant
+    return _row_to_merchant(row)
 
 
 async def get_merchants(
-    user_id: int, db: AsyncSession, include_hidden: bool = False
-) -> list[Merchant]:
-    stmt = (
-        select(Merchant)
-        .options(selectinload(Merchant.transactions))
-        .where(Merchant.user_id == user_id)
+    profile_id: int, conn: asyncpg.Connection, include_hidden: bool = False
+) -> list[dict]:
+    """Returns dicts with transaction_count/total_spent joined in — not bare
+    Merchant rows (rules/database.md: related data via JOIN, not attribute access)."""
+    hidden_clause = "" if include_hidden else "AND m.is_hidden = FALSE"
+    rows = await conn.fetch(
+        f"""SELECT m.*,
+               COUNT(t.id) AS transaction_count,
+               COALESCE(SUM(t.amount) FILTER (WHERE t.transaction_type = 'expense'), 0) AS total_spent
+            FROM merchants m
+            LEFT JOIN transactions t ON t.merchant_id = m.id
+            WHERE m.profile_id = $1 {hidden_clause}
+            GROUP BY m.id
+            ORDER BY m.name""",
+        profile_id,
     )
-    if not include_hidden:
-        stmt = stmt.where(Merchant.is_hidden.is_(False))
-    stmt = stmt.order_by(Merchant.name)
-    result = await db.execute(stmt)
-    return result.scalars().all()
+    return [dict(row) for row in rows]
 
 
-async def get_merchant(merchant_id: int, user_id: int, db: AsyncSession) -> Merchant | None:
-    result = await db.execute(
-        select(Merchant)
-        .options(selectinload(Merchant.transactions))
-        .where(Merchant.id == merchant_id, Merchant.user_id == user_id)
+async def get_merchant(
+    merchant_id: int, profile_id: int, conn: asyncpg.Connection
+) -> Merchant | None:
+    row = await conn.fetchrow(
+        "SELECT * FROM merchants WHERE id = $1 AND profile_id = $2",
+        merchant_id,
+        profile_id,
     )
-    return result.scalar_one_or_none()
+    return _row_to_merchant(row) if row else None
 
 
 async def update_merchant(
-    merchant_id: int, user_id: int, update_data: dict, db: AsyncSession
-) -> Merchant | None:
-    merchant = await get_merchant(merchant_id, user_id, db)
+    merchant_id: int, profile_id: int, update_data: dict, conn: asyncpg.Connection
+) -> dict | None:
+    merchant = await get_merchant(merchant_id, profile_id, conn)
     if not merchant:
         return None
-    for field, value in update_data.items():
-        setattr(merchant, field, value)
-    if "name" in update_data:
-        merchant.normalized_name = normalize_name(update_data["name"])
-    await db.flush()
-    return merchant
+
+    data = dict(update_data)
+    if "name" in data:
+        data["normalized_name"] = normalize_name(data["name"])
+
+    if data:
+        set_clauses = [f"{field} = ${i + 3}" for i, field in enumerate(data)]
+        await conn.execute(
+            f"UPDATE merchants SET {', '.join(set_clauses)} WHERE id = $1 AND profile_id = $2",
+            merchant_id,
+            profile_id,
+            *data.values(),
+        )
+
+    row = await conn.fetchrow(
+        """SELECT m.*,
+               COUNT(t.id) AS transaction_count,
+               COALESCE(SUM(t.amount) FILTER (WHERE t.transaction_type = 'expense'), 0) AS total_spent
+            FROM merchants m LEFT JOIN transactions t ON t.merchant_id = m.id
+            WHERE m.id = $1 GROUP BY m.id""",
+        merchant_id,
+    )
+    return dict(row) if row else None
 
 
-async def delete_merchant(merchant_id: int, user_id: int, db: AsyncSession) -> bool:
-    merchant = await get_merchant(merchant_id, user_id, db)
-    if not merchant:
-        return False
-    await db.delete(merchant)
-    await db.flush()
-    return True
+async def delete_merchant(merchant_id: int, profile_id: int, conn: asyncpg.Connection) -> bool:
+    result = await conn.execute(
+        "DELETE FROM merchants WHERE id = $1 AND profile_id = $2",
+        merchant_id,
+        profile_id,
+    )
+    return result != "DELETE 0"
 
 
 async def merge_merchants(
-    target_id: int, source_ids: list[int], user_id: int, db: AsyncSession
-) -> Merchant | None:
-    target = await get_merchant(target_id, user_id, db)
+    target_id: int, source_ids: list[int], profile_id: int, conn: asyncpg.Connection
+) -> dict | None:
+    target = await get_merchant(target_id, profile_id, conn)
     if not target:
         return None
 
     aliases: list[str] = list(target.aliases or [])
     aliases.append(target.normalized_name)
 
-    for sid in source_ids:
-        source = await get_merchant(sid, user_id, db)
-        if not source:
-            continue
-        aliases.append(source.normalized_name)
-        if source.aliases:
-            aliases.extend(source.aliases)
+    async with conn.transaction():
+        for sid in source_ids:
+            source = await get_merchant(sid, profile_id, conn)
+            if not source:
+                continue
+            aliases.append(source.normalized_name)
+            if source.aliases:
+                aliases.extend(source.aliases)
 
-        result = await db.execute(select(Transaction).where(Transaction.merchant_id == sid))
-        for tx in result.scalars().all():
-            tx.merchant_id = target_id
+            await conn.execute(
+                "UPDATE transactions SET merchant_id = $1 WHERE merchant_id = $2",
+                target_id,
+                sid,
+            )
+            await conn.execute("DELETE FROM merchants WHERE id = $1", sid)
 
-        await db.delete(source)
-
-    target.aliases = list(set(aliases))
-    await db.flush()
-    return target
-
-
-async def backfill_merchants(user_id: int, db: AsyncSession) -> int:
-    result = await db.execute(
-        select(Transaction).where(
-            Transaction.user_id == user_id,
-            Transaction.merchant_id.is_(None),
+        await conn.execute(
+            "UPDATE merchants SET aliases = $1 WHERE id = $2",
+            list(set(aliases)),
+            target_id,
         )
+
+    row = await conn.fetchrow(
+        """SELECT m.*,
+               COUNT(t.id) AS transaction_count,
+               COALESCE(SUM(t.amount) FILTER (WHERE t.transaction_type = 'expense'), 0) AS total_spent
+            FROM merchants m LEFT JOIN transactions t ON t.merchant_id = m.id
+            WHERE m.id = $1 GROUP BY m.id""",
+        target_id,
     )
-    txs = result.scalars().all()
+    return dict(row) if row else None
+
+
+async def backfill_merchants(profile_id: int, conn: asyncpg.Connection) -> int:
+    rows = await conn.fetch(
+        "SELECT id, description FROM transactions WHERE profile_id = $1 AND merchant_id IS NULL",
+        profile_id,
+    )
     count = 0
-    for tx in txs:
-        merchant_name = extract_merchant_from_description(tx.description)
+    for row in rows:
+        merchant_name = extract_merchant_from_description(row["description"])
         if merchant_name:
-            merchant = await find_or_create_merchant(user_id, merchant_name, db)
+            merchant = await find_or_create_merchant(profile_id, merchant_name, conn)
             if merchant:
-                tx.merchant_id = merchant.id
+                await conn.execute(
+                    "UPDATE transactions SET merchant_id = $1 WHERE id = $2",
+                    merchant.id,
+                    row["id"],
+                )
                 count += 1
-    await db.flush()
     return count
 
 
-async def get_merchant_summary(merchant_id: int, user_id: int, db: AsyncSession) -> dict | None:
-    merchant = await get_merchant(merchant_id, user_id, db)
+async def get_merchant_summary(
+    merchant_id: int, profile_id: int, conn: asyncpg.Connection
+) -> dict | None:
+    merchant = await get_merchant(merchant_id, profile_id, conn)
     if not merchant:
         return None
 
-    txs = merchant.transactions
-    expense_txs = [t for t in txs if t.transaction_type == "expense"]
-    total_spent = sum(t.amount for t in expense_txs)
-    total_income = sum(t.amount for t in txs if t.transaction_type == "income")
+    txs = await conn.fetch(
+        """SELECT t.id, t.amount, t.description, t.transaction_type, t.date,
+                  c.name AS category_name, c.color AS category_color
+           FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+           WHERE t.merchant_id = $1
+           ORDER BY t.date DESC""",
+        merchant_id,
+    )
 
-    dates = [t.date for t in txs]
+    expense_txs = [t for t in txs if t["transaction_type"] == "expense"]
+    total_spent = sum(float(t["amount"]) for t in expense_txs)
+    total_income = sum(float(t["amount"]) for t in txs if t["transaction_type"] == "income")
+
+    dates = [t["date"] for t in txs]
     first_date = min(dates) if dates else None
     last_date = max(dates) if dates else None
 
     category_breakdown: dict[str, dict] = {}
     for t in expense_txs:
-        cat_name = t.category.name if t.category else "Uncategorized"
-        cat_color = t.category.color if t.category else "#6B7280"
+        cat_name = t["category_name"] or "Uncategorized"
+        cat_color = t["category_color"] or "#6B7280"
         if cat_name not in category_breakdown:
             category_breakdown[cat_name] = {
                 "category_name": cat_name,
@@ -224,30 +346,29 @@ async def get_merchant_summary(merchant_id: int, user_id: int, db: AsyncSession)
                 "total": 0.0,
                 "count": 0,
             }
-        category_breakdown[cat_name]["total"] += t.amount
+        category_breakdown[cat_name]["total"] += float(t["amount"])
         category_breakdown[cat_name]["count"] += 1
 
     monthly_spending: dict[str, float] = {}
     for t in expense_txs:
-        key = t.date.strftime("%Y-%m")
-        monthly_spending[key] = monthly_spending.get(key, 0.0) + t.amount
+        key = t["date"].strftime("%Y-%m")
+        monthly_spending[key] = monthly_spending.get(key, 0.0) + float(t["amount"])
 
     monthly_chart = [
         {"month": k, "amount": round(v, 2)} for k, v in sorted(monthly_spending.items())
     ]
 
-    txs_sorted = sorted(txs, key=lambda t: t.date, reverse=True)
     recent_transactions = [
         {
-            "id": t.id,
-            "amount": t.amount,
-            "description": t.description,
-            "transaction_type": t.transaction_type,
-            "date": t.date.isoformat(),
-            "category_name": t.category.name if t.category else None,
-            "category_color": t.category.color if t.category else None,
+            "id": t["id"],
+            "amount": float(t["amount"]),
+            "description": t["description"],
+            "transaction_type": t["transaction_type"],
+            "date": t["date"].isoformat(),
+            "category_name": t["category_name"],
+            "category_color": t["category_color"],
         }
-        for t in txs_sorted[:20]
+        for t in txs[:20]
     ]
 
     return {
@@ -265,42 +386,6 @@ async def get_merchant_summary(merchant_id: int, user_id: int, db: AsyncSession)
     }
 
 
-async def find_similar_merchants(
-    user_id: int, db: AsyncSession, threshold: float = 0.6
-) -> list[dict]:
-    result = await db.execute(
-        select(Merchant)
-        .options(selectinload(Merchant.transactions))
-        .where(Merchant.user_id == user_id, Merchant.is_hidden.is_(False))
-    )
-    merchants = result.scalars().all()
-
-    pairs = []
-    for i in range(len(merchants)):
-        for j in range(i + 1, len(merchants)):
-            a, b = merchants[i], merchants[j]
-            similarity = _name_similarity(a.normalized_name, b.normalized_name)
-            if similarity >= threshold:
-                pairs.append(
-                    {
-                        "merchant_a": {
-                            "id": a.id,
-                            "name": a.name,
-                            "total_spent": _merchant_total(a),
-                        },
-                        "merchant_b": {
-                            "id": b.id,
-                            "name": b.name,
-                            "total_spent": _merchant_total(b),
-                        },
-                        "similarity": round(similarity, 2),
-                    }
-                )
-
-    pairs.sort(key=lambda p: p["similarity"], reverse=True)
-    return pairs
-
-
 def _name_similarity(a: str, b: str) -> float:
     if not a or not b:
         return 0.0
@@ -313,5 +398,40 @@ def _name_similarity(a: str, b: str) -> float:
     return len(intersection) / len(union)
 
 
-def _merchant_total(merchant: Merchant) -> float:
-    return sum(t.amount for t in merchant.transactions if t.transaction_type == "expense")
+async def find_similar_merchants(
+    profile_id: int, conn: asyncpg.Connection, threshold: float = 0.6
+) -> list[dict]:
+    rows = await conn.fetch(
+        """SELECT m.*,
+               COALESCE(SUM(t.amount) FILTER (WHERE t.transaction_type = 'expense'), 0) AS total_spent
+           FROM merchants m LEFT JOIN transactions t ON t.merchant_id = m.id
+           WHERE m.profile_id = $1 AND m.is_hidden = FALSE
+           GROUP BY m.id""",
+        profile_id,
+    )
+    merchants = list(rows)
+
+    pairs = []
+    for i in range(len(merchants)):
+        for j in range(i + 1, len(merchants)):
+            a, b = merchants[i], merchants[j]
+            similarity = _name_similarity(a["normalized_name"], b["normalized_name"])
+            if similarity >= threshold:
+                pairs.append(
+                    {
+                        "merchant_a": {
+                            "id": a["id"],
+                            "name": a["name"],
+                            "total_spent": float(a["total_spent"]),
+                        },
+                        "merchant_b": {
+                            "id": b["id"],
+                            "name": b["name"],
+                            "total_spent": float(b["total_spent"]),
+                        },
+                        "similarity": round(similarity, 2),
+                    }
+                )
+
+    pairs.sort(key=lambda p: p["similarity"], reverse=True)
+    return pairs

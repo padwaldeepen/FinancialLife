@@ -1,30 +1,36 @@
-from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from collections.abc import AsyncGenerator
+
+import asyncpg
 
 from core.config import settings
 
-_ASYNC_DATABASE_URL = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-
-engine = create_async_engine(
-    _ASYNC_DATABASE_URL,
-    pool_size=20,
-    max_overflow=10,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-    echo=settings.DEBUG,
-)
-
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+_pool: asyncpg.Pool | None = None
 
 
-class Base(DeclarativeBase, AsyncAttrs):
-    pass
+async def init_pool() -> None:
+    global _pool
+    _pool = await asyncpg.create_pool(
+        dsn=settings.DATABASE_URL,
+        min_size=2,
+        max_size=20,
+    )
 
 
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
+async def close_pool() -> None:
+    global _pool
+    if _pool is not None:
+        await _pool.close()
+        _pool = None
+
+
+def get_pool() -> asyncpg.Pool:
+    if _pool is None:
+        raise RuntimeError("Database pool not initialized — call init_pool() at startup")
+    return _pool
+
+
+async def get_db() -> AsyncGenerator[asyncpg.Connection, None]:
+    """FastAPI dependency: acquires one connection from the pool for the request.
+    Never acquire connections manually elsewhere — always through this."""
+    async with get_pool().acquire() as conn:
+        yield conn

@@ -19,11 +19,13 @@ import toast from 'react-hot-toast'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Merchants.module.css'
 
 const PULL_THRESHOLD = 80
 
 export const Merchants = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const {
     merchants,
     loading,
@@ -276,7 +278,7 @@ export const Merchants = (): JSX.Element => {
                 </Text>
               </Box>
               <Text size="2" weight="bold" color="red">
-                {formatCurrency(merchant.total_spent)}
+                {formatCurrency(merchant.total_spent, currency)}
               </Text>
             </Flex>
           </Card>
@@ -306,7 +308,7 @@ export const Merchants = (): JSX.Element => {
                       Total Spent
                     </Text>
                     <Text size="4" weight="bold" color="red">
-                      {formatCurrency(detail.total_spent)}
+                      {formatCurrency(detail.total_spent, currency)}
                     </Text>
                   </Box>
                   <Box>
@@ -394,7 +396,7 @@ export const Merchants = (): JSX.Element => {
                             <Text size="2">{c.category_name}</Text>
                           </Flex>
                           <Text size="2">
-                            {formatCurrency(c.total)} ({c.count}x)
+                            {formatCurrency(c.total, currency)} ({c.count}x)
                           </Text>
                         </Flex>
                       ))}
@@ -419,7 +421,7 @@ export const Merchants = (): JSX.Element => {
                               color={tx.transaction_type === 'expense' ? 'red' : 'green'}
                             >
                               {tx.transaction_type === 'expense' ? '-' : '+'}
-                              {formatCurrency(tx.amount)}
+                              {formatCurrency(tx.amount, currency)}
                             </Text>
                           </Flex>
                           <Text size="1" color="gray">

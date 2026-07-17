@@ -5,6 +5,7 @@ import { Wallet, PiggyBank, CreditCard, TrendingUp } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency, formatDate } from '../../../shared/utils/format.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Home.module.css'
 
 interface Transaction {
@@ -46,6 +47,7 @@ const accountColors: Record<string, string> = {
 }
 
 export const Home = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const navigate = useNavigate()
   const {
     accounts,
@@ -97,7 +99,7 @@ export const Home = (): JSX.Element => {
           {/* Balance Hero */}
           <Card className={styles.balanceCard}>
             <Text className={styles.balanceLabel}>Total Balance</Text>
-            <div className={styles.balanceAmount}>{formatCurrency(totalBalance)}</div>
+            <div className={styles.balanceAmount}>{formatCurrency(totalBalance, currency)}</div>
             <Text className={styles.balanceAccounts}>
               {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
             </Text>
@@ -132,7 +134,9 @@ export const Home = (): JSX.Element => {
                         <div className={styles.accountName}>{account.name}</div>
                         <div className={styles.accountType}>{account.type}</div>
                       </Box>
-                      <div className={styles.accountBalance}>{formatCurrency(account.balance)}</div>
+                      <div className={styles.accountBalance}>
+                        {formatCurrency(account.balance, currency)}
+                      </div>
                     </Flex>
                   </Card>
                 ))}
@@ -180,7 +184,7 @@ export const Home = (): JSX.Element => {
                       }
                     >
                       {t.transaction_type === 'income' ? '+' : '-'}
-                      {formatCurrency(t.amount)}
+                      {formatCurrency(t.amount, currency)}
                     </div>
                   </Flex>
                 ))}
@@ -230,7 +234,7 @@ export const Home = (): JSX.Element => {
                       }
                     >
                       {bill.has_paid ? '✓ ' : ''}
-                      {formatCurrency(bill.amount)}
+                      {formatCurrency(bill.amount, currency)}
                     </Text>
                   </Flex>
                 ))}

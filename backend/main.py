@@ -7,7 +7,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from core.config import settings
 from core.logging import get_logger, log_startup
 from core.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
-from database.session import AsyncSessionLocal
+from database.session import close_pool, get_pool, init_pool
 from routers import (
     accounts,
     ai,
@@ -29,16 +29,18 @@ log = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     log_startup()
-    log.info("Database tables managed by Alembic migrations")
+    await init_pool()
+    log.info("Database pool initialized — tables managed by Alembic migrations")
     try:
-        async with AsyncSessionLocal() as db:
-            from services.category_service import seed_system_categories
+        from services.category_service import seed_system_categories
 
-            await seed_system_categories(db)
-            log.info("System categories seeded")
+        async with get_pool().acquire() as conn:
+            await seed_system_categories(conn)
+        log.info("System categories seeded")
     except Exception as e:
         log.warning("Could not seed system categories: %s", e)
     yield
+    await close_pool()
 
 
 app = FastAPI(

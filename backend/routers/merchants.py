@@ -1,10 +1,10 @@
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import User
+from database.models import Profile
 from database.session import get_db
-from routers.auth import get_current_user
+from routers.auth import get_current_profile
 from services.merchant_service import (
     backfill_merchants,
     delete_merchant,
@@ -30,19 +30,6 @@ class MerchantResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class MerchantDetailResponse(BaseModel):
-    id: int
-    name: str
-    is_hidden: bool
-    total_spent: float
-    total_income: float
-    transaction_count: int
-    first_transaction_date: str | None
-    last_transaction_date: str | None
-
-    model_config = {"from_attributes": True}
-
-
 class MerchantUpdate(BaseModel):
     name: str | None = None
     is_hidden: bool | None = None
@@ -53,34 +40,35 @@ class MerchantMerge(BaseModel):
     source_ids: list[int]
 
 
+def _to_response(row: dict) -> MerchantResponse:
+    return MerchantResponse(
+        id=row["id"],
+        name=row["name"],
+        normalized_name=row["normalized_name"],
+        aliases=row["aliases"],
+        is_hidden=row["is_hidden"],
+        transaction_count=row["transaction_count"],
+        total_spent=float(row["total_spent"]),
+    )
+
+
 @router.get("/")
 async def list_merchants(
     include_hidden: bool = False,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    merchants = await get_merchants(user.id, db, include_hidden=include_hidden)
-    return [
-        MerchantResponse(
-            id=m.id,
-            name=m.name,
-            normalized_name=m.normalized_name,
-            aliases=m.aliases,
-            is_hidden=m.is_hidden,
-            transaction_count=len(m.transactions),
-            total_spent=sum(t.amount for t in m.transactions if t.transaction_type == "expense"),
-        )
-        for m in merchants
-    ]
+    merchants = await get_merchants(profile.id, conn, include_hidden=include_hidden)
+    return [_to_response(m) for m in merchants]
 
 
 @router.get("/{merchant_id}")
 async def merchant_detail(
     merchant_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    result = await get_merchant_summary(merchant_id, user.id, db)
+    result = await get_merchant_summary(merchant_id, profile.id, conn)
     if not result:
         raise HTTPException(status_code=404, detail="Merchant not found")
     return result
@@ -90,69 +78,53 @@ async def merchant_detail(
 async def update_merchant_endpoint(
     merchant_id: int,
     data: MerchantUpdate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
     update_data = data.model_dump(exclude_none=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
-    merchant = await update_merchant(merchant_id, user.id, update_data, db)
+    merchant = await update_merchant(merchant_id, profile.id, update_data, conn)
     if not merchant:
         raise HTTPException(status_code=404, detail="Merchant not found")
-    return MerchantResponse(
-        id=merchant.id,
-        name=merchant.name,
-        normalized_name=merchant.normalized_name,
-        aliases=merchant.aliases,
-        is_hidden=merchant.is_hidden,
-        transaction_count=len(merchant.transactions),
-        total_spent=sum(t.amount for t in merchant.transactions if t.transaction_type == "expense"),
-    )
+    return _to_response(merchant)
 
 
 @router.post("/merge")
 async def merge_merchants_endpoint(
     data: MerchantMerge,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    merchant = await merge_merchants(data.target_id, data.source_ids, user.id, db)
+    merchant = await merge_merchants(data.target_id, data.source_ids, profile.id, conn)
     if not merchant:
         raise HTTPException(status_code=404, detail="Target merchant not found")
-    return MerchantResponse(
-        id=merchant.id,
-        name=merchant.name,
-        normalized_name=merchant.normalized_name,
-        aliases=merchant.aliases,
-        is_hidden=merchant.is_hidden,
-        transaction_count=len(merchant.transactions),
-        total_spent=sum(t.amount for t in merchant.transactions if t.transaction_type == "expense"),
-    )
+    return _to_response(merchant)
 
 
 @router.get("/similar/")
 async def similar_merchants(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    return await find_similar_merchants(user.id, db)
+    return await find_similar_merchants(profile.id, conn)
 
 
 @router.delete("/{merchant_id}", status_code=204)
 async def delete_merchant_endpoint(
     merchant_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    deleted = await delete_merchant(merchant_id, user.id, db)
+    deleted = await delete_merchant(merchant_id, profile.id, conn)
     if not deleted:
         raise HTTPException(status_code=404, detail="Merchant not found")
 
 
 @router.post("/backfill")
 async def backfill_endpoint(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    count = await backfill_merchants(user.id, db)
+    count = await backfill_merchants(profile.id, conn)
     return {"backfilled": count}

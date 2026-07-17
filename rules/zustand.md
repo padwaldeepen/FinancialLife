@@ -2,25 +2,24 @@
 
 ## When state goes in Zustand vs `useState`
 
-**The trigger is ownership, not count.** A component with five `useState` calls for a
-form's fields is correct if that data is transient and local until submit — nobody else
-needs it, and it doesn't survive the component unmounting. A component with exactly one
-`useState` for data that's shared across components or persisted on the server is wrong.
+**Rule (decided 2026-07-17, owner's call): if a component holds more than one piece of
+state, it goes in Zustand — not `useState`.** A single, truly local flag (e.g. one
+`showPassword` boolean with nothing else) may stay `useState`; the moment a component
+needs two or more pieces of state (form fields, a dialog's open flag plus its draft
+values, etc.), give it a Zustand slice instead. This applies even to per-form,
+transient-until-submit state like a registration form — put it in a slice, not a block
+of `useState` calls.
 
-- **Zustand**: state that (a) more than one component reads/writes, (b) is fetched from
-  or persisted to the API, or (c) must survive navigation/unmount. Example: a user
-  setting like `ai_cloud_enabled` — it's server-owned, shown in both desktop and mobile
-  Settings, and other code (AI call sites) may need to read it later. This was fixed
-  2026-07-17: the AI toggle originally lived as local `useState` + its own `useEffect`
-  fetch duplicated in both Settings.tsx files — moved into `authSlice` (`user.ai_cloud_enabled`
-  + `updateAiCloudEnabled` action) so there's one fetch, one source of truth, both trees
-  read the same field.
-- **`useState`**: transient, single-component, form-local values — dialog open/closed,
-  in-progress form fields before submit, a `saving` spinner flag. Multiple `useState`
-  calls in one component are fine when every one of them is local by this test.
-
-If unsure, ask: "if the user opens this same data in the other device tree (desktop vs
-mobile) or navigates away and back, should it be there already?" Yes → Zustand.
+- Server-owned/shared state (settings, fetched lists, anything another component or a
+  reload should see) was always Zustand — unchanged.
+- Now also Zustand: any component-local state once it's more than one field. Example:
+  `Register.tsx`'s form (`fullName`, `username`, `email`, `password`, `confirmPassword`,
+  `country`, `showPassword`, `errors`) moved into `store/slices/registerFormSlice.ts`
+  (`resetRegisterForm` clears it on mount/unmount so stale data doesn't leak between
+  visits — the one behavior a naive move to Zustand would otherwise regress).
+- Pattern for a form slice: fields flat under the namespace, a `setField(name, value)`
+  action (or one setter per field), a `reset()` action components call in a mount
+  `useEffect` — see `registerFormSlice.ts`.
 
 ## Store Architecture
 

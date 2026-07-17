@@ -1,5 +1,8 @@
 fastapi==0.138.1
 uvicorn[standard]==0.49.0
+# sqlalchemy: Alembic's async migration runner only (env.py uses async_engine_from_config).
+# Never imported in routers/ or services/ — all application queries are raw asyncpg SQL.
+# See rules/database.md.
 sqlalchemy[asyncio]==2.0.51
 alembic==1.18.4
 asyncpg==0.30.0

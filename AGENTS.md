@@ -1,15 +1,15 @@
 # My Financial Life
 
-Privacy-first personal finance app on localhost. Tracks spending across USD/INR/CAD and
-advises: monthly/annual breakdowns, recurring-bill detection, cash-flow forecast,
+Privacy-first personal finance app on localhost. One login per person, 1–3 sealed
+single-currency **country profiles** (USA/India/Canada — never merged, no conversion).
+Advises: monthly/annual breakdowns, recurring-bill detection, cash-flow forecast,
 safe-to-spend, document (bill/receipt/statement) scanning with dedup.
 
 **Read before working:** `docs/plan.md` (roadmap + definition of done) and
 **`docs/backlog.md` (the ticket file — all implementation work comes from here: pick the
 lowest open ticket whose dependencies are done, stay inside its scope, never invent
 work)**. Reference specs: `docs/architecture-and-goals.md` (system + data model + AI
-allocation), `docs/design-system.md` (3-color UI rules + page map). Stale analysis
-reports live in `docs/archive/` — ignore them.
+allocation), `docs/design-system.md` (3-color UI rules + page map).
 
 ## Tech Stack
 
@@ -56,6 +56,6 @@ reports live in `docs/archive/` — ignore them.
 
 ## MCP Tools
 
-Configured for opencode in `opencode.json` and for Claude Code in `.mcp.json` (same servers):
+Configured in `.mcp.json` (Claude Code and other MCP-aware tools):
 - `playwright` — browser automation, E2E flows
 - `chrome-devtools` — debugging, screenshots, console, network

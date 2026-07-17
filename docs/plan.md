@@ -2,7 +2,9 @@
 
 > Last updated: 2026-07-16
 > Localhost-only, privacy-first personal finance app. One primary user (admin), family later.
-> Countries: USA, India, Canada → in practice: USD, INR, CAD with USD as base currency.
+> Countries: USA, India, Canada → **country profiles**: one login per person, 1–3 sealed
+> single-currency country worlds (USD/INR/CAD), switch at login or top bar. Profiles are
+> never merged — no conversion, no exchange rates, anywhere.
 >
 > **The one-line goal:** open the app and immediately know — where my money goes
 > (monthly/annually), which bills recur, what's coming next, and what I should do about it.
@@ -27,10 +29,10 @@ The app today is a **working expense tracker** with a lot of surface area and so
 | **UI is inconsistent** | Mixed colors, misaligned containers, weak UX flow on both desktop and mobile |
 | **No tests** | A finance app with untested money math cannot be trusted over Excel |
 | **No backups** | All data in one Docker volume on one disk — riskier than Excel in OneDrive |
-| **Single currency** | No INR/CAD, no exchange rates |
+| **No country concept** | Everyone forced into USD formatting; no India/Canada profiles |
 | **No provenance / dedup** | A transaction from a scanned bill + the same one from a bank CSV would double-count |
 | **Privacy contradiction** | Chat/parse can send data to NVIDIA/Gemini/Groq free tiers — not privacy-first |
-| **Doc rot** | Docs described bugs as open that were already fixed (now archived to `docs/archive/`) |
+| **Doc rot** | Docs described bugs as open that were already fixed (stale docs since deleted) |
 | **Duplicated frontend logic** | Desktop and mobile `Activity.tsx` are ~1,100 lines each, near-copies |
 
 ---
@@ -39,11 +41,11 @@ The app today is a **working expense tracker** with a lot of surface area and so
 
 1. **Trustworthy numbers first.** Tests on money paths before new features; backups before the first real transaction goes in.
 2. **Rule-based intelligence first.** Statistics before AI; AI (local-first) only where rules can't reach.
-3. **Privacy-first means local-first AI.** Ollama for document understanding; cloud APIs opt-in only.
+3. **Private by default, cloud by choice, free always.** Rules/Ollama first; Gemini free tier is the single cloud provider, per-user opt-in with explicit warning, off by default. Never a paid API.
 4. **Three-color minimalist UI.** One neutral scale, one accent, semantic money colors — nothing else. See `design-system.md`.
 5. **Device roles differ.** Mobile = capture (scan, quick-add, glance). Desktop = analyze + manage (reports, admin, bulk edit). Feature set is deliberately bigger on desktop.
 6. **Every phase ends with the app answering a money question it couldn't answer before.**
-7. **Docs stay honest.** `plan.md` (this file) + `backlog.md` (detailed tickets) + `architecture-and-goals.md` + `design-system.md` + `DEVELOPMENT.md` + `how-it-works.md` (plain-language guide) are the only living docs. Everything else goes to `docs/archive/`.
+7. **Docs stay honest.** `plan.md` (this file) + `backlog.md` (detailed tickets) + `architecture-and-goals.md` + `design-system.md` + `DEVELOPMENT.md` + `how-it-works.md` (plain-language guide) are the only docs. Anything stale gets deleted — git history is the archive.
 
 ### Explicitly OUT of scope
 - ❌ Email/SMS ingestion (bank CSV + document scan covers it)
@@ -63,12 +65,12 @@ The app today is a **working expense tracker** with a lot of surface area and so
 
 ### Phase T — Trust & Cleanup ← **do first, ~1 week**
 Make the foundation safe before building on it.
-- [ ] **Tests on money paths**: pytest for NL parser, report aggregation, bill matching; keep in `backend/tests/`
-- [ ] **Dead/deprecated audit**: `npm outdated` + unused-dependency check; delete unused code, components, and endpoints found along the way
-- [ ] **Delete `ResponseCacheMiddleware`** — it caches `/api/accounts/` (with balances) for 60s and transaction mutations never invalidate it → stale balances after adding a transaction; pointless at localhost scale
-- [ ] **Replace unmaintained auth libs**: `python-jose` → `PyJWT`, `passlib` → direct `bcrypt` (passlib is abandoned; it's why bcrypt is pinned to 4.0.1)
-- [ ] **Setup verification**: clean-clone → `docker compose up` → app works; fix anything that breaks; record exact steps in `DEVELOPMENT.md`
-- [ ] **Privacy fix**: cloud AI (NVIDIA/Gemini/Groq) OFF by default, behind an explicit settings toggle with a "data leaves this machine" warning
+- [ ] **T1 Tests on money paths**: pytest for NL parser (incl. relative dates + missing-amount contract), report aggregation, bill matching
+- [ ] **T2 Delete `ResponseCacheMiddleware`** — caches `/api/accounts/` (with balances) 60s; transaction writes never invalidate it → stale balances; pointless at localhost scale
+- [ ] **T3 Replace unmaintained auth libs**: `python-jose` → `PyJWT`, `passlib` → direct `bcrypt` (passlib abandoned; it's why bcrypt is pinned to 4.0.1)
+- [ ] **T4 Dead/deprecated audit**: `npm outdated` + depcheck + `pip list --outdated`; delete unused code/endpoints; fix README lies (TanStack Query)
+- [ ] **T5 Cloud AI opt-in**: per-user toggle, off by default, explicit warning; **consolidate to Gemini as the only cloud provider** — delete NVIDIA + Groq code
+- [ ] **T6 Setup verification**: clean clone → running app with zero undocumented steps
 - [x] Docs consolidated, stale reports archived
 
 ### Phase D — Data Model v2 (~1 week)
@@ -77,12 +79,9 @@ Schema changes are cheapest now, before intelligence and scanning are built on t
 Alembic to one clean initial migration** — no legacy upgrade path to maintain. (From the
 day real data goes in, every change gets a proper incremental migration again.)
 Full schema in `architecture-and-goals.md`. Summary:
-- [ ] `currency` (USD/INR/CAD) on Transaction; `base_currency` on User
-- [ ] `exchange_rates` table, fed by Frankfurter (free, keyless, ECB rates), cached locally — one fetch per day max
-- [ ] `source` on Transaction: `manual | quick_add | csv_import | document_scan`
-- [ ] `documents` table (uploaded/scanned files) + `transaction.document_id` provenance link
-- [ ] **Dedup support**: `import_hash` on Transaction + fuzzy-match lookup (same amount, date ±3 days, similar merchant) used by every import path
-- [ ] Alembic migration per change; reports converted to base-currency aware
+- [ ] **D1** v2 schema in one squashed initial migration — the **country-profile model**: `profiles` table (1–3 per user, country → currency, sealed, never merged); every financial table re-keyed to `profile_id`; registration = country picker → first profile + default account; "Add country" for a second profile; `source`/`import_hash`/`document_id` on Transaction; `documents` table; users = auth only + first-user-becomes-admin. No currency columns below profiles, no exchange rates, no conversion — a profile is one currency by construction
+- [ ] **D3** Dedup service: `import_hash` exact + fuzzy match (same amount, date ±3 days, similar merchant) — one gate for every import path, per profile
+- [ ] **D5** Typo-tolerant merchant matching ("wallmart" → Walmart, never a duplicate merchant), per profile
 
 ### Phase U — UI Rebuild: 5 pages, 3 colors (~3–4 weeks)
 **Decision: rebuild, don't restyle.** The current 8-sections-×-2-trees IA is
@@ -107,12 +106,12 @@ All rule-based, no AI required, test-first (pure functions over transaction list
 ### Phase S — Document Understanding (~3–4 weeks)
 Upload or scan a bill / receipt / credit-card statement / bank document → app understands and updates itself. **Never auto-commits: extract → review screen → dedup check → save.**
 - [ ] Upload (desktop) and camera scan (mobile) into the `documents` table
-- [ ] Extraction tier 1: local LLM via **Ollama** (vision model, e.g. Qwen-VL class) — private, free
-- [ ] Extraction tier 2 fallback: Tesseract OCR + rules (works with zero AI setup)
+- [ ] Extraction tiers: **A** Ollama vision (local, private) → **B** Gemini vision (only when the user's T5 toggle is on) → **C** Tesseract + rules (zero AI setup, never silently to cloud)
 - [ ] Understanding: "Walmart $30" → merchant = Walmart, category inferred from history + line items (groceries vs alcohol vs travel), date, amount
 - [ ] Statement mode: credit-card/bank PDF → *list* of transactions, each run through dedup
 - [ ] **Dedup gate on every import**: exact `import_hash` match = auto-skip; fuzzy match = "possible duplicate" review UI with merge/skip/keep-both
 - [ ] Document attached to resulting transaction(s) — tap any transaction to see its source
+- [ ] Typed-input AI fallback (S7): messy phrasing/typos parsed by Ollama (or Gemini if opted in) when the rules parser can't — preview + one-question rule unchanged
 
 ### Phase A — Admin Panel (~1–2 weeks)
 Desktop-only, `is_admin` gated (column already exists).
@@ -120,22 +119,32 @@ Desktop-only, `is_admin` gated (column already exists).
 scoped by `user_id` (already true in the schema); admin manages the *system*, never sees
 another user's transactions, insights, or dashboard.
 - [ ] User management (create/deactivate family users — groundwork for family use later)
-- [ ] System data: manage system categories, merchant normalization rules, recurring-detection overrides
-- [ ] AI settings: Ollama endpoint, cloud toggles, per-provider on/off
-- [ ] Data tools: backup now, export all, import review queue, dedup audit log
-- [ ] Job visibility: last exchange-rate fetch, last backup, scan queue status
+- [ ] System data: manage system categories
+- [ ] Data tools: per-user export-all, backup-now trigger, dedup audit log
+- [ ] Job visibility: last backup, pending documents count
 
 ### Later (only after the above is real and used daily)
 - **Automated backups** — deferred while the app holds only test data, but a **hard gate
   before the first real transaction goes in**: scheduled `pg_dump` (Task Scheduler) to a
   second location + one tested restore (the DB volume is the only part of this project
   with no second copy anywhere — code has git, data has nothing)
-- Net-worth via monthly balance snapshots per account (US + India + Canada accounts, base-currency trendline)
+- Net-worth via monthly balance snapshots per account — **per profile** (a US trendline, an India trendline; never combined)
 - LAN/HTTPS access so the phone PWA + camera scanning works away from the desk (Caddy or Tailscale)
 - Family accounts (schema is ready; needs LAN access + auth polish first)
 - Country-profile content (financial concepts/terminology per country) layered onto recommendations
 
 ---
+
+## What each phase unlocks (localhost, desktop + mobile)
+
+| After phase | On desktop you can… | On your phone (same WiFi) you can… |
+|---|---|---|
+| **T** | trust the numbers (tested money math, no stale balances), use AI knowing exactly what leaves the machine | same app as today, just correct |
+| **D** | register with your country, add a second country profile, see ₹/$/C$ formatted right, import CSVs without duplicates | log in and switch country profiles |
+| **U** | use the 5 clean pages (Home/Activity/Recurring/Insights/Manage), bulk edit, review imports | use the 3-tab app: glance at Home, browse Activity, quick-add via Capture in 2 taps |
+| **I** | see safe-to-spend, forecast curve, detected subscriptions with monthly total, insight cards with advice | see safe-to-spend + upcoming bills at a glance |
+| **S** | drop a receipt/bill/statement PDF on the app → review → done; every transaction links to its document | **scan a bill with the camera** (or pick from gallery) → review → saved |
+| **A** | manage family users, system categories, backups, review the dedup audit | — (admin is desktop-only) |
 
 ## Definition of "done properly" (applies to every phase)
 1. Works end-to-end via the UI, not just the API — **verified by driving the running app

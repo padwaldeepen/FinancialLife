@@ -7,8 +7,10 @@
 ## Correctness (blockers)
 
 - [ ] Money math uses `Decimal`/`Numeric(12,2)` end to end — never float arithmetic
-- [ ] Every query filters by the authenticated `user_id` (per-user isolation — users never
-      see each other's data; admin included)
+- [ ] Every financial query filters by a validated `profile_id` (backend confirms the
+      profile belongs to the JWT user) — two-level isolation: person from person,
+      country profile from country profile; **profiles are never merged in any query,
+      report, or export**; admin included
 - [ ] Ownership checked before mutating any resource (transaction, bill, goal, document)
 - [ ] Async correctness: every `db.execute()` / service call is awaited
 - [ ] Enum-ish strings (`transaction_type`, `frequency`, `period`, `source`, `currency`)
@@ -55,8 +57,8 @@
 
 - [ ] New endpoints require auth (`Depends(get_current_user)`) unless explicitly public
 - [ ] No secrets, keys, or personal financial data in code, logs, or committed files
-- [ ] No new outbound network calls except: Frankfurter (fx rates) and opt-in AI providers
-      behind the settings toggle
+- [ ] No new outbound network calls except Gemini behind the per-user opt-in toggle —
+      **the app has zero other external calls by design**
 - [ ] **Cloud AI only through the provider layer, gated by the per-user opt-in toggle**
       (allocation table in `docs/architecture-and-goals.md`): no code path calls a cloud
       API directly; toggle off (default) = zero outbound AI calls; Ollama missing + toggle

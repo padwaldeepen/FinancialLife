@@ -56,9 +56,10 @@ One spacing scale, one grid per layout, zero ad-hoc margins.
   medium weight — pick one and use it on every card.
 - **Vertical rhythm**: section gaps are `var(--space-5)` on mobile, `var(--space-6)` on
   desktop. Always. This single rule fixes most "misaligned" feel.
-- **Numbers**: all amounts right-aligned, `font-variant-numeric: tabular-nums`, same
-  decimal treatment everywhere (`1,234.56`). Currency symbol from the transaction's
-  currency; converted base-currency value shown muted beneath where relevant.
+- **Numbers**: all amounts right-aligned, `font-variant-numeric: tabular-nums`. Currency
+  symbol and digit grouping come from the **active profile's country** via
+  `Intl.NumberFormat` (en-US `$1,234.56` · en-IN `₹1,23,456.00` · en-CA `C$1,234.56`).
+  One currency per screen, always — profiles never mix, so no conversion line ever.
 
 **Definition of aligned:** on any page, you can draw 4 vertical lines that every element
 snaps to. If an element needs a 5th line, redesign the element.

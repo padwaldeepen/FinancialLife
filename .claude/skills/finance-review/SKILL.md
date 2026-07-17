@@ -14,7 +14,7 @@ Then evaluate the diff across the eight dimensions below and report the review m
 | # | Dimension | What to check |
 |---|-----------|---------------|
 | 1 | **Money math** | All amount arithmetic in `Decimal`/`Numeric(12,2)` — no `float()` casts, no `sum()` over floats, no JS `number` math on money before it reaches the API; amounts validated `> 0`; `tabular-nums` right-aligned display |
-| 2 | **Isolation & security** | Every query filters `user_id`; every endpoint has `Depends(get_current_user)` unless explicitly public; no admin path can read another user's data; no secrets in code/logs; no new outbound calls except Frankfurter and opt-in AI |
+| 2 | **Isolation & security** | Every financial query filters a validated `profile_id` (profile must belong to the JWT user); profiles never merged in any query/report/export; every endpoint has `Depends(get_current_user)` unless explicitly public; no admin path can read anyone's financial data; no secrets in code/logs; no outbound calls except Gemini behind the per-user opt-in toggle |
 | 3 | **Data & migrations** | Model change → Alembic revision (with downgrade) in `backend/database/alembic/versions/`; enum-ish strings validated via `Literal`; new query patterns indexed; import paths compute `import_hash` and run the fuzzy-dedup check |
 | 4 | **Error handling** | Failure paths return proper HTTP codes, not 500s; frontend surfaces errors (no silently swallowed promises); `await` on every `db.execute()` — the "bills always paid" bug class |
 | 5 | **Performance** | No N+1 queries (use `selectinload`); no unbounded fetches (pagination/limits on new list endpoints); no per-render recomputation of derived data in React |

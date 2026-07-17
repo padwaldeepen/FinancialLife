@@ -1,9 +1,8 @@
 # Development Guide
 
 > Last updated: 2026-07-16
-> Practical setup, backups, tooling, and troubleshooting. No ratings, no cheerleading —
-> the previous version of this file claimed "10/10 security" and "tests not needed";
-> both were wrong. Current honest status lives in `plan.md`.
+> Practical setup, backups, tooling, and troubleshooting. Current status lives in
+> `plan.md`; execution tickets in `backlog.md`.
 
 ---
 
@@ -97,8 +96,8 @@ The project is coded with AI tools (opencode, Claude Code, other IDEs). Config l
 |---|---|
 | `AGENTS.md` | opencode, Claude Code, most agent tools (shared project brief) |
 | `rules/*.md` | wired into `opencode.json` `instructions`; readable by any tool |
-| `opencode.json` | opencode — instructions + MCP servers |
-| `.mcp.json` | Claude Code — same MCP servers (playwright, chrome-devtools) |
+| `opencode.json` | opencode — instruction file wiring |
+| `.mcp.json` | MCP servers (playwright, chrome-devtools) for Claude Code and other MCP-aware tools |
 | `rules/code-review.md` | the review checklist any tool (or human) applies before commit |
 | `.claude/skills/finance-review/SKILL.md` | Claude Code `/finance-review` — runs that checklist against the current diff with finance-specific checks (float money math, user-isolation leaks, dedup bypass, missing migrations, off-palette colors) |
 
@@ -110,8 +109,7 @@ project-level MCP config, and that `npx` is on PATH for that IDE's environment.
 
 Lets the coding AI inspect the schema and verify data during tickets (e.g., "did the
 dedup import really insert only 2 rows?"). Use restricted/read-only mode. Requires
-`uv` (`pip install uv` or `winget install astral-sh.uv`), then add to `.mcp.json` /
-`opencode.json` mcp section:
+`uv` (`pip install uv` or `winget install astral-sh.uv`), then add to `.mcp.json`:
 
 ```json
 "postgres": {

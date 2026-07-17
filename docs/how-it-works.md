@@ -68,10 +68,14 @@ an expense. The deep analysis lives on the **computer**, where there's room for 
 ## Who can use it?
 
 Anyone in the family — each person gets **their own login and their own private money
-view**. Nobody can see anyone else's finances, including the administrator. It also
-understands money in **US dollars, Indian rupees, and Canadian dollars**, so it works
-whether your financial life is in the USA, India, or Canada — or spread across them.
-**[multi-currency coming soon]**
+view**. Nobody can see anyone else's finances, including the administrator.
+
+When you sign up, you pick your country — **USA, India, or Canada** — and everything you
+see is in that country's money (dollars or rupees, formatted the way you're used to).
+If your life spans two countries, you can add a second country to your login: each
+country is its own **separate world** with its own accounts, receipts, and dashboard —
+you switch between them with one tap, and they are never mixed together.
+**[country profiles coming with the rebuild]**
 
 ## Where does my data live? Is it safe?
 

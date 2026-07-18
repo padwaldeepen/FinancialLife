@@ -87,7 +87,11 @@ Use `color` prop (`"red"`, etc.) on `TextField.Root` for error/invalid states.
 
 ## State Management
 - Zustand (bound store pattern) for ALL global state — auth, transactions, budgets, UI
-- `useState` for LOCAL form state only: email, password, loading flags, error messages
+- **`useState` only for a single, truly local flag** (e.g. one `showPassword` boolean
+  with nothing else). The moment a component holds two or more pieces of state —
+  including per-form, transient-until-submit state like a login/register form — it goes
+  in a Zustand slice instead. See `rules/zustand.md` for the full rule and the worked
+  examples (`registerFormSlice.ts`, `loginFormSlice.ts`).
 - All API calls go inside Zustand slice actions, using `api` from `auth/api.ts`
 - No TanStack Query / React Query — use Zustand actions with axios instead
 - No React Context for data fetching or global state
@@ -97,9 +101,8 @@ Use `color` prop (`"red"`, etc.) on `TextField.Root` for error/invalid states.
 
 | Scenario | Tool | Example |
 |----------|------|---------|
-| Form inputs (email, password) | `useState` | `const [email, setEmail] = useState('')` |
-| Form validation errors | `useState` | `const [errors, setErrors] = useState({})` |
-| Form submission loading | `useState` | `const [loading, setLoading] = useState(false)` |
+| One local flag, nothing else in the component | `useState` | `const [showPassword, setShowPassword] = useState(false)` |
+| Form inputs, validation errors, submit-loading (2+ fields together) | Zustand | `s.loginForm.email`, `s.registerForm.errors` |
 | Auth user, token | Zustand | `s.auth.user`, `s.auth.token` |
 | Transaction list, budget data | Zustand | `s.transactions`, `s.budgets` |
 | UI state (sidebar open, modal) | Zustand | `s.ui.sidebarOpen` |
@@ -159,4 +162,10 @@ Consumers access state as `s.auth.user` and actions as `s.login()`.
 - `desktop/` — desktop-specific layouts, pages, and components
 - `mobile/` — mobile-specific layouts, pages, and components
 - Desktop and mobile are completely independent; no cross-imports
-- No `shared/components/` — use Radix Themes components directly
+- No `shared/components/` for presentational/Radix-wrapper components — use Radix Themes
+  components directly, never a custom wrapper around one. The one legitimate exception is
+  cross-device **logic** with no meaningful visual surface of its own, e.g.
+  `shared/components/ProtectedRoute/` — an auth-gate redirect used identically by both
+  `DesktopApp.tsx` and `MobileApp.tsx` (DRY: one implementation, not two copies). If a
+  "shared component" candidate has real page-specific layout/styling, it belongs in
+  `desktop/`/`mobile/` instead, per the CSS-never-shared rule above.

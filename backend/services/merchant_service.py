@@ -1,3 +1,4 @@
+import json
 import re
 
 import asyncpg
@@ -109,7 +110,14 @@ def extract_merchant_from_description(description: str) -> str | None:
 
 
 def _row_to_merchant(row: asyncpg.Record) -> Merchant:
-    return Merchant(**dict(row))
+    data = dict(row)
+    # asyncpg has no jsonb codec registered on this pool — it hands back the raw JSON
+    # text for the `aliases` column instead of a decoded list, same as any other jsonb
+    # column here (merge_merchants writes it with an explicit json.dumps for the same
+    # reason).
+    if isinstance(data.get("aliases"), str):
+        data["aliases"] = json.loads(data["aliases"])
+    return Merchant(**data)
 
 
 async def find_fuzzy_merchant(
@@ -276,7 +284,7 @@ async def merge_merchants(
 
         await conn.execute(
             "UPDATE merchants SET aliases = $1 WHERE id = $2",
-            list(set(aliases)),
+            json.dumps(list(set(aliases))),
             target_id,
         )
 

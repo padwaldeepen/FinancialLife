@@ -1,29 +1,16 @@
 import { type JSX } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Box } from '@radix-ui/themes'
-import {
-  LayoutDashboard,
-  ArrowLeftRight,
-  Receipt,
-  Store,
-  Tags,
-  Target,
-  BarChart3,
-  Settings,
-  Plus,
-} from 'lucide-react'
+import { Box, Text, Button } from '@radix-ui/themes'
+import { LayoutDashboard, ArrowLeftRight, Repeat, BarChart3, Settings, Plus } from 'lucide-react'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Sidebar.module.css'
 
 const navItems = [
   { to: '/', label: 'Home', icon: LayoutDashboard },
   { to: '/activity', label: 'Activity', icon: ArrowLeftRight },
-  { to: '/bills', label: 'Bills', icon: Receipt },
-  { to: '/merchants', label: 'Merchants', icon: Store },
-  { to: '/categories', label: 'Categories', icon: Tags },
-  { to: '/goals', label: 'Goals', icon: Target },
-  { to: '/reports', label: 'Reports', icon: BarChart3 },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/recurring', label: 'Recurring', icon: Repeat },
+  { to: '/insights', label: 'Insights', icon: BarChart3 },
+  { to: '/manage', label: 'Manage', icon: Settings },
 ]
 
 export const Sidebar = (): JSX.Element => {
@@ -32,14 +19,18 @@ export const Sidebar = (): JSX.Element => {
   return (
     <aside className={styles.sidebar}>
       <Box className={styles.logo}>
-        <div className={styles.logoIcon}>F</div>
-        <span className={styles.logoText}>My Financial Life</span>
+        <Text as="div" className={styles.logoIcon}>
+          F
+        </Text>
+        <Text as="span" className={styles.logoText}>
+          My Financial Life
+        </Text>
       </Box>
 
-      <button className={styles.addButton} onClick={openAddModal}>
+      <Button className={styles.addButton} onClick={openAddModal}>
         <Plus size={18} />
         Add Transaction
-      </button>
+      </Button>
 
       <nav className={styles.nav}>
         {navItems.map((item) => (
@@ -52,7 +43,7 @@ export const Sidebar = (): JSX.Element => {
             }
           >
             <item.icon size={18} />
-            <span>{item.label}</span>
+            <Text as="span">{item.label}</Text>
           </NavLink>
         ))}
       </nav>

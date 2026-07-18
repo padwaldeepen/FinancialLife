@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type JSX } from 'react'
 import { Box, Flex, Text, Button, IconButton, TextField } from '@radix-ui/themes'
 import { MessageCircle, X, Send, Bot, User, Check } from 'lucide-react'
-import api from '../../../auth/api.ts'
+import api from '../../../shared/api/client.ts'
 import styles from './ChatBot.module.css'
 
 interface ChatMsg {

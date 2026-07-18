@@ -148,7 +148,7 @@ Full schema in `architecture-and-goals.md`. Summary:
 
 ### Phase U — UI Rebuild: 5 pages, 3 colors (~3–4 weeks)
 
-**Decision: rebuild, restyle.** The current 8-sections-×-2-trees IA is
+**Decision: rebuild, don't restyle.** The current 8-sections-×-2-trees IA is
 table-shaped (one page per DB table = Excel thinking). Keep the shell (auth flow,
 routing, axios interceptor, store infrastructure, theme); build the question-shaped
 page map from `design-system.md` §3 fresh; delete retired pages as they're absorbed.
@@ -161,10 +161,23 @@ motion** (functional only, no decorative/celebratory animation) and **transparen
 marked). The "70% of users abandon apps over complex navigation" finding is the
 standing justification for replacing the old 8-page table-shaped IA.
 
-- [ ] Design tokens + `theme.tsx` encode the 3-color system; every off-palette color deleted
-- [ ] **Desktop (5 pages)**: Home · Activity · Recurring (bills + subscriptions + budgets) · Insights (absorbs Reports + category analytics) · Manage (absorbs Settings, Categories, Merchants, Goals CRUD)
-- [ ] **Mobile (3 tabs + capture)**: Home · Activity · Capture; settings behind avatar; Categories/Merchants/Reports/Goals/More pages deleted
-- [ ] **Folder cleanup**: consolidate `src/auth`, `src/hooks`, `src/utils` into `shared/` (target structure in `architecture-and-goals.md`) — rule: `desktop/`/`mobile/` hold only `.tsx` + `.module.css`
+- [x] Design tokens + `theme.tsx` encode the 3-color system; every off-palette color deleted
+  — done 2026-07-17 (backlog U1). `design-tokens.css` now only aliases Radix tokens; every
+  raw hex/rgb/hsl color and every `box-shadow` deleted project-wide across `.module.css`
+  files (flat bordered cards, no shadows); `--bg-deep`/`--bg-panel` undefined-var bug fixed
+  by deleting the dead dark-mode overrides they lived in (Radix tokens already resolve
+  per-theme). Verified via `tsc`/`lint`/`build` + Playwright screenshots (desktop & mobile,
+  light & dark). Full writeup in `backlog.md` U1.
+- [x] **Desktop (5 pages)**: Home · Activity · Recurring (bills + subscriptions + budgets) · Insights (absorbs Reports + category analytics) · Manage (absorbs Settings, Categories, Merchants, Goals CRUD)
+  — done 2026-07-18 (backlog U3–U7). All five pages live at their final routes with the
+  old table-shaped pages retired/redirected. Full writeups per page in `backlog.md`.
+- [x] **Mobile (3 tabs + capture)**: Home · Activity · Capture; settings behind avatar; Categories/Merchants/Reports/Goals/More pages deleted
+  — done 2026-07-18 (backlog U8). Bills also retired (not explicitly named in the
+  ticket text but covered by the same "nothing else" goal — its only remaining
+  purpose, the Upcoming Bills preview, already lives on Home). Full writeup in
+  `backlog.md` U8.
+- [x] **Folder cleanup**: consolidate `src/auth`, `src/hooks`, `src/utils` into `shared/` (target structure in `architecture-and-goals.md`) — rule: `desktop/`/`mobile/` hold only `.tsx` + `.module.css`
+  — done 2026-07-18 (backlog U9). Full writeup in `backlog.md` U9.
 - [ ] **State cleanup** (while pages are rebuilt): surface slice errors to the UI — no more silent `catch {}`; real rollback on failed updates (`updateNotes` claims to revert and doesn't); staleness check in `namespaceSlice` (skip refetch when < 30s fresh — kills the loading flash on every navigation); one source of truth for filter lists; shared types imported from slices, no local copies
 - [ ] Fixed by construction: dark-mode CSS vars, duplicate FAB, `window.confirm()`, credit-card balances summed into "Total Balance"
 

@@ -1,8 +1,8 @@
-import { useState, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Box, Flex, Heading, Text, Button, Card, TextField } from '@radix-ui/themes'
-import { Eye, EyeOff } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { Box, Flex, Heading, Text, Button, Card, TextField, Callout } from '@radix-ui/themes'
+import { Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Login.module.css'
 
@@ -11,26 +11,48 @@ export const Login = (): JSX.Element => {
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string })?.from || '/'
-  const [loading, setLoading] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+  const {
+    email,
+    password,
+    showPassword,
+    submitting,
+    errors,
+    formError,
+    setField,
+    toggleShowPassword,
+    setSubmitting,
+    clearFieldError,
+    setFormError,
+    validateForm,
+    resetForm,
+  } = useBoundStore(
+    useShallow((s) => ({
+      email: s.loginForm.email,
+      password: s.loginForm.password,
+      showPassword: s.loginForm.showPassword,
+      submitting: s.loginForm.submitting,
+      errors: s.loginForm.errors,
+      formError: s.loginForm.formError,
+      setField: s.setLoginField,
+      toggleShowPassword: s.toggleLoginShowPassword,
+      setSubmitting: s.setLoginSubmitting,
+      clearFieldError: s.clearLoginFieldError,
+      setFormError: s.setLoginFormError,
+      validateForm: s.validateLoginForm,
+      resetForm: s.resetLoginForm,
+    })),
+  )
 
-  const validate = () => {
-    const e: typeof errors = {}
-    if (!email) e.email = 'Email is required'
-    else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email)) e.email = 'Invalid email'
-    if (!password) e.password = 'Password is required'
-    else if (password.length < 6) e.password = 'Minimum 6 characters'
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
+  // A form left half-filled on a previous visit must never leak into a fresh one.
+  useEffect(() => {
+    resetForm()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validate()) return
-    setLoading(true)
+    if (!validateForm()) return
+    setSubmitting(true)
     try {
       await login(email, password)
       navigate(from)
@@ -39,9 +61,9 @@ export const Login = (): JSX.Element => {
       const msg = Array.isArray(detail)
         ? detail.map((e: any) => e.msg).join('; ')
         : detail || 'Login failed'
-      toast.error(msg)
+      setFormError(msg)
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -63,6 +85,15 @@ export const Login = (): JSX.Element => {
 
           <form onSubmit={onSubmit}>
             <Flex direction="column" gap="4">
+              {formError && (
+                <Callout.Root color="red" size="1">
+                  <Callout.Icon>
+                    <AlertCircle size={14} />
+                  </Callout.Icon>
+                  <Callout.Text>{formError}</Callout.Text>
+                </Callout.Root>
+              )}
+
               <Flex direction="column" gap="1">
                 <Text size="2" weight="medium">
                   Email
@@ -74,8 +105,8 @@ export const Login = (): JSX.Element => {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => {
-                    setEmail(e.target.value)
-                    setErrors((p) => ({ ...p, email: undefined }))
+                    setField('email', e.target.value)
+                    clearFieldError('email')
                   }}
                   autoComplete="email"
                   className={styles.input}
@@ -103,8 +134,8 @@ export const Login = (): JSX.Element => {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => {
-                    setPassword(e.target.value)
-                    setErrors((p) => ({ ...p, password: undefined }))
+                    setField('password', e.target.value)
+                    clearFieldError('password')
                   }}
                   autoComplete="current-password"
                   className={styles.input}
@@ -114,7 +145,7 @@ export const Login = (): JSX.Element => {
                       variant="ghost"
                       size="1"
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={toggleShowPassword}
                       tabIndex={-1}
                     >
                       {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -128,7 +159,7 @@ export const Login = (): JSX.Element => {
                 )}
               </Flex>
 
-              <Button type="submit" size="3" loading={loading} mt="2">
+              <Button type="submit" size="3" loading={submitting} mt="2">
                 Sign in
               </Button>
             </Flex>

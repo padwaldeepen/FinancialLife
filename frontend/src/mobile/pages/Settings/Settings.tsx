@@ -29,7 +29,7 @@ import {
   DollarSign,
   Sparkles,
 } from 'lucide-react'
-import toast from 'react-hot-toast'
+import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useAppTheme } from '../../../theme.tsx'
 import { useBoundStore } from '../../../store/useBoundStore.ts'

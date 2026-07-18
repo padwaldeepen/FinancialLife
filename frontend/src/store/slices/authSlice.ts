@@ -1,6 +1,36 @@
 import { namespaceSlice } from '../namespaceSlice.ts'
-import api from '../../auth/api.ts'
-import type { User, AuthState, AuthActions, Profile, Country } from '../../auth/types.ts'
+import api from '../../shared/api/client.ts'
+import type { User, Profile, Country } from '../../shared/types/user.ts'
+
+export interface AuthState {
+  user: User | null
+  token: string | null
+  loading: boolean
+  profiles: Profile[]
+  activeProfileId: number | null
+  // True right after login/register/refresh when the user has 2+ profiles and never
+  // made an explicit choice before (no prior localStorage pick) — asked once, per
+  // U3's "Login with 2+ profiles asks 'Which country?' once."
+  needsProfilePick: boolean
+}
+
+export interface AuthActions {
+  login: (email: string, password: string) => Promise<void>
+  register: (
+    email: string,
+    password: string,
+    country: Country,
+    name?: string,
+    username?: string,
+  ) => Promise<void>
+  logout: () => void | Promise<void>
+  verifyToken: () => Promise<void>
+  fetchCurrentUser: () => Promise<void>
+  updateAiCloudEnabled: (enabled: boolean) => Promise<void>
+  setActiveProfile: (profileId: number) => void
+  addProfile: (country: Country) => Promise<void>
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
+}
 
 export type AuthSlice = {
   auth: AuthState
@@ -37,11 +67,17 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => {
     is_admin: boolean
     profiles: Profile[]
   }) => {
+    // "Which country?" is asked once: only when there's no prior stored choice AND
+    // more than one profile exists. Must be read BEFORE resolveActiveProfile, which
+    // writes a default choice to localStorage as a side effect.
+    const hasStoredChoice = localStorage.getItem(ACTIVE_PROFILE_KEY) !== null
+    const needsProfilePick = !hasStoredChoice && data.profiles.length > 1
     set({
       token: data.access_token,
       user: { id: data.user_id, email: data.email, is_admin: data.is_admin },
       profiles: data.profiles,
       activeProfileId: resolveActiveProfile(data.profiles),
+      needsProfilePick,
     })
   }
 
@@ -51,6 +87,7 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => {
     loading: true,
     profiles: [] as Profile[],
     activeProfileId: null as number | null,
+    needsProfilePick: false,
 
     // Login/register/refresh responses are the slim Token schema (id/email/is_admin
     // only). hydrateCurrentUser fills in the full profile (full_name, username,
@@ -89,7 +126,14 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => {
         // ignore
       }
       localStorage.removeItem(ACTIVE_PROFILE_KEY)
-      set({ token: null, user: null, profiles: [], activeProfileId: null, loading: false })
+      set({
+        token: null,
+        user: null,
+        profiles: [],
+        activeProfileId: null,
+        needsProfilePick: false,
+        loading: false,
+      })
     },
 
     verifyToken: async () => {
@@ -100,7 +144,14 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => {
         set({ loading: false })
         await hydrateCurrentUser()
       } catch {
-        set({ token: null, user: null, profiles: [], activeProfileId: null, loading: false })
+        set({
+          token: null,
+          user: null,
+          profiles: [],
+          activeProfileId: null,
+          needsProfilePick: false,
+          loading: false,
+        })
       }
     },
 
@@ -122,7 +173,7 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => {
     // the other slices after this resolves; profiles never blend on screen.
     setActiveProfile: (profileId: number) => {
       localStorage.setItem(ACTIVE_PROFILE_KEY, String(profileId))
-      set({ activeProfileId: profileId })
+      set({ activeProfileId: profileId, needsProfilePick: false })
     },
 
     addProfile: async (country: Country) => {
@@ -131,6 +182,13 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => {
       const profiles = [...get().profiles, newProfile]
       localStorage.setItem(ACTIVE_PROFILE_KEY, String(newProfile.id))
       set({ profiles, activeProfileId: newProfile.id })
+    },
+
+    changePassword: async (currentPassword: string, newPassword: string) => {
+      await api.put('/api/auth/me/password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+      })
     },
   }
 })

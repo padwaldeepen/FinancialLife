@@ -16,7 +16,7 @@ import {
 import { Store, Search, X, Merge, BarChart3, Pencil, Trash2 } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
 import { ResponsivePie } from '@nivo/pie'
-import toast from 'react-hot-toast'
+import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'

@@ -12,7 +12,7 @@ import {
   Badge,
 } from '@radix-ui/themes'
 import { Plus, Trash2, Target, PiggyBank, TrendingDown, Pencil } from 'lucide-react'
-import toast from 'react-hot-toast'
+import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'

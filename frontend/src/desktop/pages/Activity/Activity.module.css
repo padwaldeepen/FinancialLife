@@ -48,16 +48,13 @@
 .row {
   padding: var(--space-3) var(--space-3);
   border-bottom: 1px solid var(--gray-4);
-  transition:
-    background-color var(--duration-fast) var(--ease-out),
-    box-shadow var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-fast) var(--ease-out);
   cursor: pointer;
   border-radius: var(--radius-3);
 }
 
 .row:hover {
   background-color: var(--gray-3);
-  box-shadow: var(--shadow-card);
 }
 
 .row:hover + .row {

@@ -10,20 +10,27 @@ import {
   Switch,
   Text,
 } from '@radix-ui/themes'
-import { LogOut, Moon, Sun } from 'lucide-react'
+import { LogOut, Moon, Sun, Plus } from 'lucide-react'
 import { useAppTheme } from '../../../theme.tsx'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { useProfileSwitch } from '../../../shared/hooks/useProfileSwitch.ts'
+import { COUNTRY_FLAG, COUNTRY_NAME } from '../../../shared/utils/countries.ts'
+import type { Country } from '../../../shared/types/user.ts'
 import styles from './TopBar.module.css'
+
+const ADDABLE_COUNTRIES: Country[] = ['US', 'IN', 'CA']
 
 export const TopBar = (): JSX.Element => {
   const { user, logout } = useBoundStore(
     useShallow((s) => ({ user: s.auth.user, logout: s.logout })),
   )
   const { dark, toggle } = useAppTheme()
+  const { profiles, activeProfileId, switchProfile, addProfile } = useProfileSwitch()
   const navigate = useNavigate()
 
   const initial = user?.email?.charAt(0).toUpperCase() || 'U'
+  const addableCountries = ADDABLE_COUNTRIES.filter((c) => !profiles.some((p) => p.country === c))
 
   const handleLogout = async () => {
     await logout()
@@ -47,6 +54,49 @@ export const TopBar = (): JSX.Element => {
                   {user?.email}
                 </Text>
               </Flex>
+
+              {profiles.length > 0 && (
+                <>
+                  <Separator size="4" />
+                  <Flex direction="column" gap="1" px="2">
+                    <Text size="1" color="gray" weight="medium">
+                      Profile
+                    </Text>
+                    {profiles.map((profile) => (
+                      <Flex
+                        key={profile.id}
+                        align="center"
+                        justify="between"
+                        className={styles.profileRow}
+                        data-active={profile.id === activeProfileId}
+                        onClick={() => switchProfile(profile.id)}
+                      >
+                        <Flex align="center" gap="2">
+                          <Text size="3">{COUNTRY_FLAG[profile.country]}</Text>
+                          <Text size="2">{COUNTRY_NAME[profile.country]}</Text>
+                        </Flex>
+                        <Text size="1" color="gray">
+                          {profile.currency}
+                        </Text>
+                      </Flex>
+                    ))}
+                    {addableCountries.map((country) => (
+                      <Flex
+                        key={country}
+                        align="center"
+                        gap="2"
+                        className={styles.profileRow}
+                        onClick={() => addProfile(country)}
+                      >
+                        <Plus size={14} />
+                        <Text size="2" color="gray">
+                          Add {COUNTRY_NAME[country]}
+                        </Text>
+                      </Flex>
+                    ))}
+                  </Flex>
+                </>
+              )}
 
               <Separator size="4" />
 

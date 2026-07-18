@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from typing import Literal
 
 import asyncpg
 from fastapi import APIRouter, Depends, Query
@@ -9,6 +10,14 @@ from database.session import get_db
 from routers.auth import get_current_profile
 
 router = APIRouter()
+
+
+def _month_bounds(year: int, month: int) -> tuple[datetime, datetime]:
+    start = datetime(year, month, 1)
+    end = (datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)) - timedelta(
+        days=1
+    )
+    return start, end
 
 
 class ComparisonEntry(BaseModel):
@@ -45,6 +54,14 @@ class CategoryTotal(BaseModel):
     category_id: int
     category_name: str
     category_color: str
+    total: float
+    percentage: float
+    transaction_count: int
+
+
+class MerchantTotal(BaseModel):
+    merchant_id: int
+    merchant_name: str
     total: float
     percentage: float
     transaction_count: int
@@ -94,10 +111,7 @@ async def monthly_report(
 ):
     results = []
     for m in range(1, 13):
-        month_start = datetime(year, m, 1)
-        month_end = (datetime(year + 1, 1, 1) if m == 12 else datetime(year, m + 1, 1)) - timedelta(
-            days=1
-        )
+        month_start, month_end = _month_bounds(year, m)
         income, expense = await _period_totals(profile.id, month_start, month_end, conn)
         results.append(
             MonthlyEntry(
@@ -174,21 +188,32 @@ async def report_summary(
 @router.get("/categories", response_model=list[CategoryTotal])
 async def report_categories(
     days: int = Query(90),
+    year: int | None = Query(default=None),
+    month: int | None = Query(default=None),
     profile: Profile = Depends(get_current_profile),
     conn: asyncpg.Connection = Depends(get_db),
 ):
-    cutoff = datetime.combine(date.today(), datetime.min.time()) - timedelta(days=days)
+    # A specific calendar month (Insights' period selector, and the per-month breakdown
+    # the interactive timeline shows on hover — U6) takes precedence over the rolling
+    # `days` window when given; `days` stays the default for existing callers (U4's
+    # nothing uses this, but keep it backward compatible regardless).
+    if year is not None and month is not None:
+        start, end = _month_bounds(year, month)
+    else:
+        start = datetime.combine(date.today(), datetime.min.time()) - timedelta(days=days)
+        end = datetime.combine(date.today(), datetime.max.time())
 
     rows = await conn.fetch(
         """SELECT t.category_id, c.name AS category_name, c.color AS category_color,
                   SUM(t.amount) AS total, COUNT(t.id) AS tx_count
            FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
            WHERE t.profile_id = $1 AND t.transaction_type = 'expense'
-             AND t.category_id IS NOT NULL AND t.date >= $2
+             AND t.category_id IS NOT NULL AND t.date >= $2 AND t.date <= $3
            GROUP BY t.category_id, c.name, c.color
            ORDER BY SUM(t.amount) DESC""",
         profile.id,
-        cutoff,
+        start,
+        end,
     )
 
     grand_total = sum(float(r["total"]) for r in rows) or 0
@@ -197,6 +222,48 @@ async def report_categories(
             category_id=r["category_id"],
             category_name=r["category_name"] or "Unknown",
             category_color=r["category_color"] or "#6B7280",
+            total=round(float(r["total"]), 2),
+            percentage=round((float(r["total"]) / grand_total * 100), 1) if grand_total > 0 else 0,
+            transaction_count=r["tx_count"],
+        )
+        for r in rows
+    ]
+
+
+@router.get("/merchants", response_model=list[MerchantTotal])
+async def report_merchants(
+    days: int = Query(90),
+    year: int | None = Query(default=None),
+    month: int | None = Query(default=None),
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
+):
+    """Same shape/period-scoping as /categories, grouped by merchant instead — the
+    Insights merchant-breakdown bar chart's data source (U6)."""
+    if year is not None and month is not None:
+        start, end = _month_bounds(year, month)
+    else:
+        start = datetime.combine(date.today(), datetime.min.time()) - timedelta(days=days)
+        end = datetime.combine(date.today(), datetime.max.time())
+
+    rows = await conn.fetch(
+        """SELECT t.merchant_id, m.name AS merchant_name,
+                  SUM(t.amount) AS total, COUNT(t.id) AS tx_count
+           FROM transactions t LEFT JOIN merchants m ON m.id = t.merchant_id
+           WHERE t.profile_id = $1 AND t.transaction_type = 'expense'
+             AND t.merchant_id IS NOT NULL AND t.date >= $2 AND t.date <= $3
+           GROUP BY t.merchant_id, m.name
+           ORDER BY SUM(t.amount) DESC""",
+        profile.id,
+        start,
+        end,
+    )
+
+    grand_total = sum(float(r["total"]) for r in rows) or 0
+    return [
+        MerchantTotal(
+            merchant_id=r["merchant_id"],
+            merchant_name=r["merchant_name"] or "Unknown",
             total=round(float(r["total"]), 2),
             percentage=round((float(r["total"]) / grand_total * 100), 1) if grand_total > 0 else 0,
             transaction_count=r["tx_count"],
@@ -215,23 +282,19 @@ def _pct_change(current: float, previous: float) -> float | None:
 async def report_comparison(
     year: int = Query(default_factory=lambda: date.today().year),
     month: int = Query(default_factory=lambda: date.today().month),
+    mode: Literal["mom", "yoy"] = Query(default="mom"),
     profile: Profile = Depends(get_current_profile),
     conn: asyncpg.Connection = Depends(get_db),
 ):
-    cur_start = datetime(year, month, 1)
-    cur_end = (
-        datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
-    ) - timedelta(days=1)
+    cur_start, cur_end = _month_bounds(year, month)
 
-    prev_month, prev_year = month - 1, year
-    if prev_month == 0:
-        prev_month, prev_year = 12, year - 1
-    prev_start = datetime(prev_year, prev_month, 1)
-    prev_end = (
-        datetime(prev_year + 1, 1, 1)
-        if prev_month == 12
-        else datetime(prev_year, prev_month + 1, 1)
-    ) - timedelta(days=1)
+    if mode == "yoy":
+        prev_month, prev_year = month, year - 1
+    else:
+        prev_month, prev_year = month - 1, year
+        if prev_month == 0:
+            prev_month, prev_year = 12, year - 1
+    prev_start, prev_end = _month_bounds(prev_year, prev_month)
 
     cur_income, cur_expense = await _period_totals(profile.id, cur_start, cur_end, conn)
     prev_income, prev_expense = await _period_totals(profile.id, prev_start, prev_end, conn)

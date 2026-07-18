@@ -29,23 +29,10 @@
   text-align: center;
   padding: var(--space-6) var(--space-5);
   border-radius: var(--radius-section);
-  background: linear-gradient(135deg, var(--accent-9), var(--accent-10));
-  color: white;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  background: var(--accent-9);
+  color: var(--accent-contrast);
   position: relative;
   overflow: hidden;
-}
-
-.balanceCard::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -30%;
-  width: 300px;
-  height: 300px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  pointer-events: none;
 }
 
 .balanceLabel {
@@ -61,7 +48,7 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.1;
-  color: white;
+  color: var(--accent-contrast);
 }
 
 .balanceAccounts {
@@ -88,12 +75,32 @@
   cursor: pointer;
   font-weight: 500;
   transition: color var(--duration-fast) var(--ease-out);
-  background: none;
-  border: none;
 }
 
 .seeAll:hover {
   color: var(--accent-10);
+}
+
+/* ---- Cash on hand / Credit owed stat cards ---- */
+.statCard {
+  flex: 1;
+  border-radius: var(--radius-card) !important;
+  border: 1px solid var(--gray-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.statAmount {
+  display: block;
+}
+
+.statAmountPositive {
+  display: block;
+  color: var(--money-positive);
+}
+
+.statAmountNegative {
+  display: block;
+  color: var(--money-negative);
 }
 
 /* ---- Account Cards ---- */
@@ -106,14 +113,11 @@
 .accountCard {
   cursor: pointer;
   border-radius: var(--radius-card) !important;
-  box-shadow: var(--shadow-card) !important;
-  transition:
-    box-shadow var(--duration-normal) var(--ease-out),
-    transform var(--duration-normal) var(--ease-out);
+  border: 1px solid var(--gray-4);
+  transition: transform var(--duration-normal) var(--ease-out);
 }
 
 .accountCard:hover {
-  box-shadow: var(--shadow-card-hover) !important;
   transform: translateY(-1px);
 }
 
@@ -228,7 +232,7 @@
 /* ---- Cards ---- */
 .contentCard {
   border-radius: var(--radius-card) !important;
-  box-shadow: var(--shadow-card) !important;
+  border: 1px solid var(--gray-4);
   padding: var(--space-4);
 }
 

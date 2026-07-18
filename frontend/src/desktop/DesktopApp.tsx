@@ -5,13 +5,10 @@ import { DesktopLayout } from './layouts/DesktopLayout.tsx'
 import { Login } from './pages/Login/Login.tsx'
 import { Register } from './pages/Register/Register.tsx'
 import { Activity } from './pages/Activity/Activity.tsx'
-import { Categories } from './pages/Categories/Categories.tsx'
 import { Home } from './pages/Home/Home.tsx'
-import { Goals } from './pages/Goals/Goals.tsx'
-import { Reports } from './pages/Reports/Reports.tsx'
-import { Bills } from './pages/Bills/Bills.tsx'
-import { Merchants } from './pages/Merchants/Merchants.tsx'
-import { Settings } from './pages/Settings/Settings.tsx'
+import { Insights } from './pages/Insights/Insights.tsx'
+import { Recurring } from './pages/Recurring/Recurring.tsx'
+import { Manage } from './pages/Manage/Manage.tsx'
 
 export const DesktopApp = (): JSX.Element => {
   return (
@@ -36,53 +33,36 @@ export const DesktopApp = (): JSX.Element => {
           }
         />
         <Route
-          path="/bills"
+          path="/recurring"
           element={
             <ProtectedRoute>
-              <Bills />
+              <Recurring />
             </ProtectedRoute>
           }
         />
+        <Route path="/bills" element={<Navigate to="/recurring" replace />} />
+        <Route path="/bills/:id" element={<Navigate to="/recurring" replace />} />
         <Route
-          path="/merchants"
+          path="/manage"
           element={
             <ProtectedRoute>
-              <Merchants />
+              <Manage />
             </ProtectedRoute>
           }
         />
+        <Route path="/merchants" element={<Navigate to="/manage" replace />} />
+        <Route path="/categories" element={<Navigate to="/manage" replace />} />
+        <Route path="/goals" element={<Navigate to="/manage" replace />} />
+        <Route path="/settings" element={<Navigate to="/manage" replace />} />
         <Route
-          path="/categories"
+          path="/insights"
           element={
             <ProtectedRoute>
-              <Categories />
+              <Insights />
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/goals"
-          element={
-            <ProtectedRoute>
-              <Goals />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/reports"
-          element={
-            <ProtectedRoute>
-              <Reports />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <Settings />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/reports" element={<Navigate to="/insights" replace />} />
         <Route path="/transactions" element={<Navigate to="/activity" replace />} />
         <Route path="/add" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />

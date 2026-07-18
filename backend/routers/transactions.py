@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 
 import asyncpg
@@ -10,10 +11,12 @@ from database.session import get_db
 from routers.auth import get_current_profile
 from services.ai.ai_service import AIService
 from services.bill_service import auto_link_transaction, suggest_bill_match
+from services.ingest.dedup import DedupCandidate, compute_import_hash, find_duplicates
 from services.merchant_service import (
     extract_merchant_from_description,
     find_matching_merchant,
     find_or_create_merchant,
+    normalize_name,
 )
 from services.transaction_service import parse_transaction
 
@@ -386,6 +389,10 @@ class ParseResponse(BaseModel):
 class QuickAddRequest(BaseModel):
     text: str
     category_id: int | None = None
+    # One-question rule (design-system.md §4): when /parse comes back with
+    # missing=["amount"], the client asks a single inline "How much?" follow-up and
+    # resends here with the corrected amount rather than re-parsing it from text.
+    amount: float | None = None
 
 
 async def _preview_merchant_name(
@@ -460,7 +467,7 @@ async def quick_add_transaction(
     else:
         parsed = parse_transaction(request.text)
 
-        if parsed["amount"] is None:
+        if parsed["amount"] is None and request.amount is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Could not parse an amount from the text. Try something like 'spent 15 on groceries'.",
@@ -475,6 +482,9 @@ async def quick_add_transaction(
             parsed_date = datetime.combine(parsed["date"], datetime.min.time())
         else:
             parsed_date = datetime.now()
+
+    if request.amount is not None:
+        parsed_amount = request.amount
 
     category_id = None
     if request.category_id is not None:
@@ -554,14 +564,34 @@ class TransactionImport(BaseModel):
     merchant_id: int | None = None
     date: datetime
     notes: str | None = None
+    # Set on the resubmitted row when the user picked "keep both" for a fuzzy match
+    # in the review queue (U4) — bypasses the dedup gate, still records import_hash.
+    skip_dedup: bool = False
 
 
 class ImportRequest(BaseModel):
     transactions: list[TransactionImport] = Field(max_length=MAX_IMPORT_ROWS)
 
 
+class FuzzyMatchInfo(BaseModel):
+    transaction_id: int
+    date: datetime
+    amount: float
+    description: str
+    merchant_name: str | None
+    similarity: float
+
+
+class PendingReviewRow(BaseModel):
+    row_index: int
+    transaction: TransactionImport
+    matches: list[FuzzyMatchInfo]
+
+
 class ImportResponse(BaseModel):
     imported: int
+    exact_skipped: int
+    pending_review: list[PendingReviewRow]
     errors: list[str]
 
 
@@ -572,23 +602,79 @@ async def import_transactions(
     conn: asyncpg.Connection = Depends(get_db),
 ):
     imported = 0
+    exact_skipped = 0
+    pending_review: list[PendingReviewRow] = []
     errors: list[str] = []
 
     async with conn.transaction():
         for i, tx in enumerate(request.transactions):
             try:
+                # The frontend sends `date.toISOString()` (tz-aware, UTC) but the
+                # `transactions.date` column is `timestamp without time zone` — asyncpg
+                # can't insert a tz-aware value into a naive column ("can't subtract
+                # offset-naive and offset-aware datetimes"). Normalize once, up front.
+                tx_date = tx.date.replace(tzinfo=None) if tx.date.tzinfo else tx.date
                 merchant_id = tx.merchant_id
+                merchant_name = None
                 if merchant_id is None:
                     merchant_name = extract_merchant_from_description(tx.description)
                     if merchant_name:
                         merchant = await find_or_create_merchant(profile.id, merchant_name, conn)
                         merchant_id = merchant.id if merchant else None
 
+                if tx.skip_dedup:
+                    # User already reviewed this row's fuzzy matches and chose "keep
+                    # both" — still fingerprint it so a FUTURE import can catch an
+                    # exact repeat of *this* row.
+                    normalized_desc = normalize_name(merchant_name or tx.description)
+                    import_hash = compute_import_hash(
+                        profile.id,
+                        tx.account_id,
+                        tx_date.date(),
+                        Decimal(str(tx.amount)),
+                        normalized_desc,
+                    )
+                else:
+                    result = await find_duplicates(
+                        DedupCandidate(
+                            profile_id=profile.id,
+                            account_id=tx.account_id,
+                            date=tx_date.date(),
+                            amount=Decimal(str(tx.amount)),
+                            description=tx.description,
+                            merchant_name=merchant_name,
+                        ),
+                        conn,
+                    )
+                    if result.status == "exact":
+                        exact_skipped += 1
+                        continue
+                    if result.status == "fuzzy":
+                        pending_review.append(
+                            PendingReviewRow(
+                                row_index=i + 1,
+                                transaction=tx,
+                                matches=[
+                                    FuzzyMatchInfo(
+                                        transaction_id=m.transaction_id,
+                                        date=m.date,
+                                        amount=float(m.amount),
+                                        description=m.description,
+                                        merchant_name=m.merchant_name,
+                                        similarity=m.similarity,
+                                    )
+                                    for m in result.fuzzy_matches
+                                ],
+                            )
+                        )
+                        continue
+                    import_hash = result.import_hash
+
                 await conn.execute(
                     """INSERT INTO transactions
                          (amount, description, transaction_type, account_id, category_id,
-                          merchant_id, profile_id, date, notes, source)
-                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'csv_import')""",
+                          merchant_id, profile_id, date, notes, source, import_hash)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'csv_import', $10)""",
                     tx.amount,
                     tx.description,
                     tx.transaction_type,
@@ -596,11 +682,17 @@ async def import_transactions(
                     tx.category_id,
                     merchant_id,
                     profile.id,
-                    tx.date,
+                    tx_date,
                     tx.notes,
+                    import_hash,
                 )
                 imported += 1
             except Exception as e:
                 errors.append(f"Row {i + 1}: {e}")
 
-    return ImportResponse(imported=imported, errors=errors)
+    return ImportResponse(
+        imported=imported,
+        exact_skipped=exact_skipped,
+        pending_review=pending_review,
+        errors=errors,
+    )

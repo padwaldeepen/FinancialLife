@@ -1,0 +1,61 @@
+import { type JSX } from 'react'
+import { Box, Tabs, Text } from '@radix-ui/themes'
+import { Categories } from '../Categories/Categories.tsx'
+import { Merchants } from '../Merchants/Merchants.tsx'
+import { Goals } from '../Goals/Goals.tsx'
+import { AccountsTab } from './AccountsTab.tsx'
+import { ImportTab } from './ImportTab.tsx'
+import { AiPrivacyTab } from './AiPrivacyTab.tsx'
+import { AccountTab } from './AccountTab.tsx'
+import styles from './Manage.module.css'
+
+// One home for every maintenance UI (U7) — retires the standalone Settings, Categories,
+// Merchants, and Goals pages/routes. Categories/Merchants/Goals are rendered here as the
+// SAME components those old routes used (not reimplemented) — each is already a
+// self-contained CRUD page wired to its own store slice, so mounting it as a tab panel
+// costs nothing and avoids re-deriving ~1400 lines of working, tested logic.
+export const Manage = (): JSX.Element => {
+  return (
+    <Box className={styles.page}>
+      <Text as="div" className={styles.pageTitle}>
+        Manage
+      </Text>
+
+      <Tabs.Root defaultValue="accounts">
+        <Tabs.List>
+          <Tabs.Trigger value="accounts">Accounts</Tabs.Trigger>
+          <Tabs.Trigger value="categories">Categories</Tabs.Trigger>
+          <Tabs.Trigger value="merchants">Merchants</Tabs.Trigger>
+          <Tabs.Trigger value="goals">Goals</Tabs.Trigger>
+          <Tabs.Trigger value="import">Import</Tabs.Trigger>
+          <Tabs.Trigger value="ai">AI &amp; Privacy</Tabs.Trigger>
+          <Tabs.Trigger value="account">Account</Tabs.Trigger>
+        </Tabs.List>
+
+        <Box className={styles.tabContent}>
+          <Tabs.Content value="accounts">
+            <AccountsTab />
+          </Tabs.Content>
+          <Tabs.Content value="categories">
+            <Categories />
+          </Tabs.Content>
+          <Tabs.Content value="merchants">
+            <Merchants />
+          </Tabs.Content>
+          <Tabs.Content value="goals">
+            <Goals />
+          </Tabs.Content>
+          <Tabs.Content value="import">
+            <ImportTab />
+          </Tabs.Content>
+          <Tabs.Content value="ai">
+            <AiPrivacyTab />
+          </Tabs.Content>
+          <Tabs.Content value="account">
+            <AccountTab />
+          </Tabs.Content>
+        </Box>
+      </Tabs.Root>
+    </Box>
+  )
+}

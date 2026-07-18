@@ -77,6 +77,11 @@
 
 - [ ] Lint + format clean (frontend: `npm run lint:fix && npm run format:fix`;
       backend: `ruff check . && ruff format .`)
-- [ ] No dead code left behind (unused components, endpoints, imports, CSS)
+- [ ] No dead code left behind (unused components, endpoints, imports, CSS) — and no
+      retired code left half-removed: if a decision says something is gone, verify it's
+      actually gone from every file, not just undocumented (`rules/dry.md` applies to
+      deletions too — check config/env files, not only source)
 - [ ] No new business logic in routers — it belongs in `services/`
+- [ ] **DRY** (`rules/dry.md`): no logic copy-pasted between desktop/mobile trees or
+      between routers — shared behavior lives once, in `shared/`/`store/`/`services/`
 - [ ] `docs/plan.md` checkbox updated if the change completes a roadmap item

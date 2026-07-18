@@ -6,13 +6,7 @@ import { Login } from './pages/Login/Login.tsx'
 import { Register } from './pages/Register/Register.tsx'
 import { Activity } from './pages/Activity/Activity.tsx'
 import { Home } from './pages/Home/Home.tsx'
-import { Goals } from './pages/Goals/Goals.tsx'
-import { Bills } from './pages/Bills/Bills.tsx'
-import { Categories } from './pages/Categories/Categories.tsx'
-import { Merchants } from './pages/Merchants/Merchants.tsx'
-import { Reports } from './pages/Reports/Reports.tsx'
 import { Settings } from './pages/Settings/Settings.tsx'
-import { More } from './pages/More/More.tsx'
 
 export const MobileApp = (): JSX.Element => {
   return (
@@ -37,46 +31,6 @@ export const MobileApp = (): JSX.Element => {
           }
         />
         <Route
-          path="/bills"
-          element={
-            <ProtectedRoute>
-              <Bills />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/goals"
-          element={
-            <ProtectedRoute>
-              <Goals />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/categories"
-          element={
-            <ProtectedRoute>
-              <Categories />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/merchants"
-          element={
-            <ProtectedRoute>
-              <Merchants />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/reports"
-          element={
-            <ProtectedRoute>
-              <Reports />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/settings"
           element={
             <ProtectedRoute>
@@ -84,14 +38,15 @@ export const MobileApp = (): JSX.Element => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/more"
-          element={
-            <ProtectedRoute>
-              <More />
-            </ProtectedRoute>
-          }
-        />
+        {/* U8: mobile = Home/Activity/Capture, nothing else — Bills/Goals/Categories/
+            Merchants/Reports/More all retired, old bookmarks land back on Home. */}
+        <Route path="/bills" element={<Navigate to="/" replace />} />
+        <Route path="/bills/:id" element={<Navigate to="/" replace />} />
+        <Route path="/goals" element={<Navigate to="/" replace />} />
+        <Route path="/categories" element={<Navigate to="/" replace />} />
+        <Route path="/merchants" element={<Navigate to="/" replace />} />
+        <Route path="/reports" element={<Navigate to="/" replace />} />
+        <Route path="/more" element={<Navigate to="/" replace />} />
         <Route path="/profile" element={<Navigate to="/settings" replace />} />
         <Route path="/transactions" element={<Navigate to="/activity" replace />} />
         <Route path="/add" element={<Navigate to="/" replace />} />

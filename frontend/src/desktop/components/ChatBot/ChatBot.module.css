@@ -16,20 +16,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.18),
-    0 2px 4px rgba(0, 0, 0, 0.1);
   transition:
     transform var(--duration-normal) var(--ease-out),
-    box-shadow var(--duration-normal) var(--ease-out),
     background-color var(--duration-fast) var(--ease-out);
 }
 
 .fab:hover {
   transform: scale(1.08);
-  box-shadow:
-    0 6px 24px rgba(0, 0, 0, 0.22),
-    0 3px 8px rgba(0, 0, 0, 0.12);
   background: var(--accent-10);
 }
 
@@ -54,9 +47,7 @@
   height: 520px;
   border-radius: var(--radius-4);
   background: var(--color-panel-solid);
-  box-shadow:
-    0 16px 48px rgba(0, 0, 0, 0.16),
-    0 4px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--gray-6);
   display: flex;
   flex-direction: column;
   overflow: hidden;

@@ -4,9 +4,11 @@
 const CURRENCY_LOCALE: Record<string, string> = { USD: 'en-US', INR: 'en-IN', CAD: 'en-CA' }
 const CURRENCY_SYMBOL: Record<string, string> = { USD: '$', INR: '₹', CAD: 'C$' }
 
+export const getCurrencySymbol = (currency: string): string => CURRENCY_SYMBOL[currency] ?? '$'
+
 export const formatCurrency = (amount: number, currency: string): string => {
   const locale = CURRENCY_LOCALE[currency] ?? 'en-US'
-  const symbol = CURRENCY_SYMBOL[currency] ?? '$'
+  const symbol = getCurrencySymbol(currency)
   const formatted = Math.abs(amount).toLocaleString(locale, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

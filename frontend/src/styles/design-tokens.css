@@ -1,18 +1,10 @@
 /* ========================================
    CALM FINANCE — Design Token System
-   Extends Radix Themes tokens
+   Aliases Radix Themes tokens only. No raw
+   colors, no shadows — flat, minimalist UI.
    ======================================== */
 
 :root {
-  /* ---- Shadow Scale (Elevation) ---- */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02);
-  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.03);
-
   /* ---- Motion / Transition ---- */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -21,77 +13,25 @@
   --duration-normal: 200ms;
   --duration-slow: 350ms;
 
-  /* ---- Radius Extensions ---- */
-  --radius-card: 14px;
-  --radius-section: 18px;
-
-  /* ---- Glass Properties (Light Mode) ---- */
-  --glass-bg: rgba(255, 255, 255, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.6);
-  --glass-blur: 16px;
+  /* ---- Radius Extensions (aliased to Radix radius scale) ---- */
+  --radius-card: var(--radius-4);
+  --radius-section: var(--radius-5);
 
   /* ---- Spacing Scale ---- */
   --space-page: var(--space-6);
   --space-section: var(--space-5);
 
-  /* ---- Skeleton Shimmer ---- */
+  /* ---- Skeleton Shimmer (aliased to Radix gray scale) ---- */
   --skeleton-base: var(--gray-3);
   --skeleton-shine: var(--gray-4);
 
   /* ---- Card Patterns ---- */
   --card-padding: var(--space-4);
   --card-padding-lg: var(--space-5);
-}
 
-/* ---- Dark Mode Overrides ---- */
-[data-theme='dark'],
-.dark {
-  /* Background tokens */
-  --bg-deep: #0f172a;
-  --bg-panel: #1e293b;
-
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.06);
-  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
-
-  /* Glass for dark mode */
-  --glass-bg: rgba(15, 23, 42, 0.65);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-blur: 20px;
-
-  /* Skeleton */
-  --skeleton-base: rgba(255, 255, 255, 0.06);
-  --skeleton-shine: rgba(255, 255, 255, 0.12);
-}
-
-/* ---- Dark mode body background ---- */
-[data-theme='dark'] body {
-  background: #0c1222;
-}
-
-/* ---- Glass Panel (reusable class) ---- */
-.glass {
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  border: 1px solid var(--glass-border);
-}
-
-/* ---- Card elevation pattern ---- */
-.premiumCard {
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  transition:
-    box-shadow var(--duration-normal) var(--ease-out),
-    transform var(--duration-normal) var(--ease-out);
-}
-
-.premiumCard:hover {
-  box-shadow: var(--shadow-card-hover);
+  /* ---- Money Semantics ---- */
+  --money-positive: var(--green-11);
+  --money-negative: var(--red-11);
 }
 
 /* ---- Skeleton shimmer animation ---- */

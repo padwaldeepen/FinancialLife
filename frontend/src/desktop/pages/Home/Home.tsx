@@ -1,34 +1,13 @@
 import { useEffect, type JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Box, Flex, Text, Card } from '@radix-ui/themes'
-import { Wallet, PiggyBank, CreditCard, TrendingUp } from 'lucide-react'
+import { Box, Flex, Text, Heading, Card } from '@radix-ui/themes'
+import { Wallet, PiggyBank, CreditCard, TrendingUp, Sparkles } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency, formatDate } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
+import { useHomeData } from '../../../shared/hooks/useHomeData.ts'
 import styles from './Home.module.css'
-
-interface Transaction {
-  id: number
-  amount: number
-  description: string
-  transaction_type: string
-  category_name: string | null
-  category_color: string | null
-  date: string
-}
-
-interface UpcomingBill {
-  id: number
-  name: string
-  amount: number
-  frequency: string
-  next_due: string
-  days_until: number
-  is_variable: boolean
-  has_paid: boolean
-  category_name: string | null
-}
 
 const accountIcons: Record<string, JSX.Element> = {
   checking: <Wallet size={22} />,
@@ -49,45 +28,22 @@ const accountColors: Record<string, string> = {
 export const Home = (): JSX.Element => {
   const currency = useActiveCurrency()
   const navigate = useNavigate()
-  const {
-    accounts,
-    accountsLoading,
-    fetchAccounts,
-    transactions,
-    txLoading,
-    fetchTransactions,
-    upcomingBills,
-    fetchUpcomingBills,
-  } = useBoundStore(
-    useShallow((s) => ({
-      accounts: s.accounts.items,
-      accountsLoading: s.accounts.loading,
-      fetchAccounts: s.fetchAccounts,
-      transactions: s.transactions.items,
-      txLoading: s.transactions.loading,
-      fetchTransactions: s.fetchTransactions,
-      upcomingBills: s.bills.upcoming as UpcomingBill[],
-      fetchUpcomingBills: s.fetchUpcomingBills,
-    })),
+  const { accounts, cashOnHand, creditOwed, recentTransactions, upcomingBills, loading } =
+    useHomeData()
+  const { summary, fetchReports } = useBoundStore(
+    useShallow((s) => ({ summary: s.reports.summary, fetchReports: s.fetchReports })),
   )
 
   useEffect(() => {
-    fetchAccounts()
-    fetchTransactions({ reset: true })
-    fetchUpcomingBills()
-  }, [fetchAccounts, fetchTransactions, fetchUpcomingBills])
-
-  const loading = accountsLoading && txLoading
-
-  const recentTx = transactions.slice(0, 5) as Transaction[]
-  const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0)
+    fetchReports()
+  }, [fetchReports])
 
   if (loading) {
     return (
       <Flex direction="column" gap="4">
-        <div className={`${styles.balanceCard} ${styles.skeleton} ${styles.chartArea}`} />
-        <div className={`skeleton ${styles.miniChart}`} />
-        <div className={`skeleton ${styles.miniChart}`} />
+        <Box className={`${styles.balanceCard} ${styles.skeleton} ${styles.chartArea}`} />
+        <Box className={`skeleton ${styles.miniChart}`} />
+        <Box className={`skeleton ${styles.miniChart}`} />
       </Flex>
     )
   }
@@ -96,24 +52,45 @@ export const Home = (): JSX.Element => {
     <Box className={styles.page}>
       <Flex className={styles.layout}>
         <Box className={styles.leftColumn}>
-          {/* Balance Hero */}
+          {/* Safe-to-Spend Hero — placeholder until Phase I's forecast engine (I5) */}
           <Card className={styles.balanceCard}>
-            <Text className={styles.balanceLabel}>Total Balance</Text>
-            <div className={styles.balanceAmount}>{formatCurrency(totalBalance, currency)}</div>
-            <Text className={styles.balanceAccounts}>
-              {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
-            </Text>
+            <Text className={styles.balanceLabel}>Safe to Spend</Text>
+            <Heading className={styles.balanceAmount}>—</Heading>
+            <Text className={styles.balanceAccounts}>Needs Phase I (forecast engine)</Text>
           </Card>
+
+          {/* Cash on hand / Credit owed — never summed, a credit balance is debt, not
+              spendable money */}
+          <Flex gap="3">
+            <Card className={styles.statCard}>
+              <Text size="1" color="gray">
+                Cash on hand
+              </Text>
+              <Text size="5" weight="bold" className={styles.statAmount}>
+                {formatCurrency(cashOnHand, currency)}
+              </Text>
+            </Card>
+            {creditOwed > 0 && (
+              <Card className={styles.statCard}>
+                <Text size="1" color="gray">
+                  Credit owed
+                </Text>
+                <Text size="5" weight="bold" className={styles.statAmountNegative}>
+                  {formatCurrency(creditOwed, currency)}
+                </Text>
+              </Card>
+            )}
+          </Flex>
 
           {/* Accounts */}
           <Box>
-            <div className={styles.sectionHeader}>
-              <span className={styles.sectionTitle}>Accounts</span>
-            </div>
+            <Flex className={styles.sectionHeader}>
+              <Text className={styles.sectionTitle}>Accounts</Text>
+            </Flex>
             {accounts.length === 0 ? (
-              <div className={styles.emptyState}>
+              <Box className={styles.emptyState}>
                 <Text color="gray">No accounts yet</Text>
-              </div>
+              </Box>
             ) : (
               <Flex direction="column" gap="2" className={styles.accountsList}>
                 {accounts.map((account) => (
@@ -131,12 +108,16 @@ export const Home = (): JSX.Element => {
                         {accountIcons[account.type] || <Wallet size={22} />}
                       </Box>
                       <Box className={styles.accountInfo}>
-                        <div className={styles.accountName}>{account.name}</div>
-                        <div className={styles.accountType}>{account.type}</div>
+                        <Text as="div" className={styles.accountName}>
+                          {account.name}
+                        </Text>
+                        <Text as="div" className={styles.accountType}>
+                          {account.type}
+                        </Text>
                       </Box>
-                      <div className={styles.accountBalance}>
+                      <Text as="div" className={styles.accountBalance}>
                         {formatCurrency(account.balance, currency)}
-                      </div>
+                      </Text>
                     </Flex>
                   </Card>
                 ))}
@@ -146,23 +127,79 @@ export const Home = (): JSX.Element => {
         </Box>
 
         <Box className={styles.rightColumn}>
+          {/* This Month */}
+          <Card className={styles.contentCard}>
+            <Flex className={styles.sectionHeader}>
+              <Text className={styles.sectionTitle}>This Month</Text>
+            </Flex>
+            {summary ? (
+              <Flex justify="between">
+                <Flex direction="column" gap="1">
+                  <Text size="1" color="gray">
+                    Income
+                  </Text>
+                  <Text size="4" weight="bold" className={styles.statAmountPositive}>
+                    {formatCurrency(summary.total_income, currency)}
+                  </Text>
+                </Flex>
+                <Flex direction="column" gap="1">
+                  <Text size="1" color="gray">
+                    Spent
+                  </Text>
+                  <Text size="4" weight="bold">
+                    {formatCurrency(summary.total_expense, currency)}
+                  </Text>
+                </Flex>
+                <Flex direction="column" gap="1">
+                  <Text size="1" color="gray">
+                    Net
+                  </Text>
+                  <Text
+                    size="4"
+                    weight="bold"
+                    className={
+                      summary.net >= 0 ? styles.statAmountPositive : styles.statAmountNegative
+                    }
+                  >
+                    {formatCurrency(summary.net, currency)}
+                  </Text>
+                </Flex>
+              </Flex>
+            ) : (
+              <Text size="2" color="gray">
+                No data yet
+              </Text>
+            )}
+          </Card>
+
+          {/* Insights — empty-state slot per design-system.md §4 until Phase I ships
+              rule-generated insights */}
+          <Card className={styles.contentCard}>
+            <Flex direction="column" align="center" gap="2" className={styles.emptyState}>
+              <Sparkles size={20} color="var(--gray-9)" />
+              <Text size="2" color="gray" align="center">
+                Insights need a bit more data — check back after a few transactions.
+              </Text>
+            </Flex>
+          </Card>
+
           {/* Recent Activity */}
           <Card className={styles.contentCard}>
-            <div className={styles.sectionHeader}>
-              <span className={styles.sectionTitle}>Recent Activity</span>
-              <button className={styles.seeAll} onClick={() => navigate('/activity')}>
+            <Flex className={styles.sectionHeader}>
+              <Text className={styles.sectionTitle}>Recent Activity</Text>
+              <Text className={styles.seeAll} onClick={() => navigate('/activity')}>
                 See all
-              </button>
-            </div>
-            {recentTx.length === 0 ? (
-              <div className={styles.emptyState}>
+              </Text>
+            </Flex>
+            {recentTransactions.length === 0 ? (
+              <Box className={styles.emptyState}>
                 <Text color="gray" size="2">
                   No transactions yet
                 </Text>
-              </div>
+              </Box>
             ) : (
-              <div className={styles.txList}>
-                {recentTx.map((t) => (
+              <Box className={styles.txList}>
+                {recentTransactions.map((t) => (
                   <Flex
                     key={t.id}
                     className={styles.txRow}
@@ -171,41 +208,48 @@ export const Home = (): JSX.Element => {
                     gap="3"
                   >
                     <Flex direction="column" gap="1" className={styles.flex1}>
-                      <div className={styles.txDescription}>{t.description}</div>
-                      <div className={styles.txDate}>{formatDate(t.date)}</div>
+                      <Text as="div" className={styles.txDescription}>
+                        {t.description}
+                      </Text>
+                      <Text as="div" className={styles.txDate}>
+                        {formatDate(t.date)}
+                      </Text>
                     </Flex>
-                    <div
+                    <Text
+                      as="div"
                       className={styles.txAmount}
                       style={
                         {
                           '--tx-color':
-                            t.transaction_type === 'income' ? 'var(--green-11)' : 'var(--gray-12)',
+                            t.transaction_type === 'income'
+                              ? 'var(--money-positive)'
+                              : 'var(--gray-12)',
                         } as React.CSSProperties
                       }
                     >
                       {t.transaction_type === 'income' ? '+' : '-'}
                       {formatCurrency(t.amount, currency)}
-                    </div>
+                    </Text>
                   </Flex>
                 ))}
-              </div>
+              </Box>
             )}
           </Card>
 
           {/* Upcoming Bills */}
           <Card className={styles.contentCard}>
-            <div className={styles.sectionHeader}>
-              <span className={styles.sectionTitle}>Upcoming Bills</span>
-              <button className={styles.seeAll} onClick={() => navigate('/bills')}>
+            <Flex className={styles.sectionHeader}>
+              <Text className={styles.sectionTitle}>Upcoming Bills</Text>
+              <Text className={styles.seeAll} onClick={() => navigate('/recurring')}>
                 See all
-              </button>
-            </div>
+              </Text>
+            </Flex>
             {upcomingBills.length === 0 ? (
-              <div className={styles.emptyState}>
+              <Box className={styles.emptyState}>
                 <Text color="gray" size="2">
                   No upcoming bills
                 </Text>
-              </div>
+              </Box>
             ) : (
               <Flex direction="column" gap="2" className={styles.billList}>
                 {upcomingBills.slice(0, 5).map((bill) => (
@@ -229,7 +273,7 @@ export const Home = (): JSX.Element => {
                       className={styles.billAmount}
                       style={
                         {
-                          '--bill-color': bill.has_paid ? 'var(--green-11)' : undefined,
+                          '--bill-color': bill.has_paid ? 'var(--money-positive)' : undefined,
                         } as React.CSSProperties
                       }
                     >

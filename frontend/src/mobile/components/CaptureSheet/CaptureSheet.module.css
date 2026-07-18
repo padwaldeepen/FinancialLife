@@ -1,0 +1,55 @@
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: auto;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  transform: none;
+  animation: slideUp var(--duration-normal) var(--ease-out) forwards;
+}
+
+.title {
+  font-size: var(--font-size-4);
+  font-weight: 600;
+}
+
+.option {
+  border-radius: var(--radius-card) !important;
+  border: 1px solid var(--gray-4);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.option:active {
+  background-color: var(--gray-3);
+}
+
+.optionDisabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.iconCircle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--gray-4);
+  flex-shrink: 0;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

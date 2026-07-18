@@ -28,7 +28,7 @@
 .card {
   padding: var(--space-4);
   border-radius: var(--radius-card) !important;
-  box-shadow: var(--shadow-card) !important;
+  border: 1px solid var(--gray-4);
 }
 
 .row {

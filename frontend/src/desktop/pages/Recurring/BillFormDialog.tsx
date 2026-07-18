@@ -1,0 +1,184 @@
+import { useEffect, useState, type JSX } from 'react'
+import { Box, Flex, Text, Button, Dialog, TextField, Select, Checkbox } from '@radix-ui/themes'
+import type { Bill } from '../../../store/slices/billsSlice.ts'
+import styles from './Recurring.module.css'
+
+interface Account {
+  id: number
+  name: string
+}
+
+interface BillFormValues {
+  name: string
+  amount: string
+  frequency: string
+  due_day: string
+  account_id: string
+  is_variable: boolean
+}
+
+const emptyForm: BillFormValues = {
+  name: '',
+  amount: '',
+  frequency: 'monthly',
+  due_day: '1',
+  account_id: '',
+  is_variable: false,
+}
+
+const toFormValues = (bill: Bill): BillFormValues => ({
+  name: bill.name,
+  amount: String(bill.amount),
+  frequency: bill.frequency,
+  due_day: String(bill.due_day),
+  account_id: String(bill.account_id),
+  is_variable: bill.is_variable,
+})
+
+interface Props {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  bill: Bill | null
+  accounts: Account[]
+  saving: boolean
+  onSubmit: (values: {
+    name: string
+    amount: number
+    frequency: string
+    due_day: number
+    account_id: number
+    is_variable: boolean
+  }) => void
+}
+
+// One dialog for both create and edit — the original had two ~90-line dialogs with a
+// byte-identical field set (rules/dry.md), diverging only in which action they called
+// on submit.
+export const BillFormDialog = ({
+  open,
+  onOpenChange,
+  bill,
+  accounts,
+  saving,
+  onSubmit,
+}: Props): JSX.Element => {
+  const [form, setForm] = useState<BillFormValues>(emptyForm)
+
+  useEffect(() => {
+    if (open) setForm(bill ? toFormValues(bill) : emptyForm)
+  }, [open, bill])
+
+  const valid = form.name.trim() && form.amount && form.account_id && form.due_day
+
+  const handleSubmit = () => {
+    if (!valid) return
+    onSubmit({
+      name: form.name.trim(),
+      amount: parseFloat(form.amount),
+      frequency: form.frequency,
+      due_day: parseInt(form.due_day, 10),
+      account_id: parseInt(form.account_id, 10),
+      is_variable: form.is_variable,
+    })
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Content maxWidth="400px">
+        <Dialog.Title>{bill ? 'Edit Bill' : 'Create Bill'}</Dialog.Title>
+        <Flex direction="column" gap="3" mt="3">
+          <Flex direction="column" gap="1">
+            <Text size="2" weight="medium">
+              Name
+            </Text>
+            <TextField.Root
+              placeholder="e.g. Rent"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </Flex>
+          <Flex direction="column" gap="1">
+            <Text size="2" weight="medium">
+              Amount
+            </Text>
+            <TextField.Root
+              type="number"
+              placeholder="1200"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+            >
+              <TextField.Slot side="left">$</TextField.Slot>
+            </TextField.Root>
+          </Flex>
+          <Flex direction="column" gap="1">
+            <Text size="2" weight="medium">
+              Account
+            </Text>
+            <Select.Root
+              value={form.account_id}
+              onValueChange={(v) => setForm({ ...form, account_id: v })}
+            >
+              <Select.Trigger placeholder="Select account" />
+              <Select.Content>
+                {accounts.map((a) => (
+                  <Select.Item key={a.id} value={String(a.id)}>
+                    {a.name}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+          </Flex>
+          <Flex gap="3">
+            <Box className={styles.flex1}>
+              <Flex direction="column" gap="1">
+                <Text size="2" weight="medium">
+                  Frequency
+                </Text>
+                <Select.Root
+                  value={form.frequency}
+                  onValueChange={(v) => setForm({ ...form, frequency: v })}
+                >
+                  <Select.Trigger />
+                  <Select.Content>
+                    <Select.Item value="weekly">Weekly</Select.Item>
+                    <Select.Item value="biweekly">Biweekly</Select.Item>
+                    <Select.Item value="monthly">Monthly</Select.Item>
+                    <Select.Item value="quarterly">Quarterly</Select.Item>
+                    <Select.Item value="yearly">Yearly</Select.Item>
+                  </Select.Content>
+                </Select.Root>
+              </Flex>
+            </Box>
+            <Box className={styles.colWidth100}>
+              <Flex direction="column" gap="1">
+                <Text size="2" weight="medium">
+                  Due Day
+                </Text>
+                <TextField.Root
+                  type="number"
+                  min={1}
+                  max={31}
+                  placeholder="1"
+                  value={form.due_day}
+                  onChange={(e) => setForm({ ...form, due_day: e.target.value })}
+                />
+              </Flex>
+            </Box>
+          </Flex>
+          <Text as="label" size="2">
+            <Flex align="center" gap="2">
+              <Checkbox
+                checked={form.is_variable}
+                onCheckedChange={(v) => setForm({ ...form, is_variable: v === true })}
+              />
+              <Text>Variable amount (estimated)</Text>
+            </Flex>
+          </Text>
+          <Button onClick={handleSubmit} loading={saving} size="3" mt="2" disabled={!valid}>
+            {bill ? 'Save Changes' : 'Create Bill'}
+          </Button>
+        </Flex>
+      </Dialog.Content>
+    </Dialog.Root>
+  )
+}

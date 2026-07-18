@@ -1,7 +1,7 @@
-import { namespaceSlice } from '../namespaceSlice.ts'
-import api from '../../auth/api.ts'
+import { namespaceSlice, isFresh } from '../namespaceSlice.ts'
+import api from '../../shared/api/client.ts'
 
-interface UpcomingBill {
+export interface UpcomingBill {
   id: number
   name: string
   amount: number
@@ -17,7 +17,7 @@ interface UpcomingBill {
   has_paid: boolean
 }
 
-interface Bill {
+export interface Bill {
   id: number
   name: string
   amount: number
@@ -41,6 +41,7 @@ export type BillsSlice = {
     items: Bill[]
     upcoming: UpcomingBill[]
     loading: boolean
+    upcomingLastFetchedAt: number | null
     billHistory: {
       transactions: any[]
       monthly_spending: any[]
@@ -48,7 +49,7 @@ export type BillsSlice = {
     }
   }
   fetchBills: () => Promise<void>
-  fetchUpcomingBills: (days?: number) => Promise<void>
+  fetchUpcomingBills: (days?: number, opts?: { force?: boolean }) => Promise<void>
   fetchBillHistory: (billId: number) => Promise<void>
   createBill: (data: {
     name: string
@@ -94,6 +95,7 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
   items: [] as Bill[],
   upcoming: [] as UpcomingBill[],
   loading: true,
+  upcomingLastFetchedAt: null as number | null,
   billHistory: { transactions: [], monthly_spending: [], loading: false },
 
   fetchBills: async () => {
@@ -106,10 +108,11 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
     }
   },
 
-  fetchUpcomingBills: async (days = 30) => {
+  fetchUpcomingBills: async (days = 30, opts?: { force?: boolean }) => {
+    if (!opts?.force && isFresh(get().upcomingLastFetchedAt)) return
     try {
       const res = await api.get(`/api/bills/upcoming?days=${days}`)
-      set({ upcoming: res.data })
+      set({ upcoming: res.data, upcomingLastFetchedAt: Date.now() })
     } catch {
       // silent
     }

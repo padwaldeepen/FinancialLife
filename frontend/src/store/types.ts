@@ -9,6 +9,9 @@ import type { CategoriesSlice } from './slices/categoriesSlice.ts'
 import type { ReportsSlice } from './slices/reportsSlice.ts'
 import type { BudgetsSlice } from './slices/budgetsSlice.ts'
 import type { RegisterFormSlice } from './slices/registerFormSlice.ts'
+import type { LoginFormSlice } from './slices/loginFormSlice.ts'
+import type { QuickAddModalSlice } from './slices/quickAddModalSlice.ts'
+import type { ToastSlice } from './slices/toastSlice.ts'
 
 export type StoreState = AuthSlice &
   UISlice &
@@ -20,4 +23,7 @@ export type StoreState = AuthSlice &
   CategoriesSlice &
   ReportsSlice &
   BudgetsSlice &
-  RegisterFormSlice
+  RegisterFormSlice &
+  LoginFormSlice &
+  QuickAddModalSlice &
+  ToastSlice

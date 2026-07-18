@@ -20,15 +20,12 @@
 .card {
   cursor: pointer;
   border-radius: var(--radius-card) !important;
-  box-shadow: var(--shadow-card) !important;
+  border: 1px solid var(--gray-4);
   padding: var(--space-4);
-  transition:
-    box-shadow var(--duration-normal) var(--ease-out),
-    transform var(--duration-normal) var(--ease-out);
+  transition: transform var(--duration-normal) var(--ease-out);
 }
 
 .card:hover {
-  box-shadow: var(--shadow-card-hover) !important;
   transform: translateY(-1px);
 }
 

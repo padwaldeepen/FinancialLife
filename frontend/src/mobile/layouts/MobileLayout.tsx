@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom'
 import { Box } from '@radix-ui/themes'
 import { AddTransactionModal } from '../components/AddTransactionModal/AddTransactionModal.tsx'
 import { BottomTabBar } from '../components/BottomTabBar/BottomTabBar.tsx'
+import { CaptureSheet } from '../components/CaptureSheet/CaptureSheet.tsx'
 import styles from './MobileLayout.module.css'
 
 export const MobileLayout = (): JSX.Element => {
@@ -12,6 +13,7 @@ export const MobileLayout = (): JSX.Element => {
         <Outlet />
       </main>
       <BottomTabBar />
+      <CaptureSheet />
       <AddTransactionModal />
     </Box>
   )

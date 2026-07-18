@@ -1,7 +1,7 @@
-import { namespaceSlice } from '../namespaceSlice.ts'
-import api from '../../auth/api.ts'
+import { namespaceSlice, isFresh } from '../namespaceSlice.ts'
+import api from '../../shared/api/client.ts'
 
-interface Account {
+export interface Account {
   id: number
   name: string
   type: string
@@ -15,8 +15,9 @@ export type AccountsSlice = {
   accounts: {
     items: Account[]
     loading: boolean
+    lastFetchedAt: number | null
   }
-  fetchAccounts: () => Promise<void>
+  fetchAccounts: (opts?: { force?: boolean }) => Promise<void>
   createAccount: (data: { name: string; type: string; currency?: string }) => Promise<Account>
   updateAccount: (
     id: number,
@@ -28,12 +29,14 @@ export type AccountsSlice = {
 export const createAccountsSlice = namespaceSlice('accounts', (set, get) => ({
   items: [] as Account[],
   loading: true,
+  lastFetchedAt: null as number | null,
 
-  fetchAccounts: async () => {
+  fetchAccounts: async (opts?: { force?: boolean }) => {
+    if (!opts?.force && isFresh(get().lastFetchedAt)) return
     set({ loading: true })
     try {
       const res = await api.get('/api/accounts/')
-      set({ items: res.data })
+      set({ items: res.data, lastFetchedAt: Date.now() })
     } finally {
       set({ loading: false })
     }

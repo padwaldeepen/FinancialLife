@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type JSX } from 'react'
+import { useRef, useEffect, type JSX } from 'react'
 import {
   Flex,
   Text,
@@ -13,55 +13,74 @@ import {
   Popover,
 } from '@radix-ui/themes'
 import { Sparkles, Check, Camera, X } from 'lucide-react'
-import toast from 'react-hot-toast'
+import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
-import { formatCurrency } from '../../../shared/utils/format.ts'
+import { formatCurrency, getCurrencySymbol } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
-import api from '../../../auth/api.ts'
-import { extractTextFromImage, cleanOcrText } from '../../../utils/ocr.ts'
+import api from '../../../shared/api/client.ts'
+import { extractTextFromImage, cleanOcrText } from '../../../shared/utils/ocr.ts'
 import styles from './AddTransactionModal.module.css'
-
-interface ParsedResult {
-  amount: number | null
-  description: string
-  type: string
-  category: string | null
-  merchant?: string | null
-}
 
 export const AddTransactionModal = (): JSX.Element => {
   const currency = useActiveCurrency()
-  const { addModalOpen, closeAddModal, categories, fetchCategories } = useBoundStore(
+  const {
+    addModalOpen,
+    closeAddModal,
+    categories,
+    fetchCategories,
+    input,
+    loading,
+    parsed,
+    saving,
+    scanning,
+    selectedCategoryId,
+    manualAmount,
+    setInput,
+    setLoading,
+    setParsed,
+    setSaving,
+    setScanning,
+    setSelectedCategoryId,
+    setManualAmount,
+    resetQuickAdd,
+    fetchAccounts,
+    fetchTransactions,
+    fetchUpcomingBills,
+  } = useBoundStore(
     useShallow((s) => ({
       addModalOpen: s.ui.addModalOpen,
       closeAddModal: s.closeAddModal,
       categories: s.categories.flat,
       fetchCategories: s.fetchCategories,
+      input: s.quickAddModal.input,
+      loading: s.quickAddModal.loading,
+      parsed: s.quickAddModal.parsed,
+      saving: s.quickAddModal.saving,
+      scanning: s.quickAddModal.scanning,
+      selectedCategoryId: s.quickAddModal.selectedCategoryId,
+      manualAmount: s.quickAddModal.manualAmount,
+      setInput: s.setQuickAddInput,
+      setLoading: s.setQuickAddLoading,
+      setParsed: s.setQuickAddParsed,
+      setSaving: s.setQuickAddSaving,
+      setScanning: s.setQuickAddScanning,
+      setSelectedCategoryId: s.setQuickAddSelectedCategoryId,
+      setManualAmount: s.setQuickAddManualAmount,
+      resetQuickAdd: s.resetQuickAddModal,
+      fetchAccounts: s.fetchAccounts,
+      fetchTransactions: s.fetchTransactions,
+      fetchUpcomingBills: s.fetchUpcomingBills,
     })),
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [parsed, setParsed] = useState<ParsedResult | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [scanning, setScanning] = useState(false)
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
+  const amountMissing = Boolean(parsed?.missing?.includes('amount'))
 
   useEffect(() => {
     if (addModalOpen) {
       fetchCategories()
     }
   }, [addModalOpen, fetchCategories])
-
-  const reset = () => {
-    setInput('')
-    setParsed(null)
-    setLoading(false)
-    setSaving(false)
-    setScanning(false)
-    setSelectedCategoryId(null)
-  }
 
   const handleParse = async () => {
     if (!input.trim()) return
@@ -78,15 +97,23 @@ export const AddTransactionModal = (): JSX.Element => {
 
   const handleSave = async () => {
     if (!parsed) return
+    if (amountMissing && !manualAmount) return
     setSaving(true)
     try {
       await api.post('/api/transactions/quick-add', {
         text: input,
         category_id: selectedCategoryId ?? undefined,
+        amount: amountMissing ? parseFloat(manualAmount) : undefined,
       })
       toast.success('Transaction added!')
-      reset()
+      resetQuickAdd()
       closeAddModal()
+      // Home's accounts/transactions/bills slices don't otherwise know a save just
+      // happened — force past the 30s staleness window so balance and recent
+      // activity aren't stale until the next unrelated navigation (U3).
+      fetchAccounts({ force: true })
+      fetchTransactions({ reset: true, force: true })
+      fetchUpcomingBills(30, { force: true })
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to save transaction')
     } finally {
@@ -125,7 +152,7 @@ export const AddTransactionModal = (): JSX.Element => {
       open={addModalOpen}
       onOpenChange={(open) => {
         if (!open) {
-          reset()
+          resetQuickAdd()
           closeAddModal()
         }
       }}
@@ -137,7 +164,7 @@ export const AddTransactionModal = (): JSX.Element => {
             variant="ghost"
             size="2"
             onClick={() => {
-              reset()
+              resetQuickAdd()
               closeAddModal()
             }}
             aria-label="Close"
@@ -202,9 +229,24 @@ export const AddTransactionModal = (): JSX.Element => {
                     <Text weight="bold" size="3">
                       {parsed.description}
                     </Text>
-                    <Text weight="bold" size="4">
-                      {formatCurrency(parsed.amount || 0, currency)}
-                    </Text>
+                    {amountMissing ? (
+                      <TextField.Root
+                        type="number"
+                        placeholder="How much?"
+                        value={manualAmount}
+                        onChange={(e) => setManualAmount(e.target.value)}
+                        className={styles.amountInput}
+                        autoFocus
+                      >
+                        <TextField.Slot side="left">
+                          <Text size="2">{getCurrencySymbol(currency)}</Text>
+                        </TextField.Slot>
+                      </TextField.Root>
+                    ) : (
+                      <Text weight="bold" size="4">
+                        {formatCurrency(parsed.amount || 0, currency)}
+                      </Text>
+                    )}
                   </Flex>
 
                   <Flex gap="2" align="center" wrap="wrap">
@@ -264,7 +306,12 @@ export const AddTransactionModal = (): JSX.Element => {
                     </Popover.Root>
                   </Flex>
 
-                  <Button onClick={handleSave} loading={saving} size="3">
+                  <Button
+                    onClick={handleSave}
+                    loading={saving}
+                    disabled={amountMissing && !manualAmount}
+                    size="3"
+                  >
                     <Check size={16} /> Confirm & save
                   </Button>
                 </Flex>

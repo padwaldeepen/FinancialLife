@@ -24,10 +24,24 @@ body {
   color: var(--gray-12);
   line-height: 1.5;
   min-height: 100dvh;
+  /* design-system.md §2 "Numbers" — every digit gets fixed-width glyphs so amounts
+     never visually jitter/misalign as they update; only affects numerals, safe as a
+     global default. */
+  font-variant-numeric: tabular-nums;
 }
 
 #root {
   min-height: 100dvh;
+}
+
+/* Used by main.tsx's loading spinner, the only consumer — a global class rather than
+   a CSS Module since it's the one screen rendered before the app tree (and its
+   desktop/mobile split) exists yet. */
+.fullPage {
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 a {
@@ -69,9 +83,7 @@ img {
 /* Radix Themes overrides for premium feel */
 .rt-Card {
   border-radius: var(--radius-card) !important;
-  transition:
-    box-shadow var(--duration-normal) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 /* Improve Radix button hover */

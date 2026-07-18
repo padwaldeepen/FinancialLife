@@ -79,6 +79,11 @@ class AISettingsUpdate(BaseModel):
     ai_cloud_enabled: bool
 
 
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 def _row_to_user(row: asyncpg.Record) -> User:
     return User(**dict(row))
 
@@ -359,6 +364,28 @@ async def update_ai_settings(
         "AI cloud toggle set — user_id=%d enabled=%s", current_user.id, payload.ai_cloud_enabled
     )
     return _row_to_user(row)
+
+
+@router.put("/me/password")
+async def change_password(
+    payload: PasswordChange,
+    current_user: User = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db),
+):
+    row = await conn.fetchrow("SELECT hashed_password FROM users WHERE id = $1", current_user.id)
+    if not row or not verify_password(payload.current_password, row["hashed_password"]):
+        log.warning("Password change failed — wrong current password: user_id=%d", current_user.id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+    await conn.execute(
+        "UPDATE users SET hashed_password = $1 WHERE id = $2",
+        get_password_hash(payload.new_password),
+        current_user.id,
+    )
+    log.info("Password changed — user_id=%d", current_user.id)
+    return {"detail": "Password updated"}
 
 
 @router.get("/profiles", response_model=list[ProfileResponse])

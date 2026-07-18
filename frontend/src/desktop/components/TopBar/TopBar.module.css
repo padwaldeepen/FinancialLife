@@ -8,13 +8,6 @@
   transition: background-color var(--duration-normal) var(--ease-out);
 }
 
-[data-theme='dark'] .topBar {
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  border-bottom-color: var(--glass-border);
-}
-
 .welcomeText {
   font-size: var(--font-size-2);
   color: var(--gray-11);
@@ -39,7 +32,6 @@
 
 .popoverContent {
   min-width: 220px;
-  box-shadow: var(--shadow-lg);
 }
 
 .themeRow {
@@ -57,4 +49,19 @@
 .logoutButton {
   width: 100%;
   justify-content: flex-start;
+}
+
+.profileRow {
+  cursor: pointer;
+  border-radius: var(--radius-2);
+  padding: var(--space-1) var(--space-2);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.profileRow:hover {
+  background-color: var(--gray-3);
+}
+
+.profileRow[data-active='true'] {
+  background-color: var(--accent-3);
 }

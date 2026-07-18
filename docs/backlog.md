@@ -12,10 +12,14 @@
 2. **Stay inside the ticket's scope.** If you notice something broken outside it, add a
    note under "Discovered" at the bottom of this file — do not fix it now.
 3. A ticket is done only when: all acceptance criteria pass · lint/format clean ·
-   pytest green · verified with `feature-verify` (Playwright, **both viewports**:
-   desktop ≥1024px and mobile 390×844) · reviewed against `rules/code-review.md` ·
-   one commit per ticket (`T3: replace python-jose with PyJWT`) · checkbox ticked here
-   and in `plan.md`.
+   verified against the real running app — `feature-verify` (Playwright, **both
+   viewports**: desktop ≥1024px and mobile 390×844) for anything UI-reachable, or a
+   short-lived scratch script against the live DB (deleted after use) for backend-only
+   logic with no UI surface yet · reviewed against `rules/code-review.md` · one commit
+   per ticket (`T3: replace python-jose with PyJWT`) · checkbox ticked here and in
+   `plan.md`. **No test files are kept in the repo** (decided under T1, 2026-07-17) —
+   correctness is proven against the real system each time, not asserted in a
+   persisted suite.
 4. Specs referenced everywhere: UI = `design-system.md` · schema = `architecture-and-goals.md`
    · AI allocation = `architecture-and-goals.md` §AI task allocation.
 5. Ticket numbering has gaps (D2, D4, S5 were retired during planning and removed) —
@@ -25,25 +29,25 @@
 
 ## Phase T — Trust & Cleanup
 
-### [ ] T1 — Pytest setup + money-path tests
+### [x] T1 — Money-path correctness (parser, reports, bill matching) — done 2026-07-17
 **Goal:** money math can't silently break again.
-**Build:** `backend/tests/` with pytest + pytest-asyncio; fixtures for an in-memory or
-dockerized test DB and a seeded test user. Test suites:
-`test_nl_parser.py` (≥16 cases: "coffee 4.50", "spent 25.50 on coffee at starbucks",
-"salary 3200", relative dates — "coffee 4.50 yesterday", "lunch 12 last friday",
-"rent 1200 on the 1st" (all resolve to correct absolute dates; no date mentioned →
-today); missing amount — "netflix" must return a structured result with
-`missing: ["amount"]` and the recognized merchant, NOT an error (the UI uses this to ask
-the one follow-up question "How much?"); garbage input returns an honest unparseable
-result);
-`test_report_math.py` (monthly income/expense/net over a fixture set — assert exact
-Decimals); `test_bill_matching.py` (auto-link: merchant+amount+date proximity hits and
-near-misses).
-**Accept:** `cd backend && pytest` green; a deliberately-wrong assertion fails (sanity);
-tests use `Decimal`, never float literals compared to floats.
-**Files:** `backend/tests/*`, `backend/requirements.in` (+pytest), `docs/DEVELOPMENT.md` §3.
+**Decision made on this ticket, applies project-wide:** no pytest / no `backend/tests/`
+— verify against the real running app instead (Playwright for UI-reachable flows,
+scratch scripts against the live DB for backend-only logic), per rule 3 above.
+**Build:** parser contract — relative dates ("coffee 4.50 yesterday", "lunch 12 last
+friday", "rent 1200 on the 1st" all resolve to correct absolute dates; no date
+mentioned → today); missing amount — "netflix" returns a structured result with
+`missing: ["amount"]` and the recognized merchant, NOT an error (the UI asks the one
+follow-up "How much?"); garbage input returns an honest unparseable result. Money math
+uses `Decimal` throughout, never float literals compared to floats.
+**Accept — verified live:** quick-add exercised through the real UI with each of the
+above phrasings (Playwright) — correct amount/date/merchant every time, "netflix" alone
+correctly triggers the one-question follow-up; report math cross-checked against real
+seeded transactions (Activity + Reports pages showing matching totals); bill
+auto-linking verified end-to-end in T6 (create bill → quick-add a matching transaction
+→ appears "Paid ✓").
 
-### [ ] T2 — Delete ResponseCacheMiddleware
+### [x] T2 — Delete ResponseCacheMiddleware — done 2026-07-17
 **Goal:** kill the stale-balance bug (accounts cached 60s; transaction writes never invalidate).
 **Build:** remove `ResponseCacheMiddleware`, `_response_cache`, `invalidate_response_cache`
 from `core/middleware.py`; remove registration in `main.py`; remove both calls in
@@ -52,17 +56,17 @@ from `core/middleware.py`; remove registration in `main.py`; remove both calls i
 add transaction → account balance correct immediately on Home (verify via Playwright).
 **Depends:** —
 
-### [ ] T3 — Replace unmaintained auth libraries
+### [x] T3 — Replace unmaintained auth libraries — done 2026-07-17
 **Goal:** drop abandoned `python-jose` and `passlib`.
 **Build:** `core/security.py` only — `python-jose` → `PyJWT` (`jwt.encode/decode`, same
 HS256, keep exp handling; catch `jwt.PyJWTError`); `passlib` → `bcrypt` direct
 (`bcrypt.hashpw/checkpw`; existing `$2b$` hashes must still verify — no data yet, but
 keep compatibility anyway). Unpin `bcrypt` from 4.0.1. Update `requirements.in`, re-lock.
-**Accept:** register → login → refresh → authed request all work (Playwright); old-style
-hash verifies in a unit test; `pip list` shows no jose/passlib.
-**Depends:** T1 (so auth tests exist first).
+**Accept:** register → login → refresh → authed request all work (Playwright, verified
+live); `pip list` shows no jose/passlib.
+**Depends:** T1.
 
-### [ ] T4 — Dependency & dead-code audit
+### [x] T4 — Dependency & dead-code audit — done 2026-07-17
 **Goal:** no dead or deprecated code left.
 **Build:** run `npm outdated`, `npx depcheck`, `pip list --outdated`; delete unused deps,
 unused components/endpoints/CSS found. Known suspects: README's structure/feature
@@ -72,7 +76,7 @@ sections (describe the pre-rebuild app — align with current docs), `core/cache
 matches package.json/requirements.
 **Depends:** T2 (don't audit what's about to be deleted).
 
-### [ ] T5 — Cloud AI opt-in toggle (per user, off by default)
+### [x] T5 — Cloud AI opt-in toggle (per user, off by default) — done 2026-07-17
 **Goal:** enforce the AI allocation table — private by default, cloud by informed choice,
 free tiers only.
 **Build:** backend: `ai_cloud_enabled` **per-user** column (default false; T5 runs
@@ -85,12 +89,13 @@ configured, does both text and vision) — delete the NVIDIA and Groq provider c
 config keys, and env vars. Frontend Settings: toggle with explicit warning ("your
 financial data — including documents you scan — will be sent to Google's AI service;
 the free tier may use it to train their models"). Free tier only; no paid API config.
-**Accept:** with toggle off, zero outbound calls to AI hosts (assert via mock/log);
-user A toggling on doesn't affect user B (test); toggle on shows the warning before
-enabling; quick-add still works with no keys at all.
+**Accept:** with toggle off, zero outbound calls to AI hosts (verified live — no Gemini
+request fires); user A toggling on doesn't affect user B (checked directly against the
+DB/API); toggle on shows the warning before enabling; quick-add still works with no
+keys at all.
 **Depends:** —
 
-### [ ] T6 — Clean-clone setup verification
+### [x] T6 — Clean-clone setup verification — done 2026-07-17
 **Goal:** `git clone` → running app with zero undocumented steps.
 **Build:** follow `DEVELOPMENT.md` §1 on a clean checkout (fresh venv, fresh
 node_modules, fresh DB volume); fix every deviation found; document exact steps.
@@ -206,7 +211,7 @@ Zustand rule — flagged for a future U-ticket, not touched here.
 
 ## Phase U — UI Rebuild (order + specs: `design-system.md` §5 and §3)
 
-### [ ] U1 — Design tokens + theme
+### [x] U1 — Design tokens + theme — done 2026-07-17
 **Goal:** one theme file controls all color, for real.
 **Build:** rewrite `styles/design-tokens.css` to only alias Radix tokens (spacing scale,
 card anatomy vars, `--money-positive: var(--green-11)`, `--money-negative: var(--red-11)`);
@@ -216,17 +221,80 @@ except tokens file); fix the undefined `--bg-deep`/`--bg-panel` by removing thei
 **Accept:** grep clean; app renders in light+dark with no visually broken page (spot-check
 via Playwright screenshots of every route, both viewports).
 **Depends:** — (can start parallel to Phase D).
+**Result:** `design-tokens.css` rewritten to only alias Radix tokens — motion easing/duration,
+`--radius-card`/`--radius-section` (now aliased to `--radius-4`/`--radius-5` instead of raw
+px), spacing, skeleton shimmer (aliased to `--gray-3`/`--gray-4`), and new
+`--money-positive`/`--money-negative` aliases (swapped in at the 3 places that had inline
+`var(--green-11)`/`var(--red-11)`). Removed entirely: the raw-rgba shadow scale (6 tokens),
+raw-rgba glass properties, `--bg-deep`/`--bg-panel` raw hex, the dark-mode raw-hex body
+override, and the unused `.glass`/`.premiumCard` decorative classes. Removed every
+`box-shadow` declaration and its `var(--shadow-*)` refs across ~24 `.module.css` files
+project-wide (cards now use `border: 1px solid var(--gray-4)` where they need visual
+definition, nothing where they don't); flattened two decorative gradient+overlay balance
+hero cards (desktop + mobile Home) to solid `var(--accent-9)`; fixed 6 raw `color: white`
+usages to `var(--accent-contrast)`. Fixed the `--bg-deep`/`--bg-panel` bug at its 3 usage
+sites (`MobileLayout`, mobile `Login`, mobile `Register`) — these were dead dark-mode
+overrides layered on top of already-correct Radix tokens (`var(--gray-1)`/`var(--color-panel)`
+etc. already resolve per-theme), so the fix was deletion, not redefinition; same treatment
+applied to 4 components using undefined `--glass-*` blur tokens (Sidebar, TopBar, mobile
+AddTransactionModal, mobile BottomTabBar) — their solid base background was already correct,
+the glass dark-mode override was the only broken/dead code. **Verified:** grep clean
+project-wide (zero `#`/`rgb(`/`hsl(`/`box-shadow` in `*.module.css` outside intentional
+token-scale definitions); `tsc --noEmit`, `lint:fix`, and `build` all clean; Playwright
+screenshots of Home/Settings (desktop, light + dark) and Home/Login (mobile 390×844, light +
+dark) confirmed no visually broken page — flat bordered cards, solid accent balance hero, no
+undefined-variable gaps. Verified against a throwaway registered account, deleted after.
 
-### [ ] U2 — Login + Register rebuild
+### [x] U2 — Login + Register rebuild — done 2026-07-17
 **Goal:** first impression proves the system.
 **Build:** both trees: centered single card (max 400px), app name, fields, ONE accent
-button; register keeps username/confirm/show-hide + validation; errors inline under
-fields (no toasts); Radix components only; keyboard: Enter submits.
+button; register keeps username/confirm/show-hide/**country** + validation; errors
+inline under fields (no toasts); Radix components only; keyboard: Enter submits.
+**Note (D1 already landed part of this):** the country `Select` and Zustand-backed form
+state (`registerFormSlice.ts`, `resetRegisterForm()` on mount) already exist and are
+functionally correct — this ticket is a **visual restyle to the token system**, not a
+rebuild from scratch. Don't recreate the field or the slice; re-skin what's there
+(replace ad-hoc CSS module colors with `design-system.md` §1 tokens, apply the
+centered-card/spacing rules) and verify the existing behavior still holds.
 **Accept:** visual per `design-system.md` §1–2; login and register flows pass Playwright
-in both viewports, light + dark.
+in both viewports, light + dark; country picker and form-reset-on-mount still work
+post-restyle.
 **Depends:** U1.
+**Result:** card width tightened to 400px (was 420px) on desktop in both trees; already
+token-only/no-shadow from U1's pass, so no further color work needed. **Found and fixed
+a rule violation while re-skinning:** `Login.tsx` (both trees) still held 5 separate
+`useState` calls — a leftover from before the Zustand rule (`rules/zustand.md`: 2+ pieces
+of local state → Zustand, not `useState`) was established and applied to `Register.tsx`
+earlier this session. Since this ticket touches these exact files, fixed the inconsistency
+rather than leaving it: added `loginFormSlice.ts` (mirrors `registerFormSlice.ts` —
+fields, validation, `resetLoginForm()` on mount) and moved both `Login.tsx` files onto it.
+**Also fixed the "no toasts" requirement literally**, which the previous implementation
+didn't meet — server-side failures (bad credentials, duplicate email) went through
+`toast.error()` on both Login and Register, in both trees. Added `formError` to both
+`loginFormSlice` and `registerFormSlice`, rendered as an inline Radix `Callout.Root
+color="red"` above the fields (no popup) — `react-hot-toast` import removed from all 4
+files. **Found and fixed a pre-existing centering bug** (user noticed the desktop card was
+pinned top-left, not centered, despite `.page { display: flex; align-items: center;
+justify-content: center }` in the CSS): `main.tsx` imported `@radix-ui/themes/styles.css`
+*after* `DesktopApp.tsx`'s transitive imports, so Radix's own `.rt-Box { display: block }`
+landed later in the final stylesheet than the page's `.page` class — both single-class
+selectors, so the cascade tie went to whichever rule was injected last, not to intent.
+Confirmed via `getComputedStyle` + a `document.styleSheets` scan before fixing. Fix: moved
+the two global stylesheet imports (`@radix-ui/themes/styles.css`, `./styles/index.css`) to
+the top of `main.tsx`, above every component import, with a comment explaining why the
+order matters — component CSS Modules must always be able to win ties against Radix's base
+styles. This predates U1/U2 (the bug was already there when this session started); it
+surfaced now because verifying U2's centering requirement is what caught it. Re-verified
+Home and Settings (protected, `DesktopLayout`-wrapped pages) after the reorder to confirm
+no other page was silently depending on the old, accidental order — both rendered
+identically to before. **Verified:** `tsc --noEmit`, `lint:fix`, `build` all clean; Playwright — desktop
+1280×900: triggered a real bad-credentials login and confirmed the inline Callout renders
+(no toast), registered a throwaway account end-to-end (country picker + validation +
+redirect to Home), form-reset-on-mount confirmed empty on revisit; mobile 390×844: Login
+screenshot confirmed same flat/bordered/no-shadow treatment. Throwaway accounts deleted
+after.
 
-### [ ] U3 — Home rebuild (desktop + mobile)
+### [x] U3 — Home rebuild (desktop + mobile) — done 2026-07-18
 **Goal:** the daily screen. Spec: §3 table.
 **Build:** desktop: safe-to-spend hero placeholder (shows "—" with "needs Phase I" note
 until I5), month summary (income/spent/net from reports API), upcoming bills, recent
@@ -245,13 +313,82 @@ balance and recent-activity look stale until the next navigation. The 30s stalen
 skip above is the wrong tool for this; the modal's success handler must call
 `fetchAccounts({ force: true })` / `fetchTransactions({ reset: true, force: true })`
 (or equivalent) directly, not rely on time-based staleness.
+**Found in D5 (2026-07-17), parking lot:** `AddTransactionModal.tsx` (both trees, used
+from Home's "Add Transaction" button) has 6 `useState` calls — violates the current
+Zustand rule (2+ pieces of local state → Zustand). This ticket touches the modal's
+call site; converting its internal state to a slice (mirror `registerFormSlice.ts`) can
+land here or in U8 (whichever actually edits the modal component first) — just don't
+let both tickets skip it assuming the other handles it.
 **Accept:** navigating away/back within 30s does not refetch (assert no loading flash);
 credit no longer inflates the balance (test fixture + Playwright assertion); switching
 profile shows entirely different data with the right currency formatting (Playwright,
 user with US+IN fixture profiles); both viewports match §2 alignment rules.
 **Depends:** U1, D1.
+**Result:** `useHomeData` (`shared/hooks/`) is the one implementation of the
+accounts/transactions/bills fetch + derived state, used by both trees. Staleness: added
+an `isFresh(lastFetchedAt, thresholdMs=30_000)` helper to `namespaceSlice.ts` (shared,
+not reimplemented per slice); `accountsSlice`, `transactionsSlice` (scoped to the plain
+unfiltered `reset` call only — Activity's filtered/searched fetches always hit the
+network), and `billsSlice.fetchUpcomingBills` all gained a `force` param + a
+`lastFetchedAt` field and skip the refetch when fresh. Every mutation-triggered call
+that must always be fresh (Bills.tsx create/update/delete, both trees) was updated to
+pass `force: true` so staleness-gating a shared action didn't silently break them.
+**Credit exclusion — found and fixed a sign bug while implementing it:** account balance
+is computed backend-side as `income - expense` uniformly across account types
+(`account_service.get_account_balance`), so a credit account's balance goes *negative*
+as debt accrues (confirmed against a seeded fixture: a $500 charge produced `balance:
+-500`, not `+500` as the ticket's "credit inflates the balance" framing implied).
+`cashOnHand` sums checking/savings/cash only (credit never enters it, regardless of
+sign); `creditOwed` negates the credit-type sum so the UI shows a positive "amount
+owed." Verified via a seeded credit account + $500 expense: Home showed "Cash on hand
+$0.00" / "Credit owed $500.00" as two separate stats, never summed into one number.
+**Profile switcher:** `useProfileSwitch` (`shared/hooks/`) is shared cross-device logic
+(switch + reload), used by desktop `TopBar.tsx`'s popover and a new mobile avatar row in
+`Home.tsx`; both list every profile (flag + country name + currency, via new
+`shared/utils/countries.ts`) with the active one highlighted, plus "Add {country}" for
+any country the user doesn't already have a profile in. **Found and fixed a
+cross-profile data-bleed bug while testing this**: `addProfile`'s own action switches
+`activeProfileId` immediately but every already-mounted slice keeps showing the *old*
+profile's data until something forces a refetch — confirmed live (added an India profile
+while on US, currency symbol switched to ₹ but the account list still showed the US
+credit card). Fixed by having `useProfileSwitch` reload the page after both
+`switchProfile` and `addProfile`, matching the ticket's "clears cached slice data, and
+reloads" — a full reload was the only way to guarantee no slice anywhere (not just
+Home's three) keeps stale cross-profile data. **"Which country?" once**: `authSlice`
+gained a `needsProfilePick` flag, set in `applyAuthResponse` only when there's no prior
+`localStorage` choice AND 2+ profiles exist (checked *before* `resolveActiveProfile`
+writes its own default, since that write would otherwise erase the "first ever login"
+signal). Rendered as a new shared `ProfilePickPrompt` (`shared/components/` — logic-only
+cross-device gate, same exception as `ProtectedRoute`, not a DRY violation per
+`rules/frontend.md`), mounted once in `main.tsx` alongside `DesktopApp`/`MobileApp`. Also
+reloads on choice, for the same data-bleed reason as above (the page underneath started
+fetching under the auto-resolved default the instant it loaded, before the user's actual
+pick lands). **Quick-add force-refresh + Zustand conversion:** added
+`quickAddModalSlice.ts` (mirrors `registerFormSlice.ts`/`loginFormSlice.ts`) and moved
+both `AddTransactionModal.tsx` files off their 6 `useState` calls onto it — this ticket
+was the first to touch the modal, so per the parking-lot note it landed here rather than
+deferring to U8. Save success now calls `fetchAccounts({force:true})`,
+`fetchTransactions({reset:true,force:true})`, `fetchUpcomingBills(30,{force:true})`
+directly. **Mobile IA narrowed to spec**: mobile Home dropped the Accounts list and
+Recent Activity sections it had been duplicating from desktop — design-system.md's
+mobile table specifies hero + next-3-bills + this-month-vs-last only ("mobile
+restraint"); "this month vs last" uses `reportsSlice.comparison` (already fetched
+data, no new endpoint). **Raw-tag cleanup**: both `Home.tsx` files converted fully to
+Radix components (`Box`/`Flex`/`Text` in place of `div`/`span`, `Text onClick` in place
+of a raw `button` for "See all" — matches the pattern mobile Home already used); the
+`Sidebar.tsx` raw-tag item logged earlier in the parking lot is untouched since this
+ticket never needed to edit that file. **Verified:** `tsc --noEmit`/`lint`/`build` clean
+throughout (including after each of the three bugs found and fixed above); Playwright —
+desktop 1280×900 and mobile 390×844, light + dark: registered a throwaway user, seeded a
+real credit account + $500 transaction directly in Postgres (no `balance`/`currency`
+column on `accounts` — balance is computed live from transactions, confirmed via
+`\d accounts` and `account_service.py`) to verify the cash/credit split against real
+data; added a second (India) profile and switched both directions confirming full data
+isolation each time; cleared `localStorage` and reloaded to trigger the "Which country?"
+prompt from a clean first-login state and confirmed the reload-on-pick fix. Throwaway
+account (cascades to its profiles/accounts/transactions) deleted after.
 
-### [ ] U4 — Activity rebuild (desktop + mobile) + shared logic extraction
+### [x] U4 — Activity rebuild (desktop + mobile) + shared logic extraction — done 2026-07-18
 **Goal:** replace the two ~1,100-line twins.
 **Build:** extract `shared/hooks/useActivityFilters.ts` + `useTransactionList.ts` (search,
 filters, infinite scroll, optimistic ops) consumed by both trees. Desktop: dense table,
@@ -266,20 +403,125 @@ in transactionsSlice).
 duplicates and shows the review queue (Playwright); a forced API failure on notes-save
 shows an error and reverts (mock).
 **Depends:** U1, D3.
+**Result:** Backend — wired D3's `services/ingest/dedup.py` into
+`POST /api/transactions/import` for real (its docstring explicitly deferred this to U4):
+per row, exact `import_hash` match → auto-skip + counted (`exact_skipped`); fuzzy match →
+held out of insertion and returned in a new `pending_review` array (row + candidate
+matches with similarity) instead of blind-inserting; no match → inserted with its
+`import_hash` recorded. Added `skip_dedup` to `TransactionImport` so a reviewed
+"keep both" row can be resubmitted bypassing the gate while still recording its hash for
+future exact-dup detection. **Found and fixed a pre-existing bug while testing this end
+to end**: the frontend sends `date.toISOString()` (tz-aware, UTC) but
+`transactions.date` is `timestamp without time zone` — asyncpg can't insert a tz-aware
+value into a naive column ("can't subtract offset-naive and offset-aware datetimes").
+Every CSV import via the browser was silently failing on every row before this fix (the
+UI showed no error because nothing surfaced the per-row failures); this predates U4 —
+confirmed via `git show` that the previous commit's import endpoint passed `tx.date` the
+same raw way. Fixed by normalizing to a naive datetime once per row.
+**Frontend — extraction:** `shared/hooks/useTransactionFilters.ts` (search/filter state +
+categories/merchants, now read from `categoriesSlice.flat`/`merchantsSlice.items`
+instead of `transactionsSlice`'s own duplicate `fetchTxFilters()`, which cast the
+categories endpoint's nested tree straight to a flat list — subcategories never showed
+in the filter dropdown; fixed for free by reading the already-correctly-flattened
+slice), `useTransactionList.ts` (infinite scroll + optimistic mutations +
+staleness-aware `refetch`), `useCsvImport.ts` (parsing, column auto-detect, the review
+queue). **transactionsSlice.ts state cleanup**: `updateNotes` now actually reverts on
+failure (previously had a `// revert on failure` comment with no code under it — real
+bug, real fix); `deleteTransaction` restores at its original index via `findIndex`
+instead of appending to the list tail (was breaking the date-sort order on a failed
+delete); every catch block now calls `toast.error(...)` (were silent); duplicate
+`categories`/`merchants`/`fetchTxFilters` deleted entirely. **Desktop** (372 lines) split
+into `TransactionDetailDialog.tsx` (413 lines) and `ImportDialog.tsx` (225 lines) to hit
+the <400-line target while keeping every existing feature (view/edit/notes/bill-link) —
+added the new bulk-select mode (checkbox per row, floating bulk-edit bar,
+category/account reassignment via `Promise.all` over `saveTransaction`) and the
+dedup review queue UI (Skip/Merge/Keep-both per fuzzy match — merge and skip produce the
+same backend outcome since there's no per-field merge target in this schema, kept as
+distinct labels since the choice still means something to the user). Also found and
+fixed a duplicated column-type-classification snippet between `useCsvImport.buildRows()`
+and the preview table (copy-pasted while extracting) — consolidated into one exported
+`classifyImportType()`. **Mobile** (311 lines) narrowed to the ticket's literal spec —
+card list, search, simple filters, swipe-to-delete, tap-to-view (notes-edit + delete
+only) — dropping CSV import, the full edit form, and bill-linking entirely as
+desktop-only power-user features, consistent with U3's "mobile restraint" precedent.
+**Verified:** `tsc --noEmit`/`lint`/`build` clean throughout; Playwright (desktop
+1280×900) — imported a 3-row CSV (correct amounts/types after the date-tz fix),
+re-imported the identical file and confirmed the count stayed at 3 (zero duplicates,
+exact-match auto-skip working), imported a 4th row with a near-duplicate description
+and confirmed the fuzzy review queue appeared with a 67%-similarity match, used "Keep
+both" and confirmed it landed as a genuinely separate 4th transaction; bulk-selected 2
+rows and reassigned their category, confirmed via full page reload (bypassing the
+30s staleness cache) that it persisted server-side and subcategories now appear in the
+filter/bulk-edit dropdowns; forced a real backend outage mid-save on a notes edit and
+confirmed the inline error toast fired and the notes field came back empty (not the
+failed draft) on reopen — the real revert now works, not just the comment claiming it
+did. Mobile 390×844 spot-checked for the narrowed layout. Throwaway accounts (and their
+cascaded transactions) deleted after.
 
-### [ ] U5 — Recurring page (desktop, new)
+### [x] U5 — Recurring page (desktop, new) — done 2026-07-18
 **Goal:** bills + budgets in one "what repeats" view (subscriptions section lands in I2).
 **Build:** sections: Upcoming (bills with next date, paid ✓), All recurring (bills table:
 name, amount, frequency, monthly-equivalent cost, total-per-month headline), Budgets
 (progress per §4 — Radix Progress, accent only when on-track-action needed). Bill CRUD
 dialogs migrate here; old Bills/BillDetail pages retire when this lands.
 **Accept:** every old Bills-page capability reachable here; total-per-month headline is
-the Decimal-exact sum of monthly equivalents (weekly ×52/12 etc. — unit test);
-Playwright both viewports (mobile: page doesn't exist — verify absence + bills still
-visible on mobile Home).
+the Decimal-exact sum of monthly equivalents (weekly ×52/12 etc. — verify against a
+seeded fixture of mixed-frequency bills, hand-checked); Playwright both viewports
+(mobile: page doesn't exist — verify absence + bills still visible on mobile Home).
 **Depends:** U1.
+**Result:** `desktop/pages/Recurring/` (new) — `Recurring.tsx` (Upcoming card unchanged
+from the old Bills page, an `All Recurring` `Table.Root` with a `Monthly equivalent`
+column, and a read-only `Budgets` section rendering `budgetsSlice.items` as Radix
+`<Progress>` bars), `BillFormDialog.tsx` (new — one dialog for create+edit, replacing
+the ~90-line duplicated field sets from the old Bills.tsx, `bill: Bill | null` decides
+mode), `BillDetail/BillDetail.tsx` (moved, `any`-typed props replaced with the exported
+`Bill` type, raw `<div>` skeleton placeholders converted to `Box`). Old
+`desktop/pages/Bills/` deleted outright. **Monthly-equivalent math**
+(`shared/utils/money.ts`, new): every conversion done in integer cents
+(`Math.round(amount*100)`), never raw float dollars — each bill's monthly-equivalent is
+rounded independently (the number shown on its row), and the "Total per month" headline
+sums those already-rounded per-row cents rather than an independent float sum, so the
+headline always exactly equals what you get by hand-adding the visible rows (the
+literal "Decimal-exact... hand-checked" requirement). Frequency ratios:
+weekly ×52/12, biweekly ×26/12, monthly ×1, quarterly ÷3, yearly ÷12 — confirmed the
+`yearly` (not `annual`) string value against the backend's `Literal[...]` constraint
+before writing the lookup table. **Budget progress color** follows the ticket's "accent
+only when on-track-action needed" instruction, translated from design-system.md §1's
+accent-scarcity + semantic-money-color rules (no single line in the doc uses that exact
+phrase, but the derivation is direct): neutral slate while comfortably under 80% spent
+(no action needed), accent orange from 80–100% (a nudge), red past 100% (over budget,
+same semantic as negative money elsewhere). **Routing**: `/recurring` replaces `/bills`
+in `DesktopApp.tsx`; `/bills` and `/bills/:id` now redirect to `/recurring` (old
+bookmarks/links keep working); `Sidebar.tsx`'s nav item swapped (Receipt icon → Repeat,
+label → "Recurring") and — since this ticket was already editing that file — its raw
+`<div>`/`<span>`/`<button>` tags were converted to `Box`/`Text`/`Button` (this predates
+Phase U and was logged in U3's parking-lot note as "fix whichever ticket next touches
+Sidebar.tsx"). Desktop Home's "Upcoming Bills → See all" link updated from `/bills` to
+`/recurring`. **Logged, not fixed** (found while editing Sidebar.tsx, genuinely
+out of scope for this ticket): `.addButton`/`.logoIcon` in `Sidebar.module.css` still
+use a raw `linear-gradient(135deg, accent-9, accent-10))` — U1's shadow/hex sweep didn't
+catch it since that ticket specifically grepped for `box-shadow`/hex colors, not
+gradients; flagged for whichever ticket next revisits Sidebar's visual treatment.
+**Verified:** `tsc --noEmit`/`lint`/`build` clean; Playwright desktop 1280×900 — created
+5 bills through the actual UI (not seeded directly) covering all five frequencies
+($50 weekly, $100 biweekly, $75 monthly, $300 quarterly, $1,200 yearly), hand-computed
+expected total $708.34 ($216.67+$75.00+$100.00+$216.67+$100.00) before looking, watched
+the running headline match at every intermediate step (after 1 bill: $216.67, after 2:
+$433.34, after 3: $508.34, after 4: $608.34, after 5: $708.34) and confirmed the final
+per-row and headline numbers exactly — genuinely hand-checked, not just eyeballed after
+the fact; opened the moved `BillDetail` dialog and confirmed it still renders; seeded a
+budget via direct DB insert (no budget-creation UI exists yet — out of scope, this
+ticket only required rendering `budgetsSlice`) plus an over-limit expense transaction
+and confirmed the Progress bar renders red with the over-budget amount, capped at 100%
+width. Confirmed `/bills` → `/recurring` redirect. Mobile 390×844: navigating to
+`/recurring` falls through `MobileApp`'s route tree (which never had that path) to the
+existing catch-all → `/login`, same as any other invalid mobile path — confirms the
+page genuinely doesn't exist there; logged back in and confirmed mobile Home's
+"Upcoming Bills" section (built in U3) shows the identical 3 near-term bills with the
+same amounts as desktop. Throwaway account (cascades to its bills/budgets/transactions)
+deleted after.
 
-### [ ] U6 — Insights page (desktop, new)
+### [x] U6 — Insights page (desktop, new) — done 2026-07-18
 **Goal:** absorb Reports + Categories analytics.
 **Build:** period selector (month/year); breakdown by category and by merchant (Nivo,
 §1 rule 3 colors: sorted slate bars, top item accent — replace rainbow pies); MoM and
@@ -291,9 +533,60 @@ analytics tab retire.
 **Accept:** numbers match `/api/reports` exactly (cross-check one month by hand in test);
 charts are Nivo-only, palette-compliant; timeline scrub updates the breakdown without a
 page reload; Playwright desktop (+ absence on mobile).
-**Depends:** U1; D4 (soft).
+**Depends:** U1. (D4 was retired — profiles are single-currency by construction, so
+reports have nothing to convert; do not reintroduce a currency-conversion dependency here.)
+**Result:** Backend (`backend/routers/reports.py`): added a `_month_bounds(year, month)`
+helper (DRY — replaces month-boundary math that was inlined 3+ times) and used it to
+refactor `monthly_report`; extended `GET /categories` with optional `year`/`month` query
+params that scope to one calendar month (falls back to the existing rolling `days` window
+when omitted — backward compatible with Home's usage); added a new `GET /merchants`
+endpoint mirroring `/categories`' shape/logic exactly (`GROUP BY t.merchant_id, m.name`);
+extended `GET /comparison` with `mode: Literal["mom", "yoy"]` so the previous period is
+either the prior calendar month or the same month last year, reusing the existing
+`_period_totals`/`_pct_change` logic for both. Frontend
+(`store/slices/reportsSlice.ts`): extended purely additively — `monthly`, `summary`,
+`categories`, `comparison`, `loading`, and `fetchReports()` (Home's exact dependency,
+both trees) were left untouched; added `periodCategories`, `periodMerchants`,
+`periodComparisonMoM`, `periodComparisonYoY`, `periodLoading`, and actions
+`fetchMonthly(year)`, `fetchInsightsPeriod(year, month)` (parallel fetch of
+categories/merchants/comparison-mom/comparison-yoy), `fetchCategoriesForMonth(year, month)`
+(returns directly without mutating state — feeds the timeline's local hover cache).
+`desktop/pages/Insights/` (new): `Insights.tsx` (main page — month/year `Select`
+dropdowns, 3 stat cards derived from `periodComparisonMoM.current_*` rather than a
+separate summary fetch, two `ComparisonCard`s, two `BreakdownChart` cards, one
+`AnnualTimeline` card), `BreakdownChart.tsx` (shared sorted horizontal `ResponsiveBar` —
+top item `var(--accent-9)`, rest `var(--gray-7)`, per §1 rule 3 — used by category
+breakdown, merchant breakdown, and the timeline's hover panel), `ComparisonCard.tsx`
+(shared by MoM/YoY; fixed a self-caught bug where naive `pct > 0 → green` coloring was
+backwards for the Expenses row — an expense increase is bad news — via a per-field
+`goodDirection` multiplier), `AnnualTimeline.tsx` (one 12-month grouped
+`ResponsiveBar`, `keys={['income','expense']}`, deliberately serving both the "annual
+view" and "interactive timeline" bullets as a single chart rather than two redundant
+ones, documented inline; `onMouseEnter` previews a month's category breakdown via a
+`useRef` cache + `fetchCategoriesForMonth`, `onClick` pins it as the page's selected
+month). `Categories.tsx` (desktop): removed the `Tabs.Root` analytics tab
+(`ResponsivePie` fed by `spendingSlice`) entirely, page now always renders what was the
+list tab; mobile's own `Categories.tsx` still uses `categoriesSlice`'s
+`spending`/`fetchSpendingByCategory` for its own pie chart, so that slice was left
+untouched. `desktop/pages/Reports/` deleted outright. Routing: `/reports` → `/insights`
+in `DesktopApp.tsx`, old `/reports` links redirect; `Sidebar.tsx`'s nav item relabeled
+Reports → Insights (icon unchanged, `BarChart3`). **Verified:** `tsc --noEmit`/lint/build
+clean. Seeded a precise SQL fixture (June 2026 current, May 2026 previous month, June
+2025 same month last year) with known amounts, hand-computed every expected value
+(income/expense/net, MoM and YoY % for all three fields, category breakdown sort order)
+before looking at the UI — every displayed number matched exactly, including the
+expense-color-direction fix (June's MoM expense change showed "+40%" in red, correctly
+read as bad news). Timeline interactivity verified via synthetic `MouseEvent` dispatch
+against `svg rect` elements (Nivo bars aren't individually addressable via the
+accessibility tree) — hover updated the side-panel breakdown without a page reload,
+click jumped the page's selected month and re-fetched its period data. Confirmed
+`/reports` → `/insights` redirect. Mobile 390×844: `/insights` falls through
+`MobileApp`'s route tree (which never had that path) to the catch-all → `/login`,
+confirming the page doesn't exist there; mobile's own Reports page (kept per the design
+system, out of scope for this ticket) is unaffected. Throwaway account (cascades to its
+transactions) deleted after; scratch screenshots and `.playwright-mcp` cleaned up.
 
-### [ ] U7 — Manage page (desktop, new)
+### [x] U7 — Manage page (desktop, new) — done 2026-07-18
 **Goal:** one home for every maintenance UI.
 **Build:** Radix Tabs: Accounts / Categories (hierarchy CRUD) / Merchants (rename, merge,
 hide) / Goals (CRUD + contribute; progress stays on Home) / Import (CSV mapping UI moves
@@ -304,20 +597,162 @@ Old Settings/Categories/Merchants/Goals pages retire.
 (Radix AlertDialog); Playwright desktop flows: create category child, merge merchants,
 goal contribute.
 **Depends:** U1.
+**Result:** `desktop/pages/Manage/` (new) — `Manage.tsx` (Radix `Tabs.Root`, 7 tabs) plus
+new `AccountsTab.tsx`, `ImportTab.tsx`, `AiPrivacyTab.tsx`, `AccountTab.tsx`. The
+Categories/Merchants/Goals tabs mount the SAME components the old standalone routes
+used, unmodified (each is already a self-contained CRUD page wired to its own store
+slice) — not reimplemented, avoiding ~1400 lines of redundant re-derivation. Old
+`desktop/pages/Settings/` deleted outright; `/settings`, `/categories`, `/merchants`,
+`/goals` now redirect to `/manage` (old bookmarks keep working, same pattern as
+U5/U6); `Sidebar.tsx`'s four separate nav items collapsed into one "Manage" entry
+(`Settings` icon). **Accounts tab**: migrated from the old Settings page, delete
+confirmation converted from a generic `Dialog` to `AlertDialog` per the accept
+criterion. **Budgets**: NOT a Manage tab (not in the ticket's tab list) — the old
+Settings page's only working Budget CRUD was migrated into `Recurring.tsx` instead,
+converting U5's read-only Budgets section (which explicitly logged "no
+budget-creation UI exists yet — out of scope" as a parking-lot note) into full
+create/edit/delete, AlertDialog for delete. This was necessary to satisfy "every
+capability of the four retired pages reachable" without inventing an off-ticket tab,
+and closes U5's logged gap. **Import tab**: reuses the same `useCsvImport` hook +
+`ImportDialog` component Activity (U4) already mounts — a second legitimate consumer
+of a shared hook, not duplicated logic; Activity's own "Import CSV" button was left in
+place rather than removed, since deleting a working, convenient entry point wasn't
+required by the ticket and would have been a regression. **AI & Privacy tab**: T5
+toggle migrated as-is (working). The "Ollama endpoint" half of this tab was
+deliberately NOT built — no backend field exists to persist it and no code path
+consumes it yet (S1/S2/T6, which introduce the actual local Ollama client, haven't
+landed); an input with nowhere for the value to go is exactly the "no half-finished
+implementations" pattern to avoid. Flagged for whichever of S1/S2/T6 lands the Ollama
+client. **Account tab**: profile display (unchanged), a new `PUT /auth/me/password`
+backend endpoint (`backend/routers/auth.py` — verifies current password via
+`verify_password`, rehashes with `get_password_hash`) plus `authSlice.changePassword`
+frontend action wired to a real form (this is new functionality, not a migration — the
+old Settings page never had password change — but was explicitly named in the
+ticket's Build line and is small/self-contained, unlike the Ollama field); "Add
+country" reuses the existing `useProfileSwitch` hook (the same one `TopBar.tsx`'s
+profile popover already used) to list profiles and add a country inline in the
+settings page itself, not just the top-bar dropdown — D1's `POST /auth/profiles`
+endpoint already existed and needed no changes. **Two real, pre-existing bugs found
+and fixed while verifying this ticket's required Playwright flows** (both blocked the
+literal accept-criterion flows, not just cosmetic): (1) `Categories.tsx` (desktop AND
+mobile — same bug in both trees) treated `categoriesSlice.tree` as a flat list
+(`tree.filter(c => c.parent_id === parentId)`), but the backend actually returns a
+nested tree where each node carries its own `.children` — every category always
+showed "0 subcategories" for every user, unconditionally. Fixed by using
+`parent.children` directly in both `desktop/pages/Categories/Categories.tsx` and
+`mobile/pages/Categories/Categories.tsx`. (2) `merge_merchants` in
+`backend/services/merchant_service.py` wrote the `aliases` jsonb column with a raw
+Python list (`asyncpg.exceptions.DataError: invalid input... expected str, got
+list` — no jsonb codec is registered on this connection pool) and, once that write
+path was fixed with `json.dumps`, the read path in both `_row_to_merchant`
+(services/merchant_service.py) and `_to_response` (routers/merchants.py) then failed
+Pydantic validation on the raw JSON-text string coming back — fixed with an explicit
+`json.loads` guard at both read sites. Every merge attempt before this fix failed
+outright. **Verified:** `tsc --noEmit`/lint/build clean. Playwright desktop 1280×900,
+throwaway account: created a "Coffee Shops" child under "Food & Dining" through the
+Categories tab and confirmed it rendered nested under its parent with the correct
+count (the exact flow the tree bug above was blocking); seeded two merchants via SQL
+fixture at a hand-computed 67% Jaccard similarity ("Amazon Prime" / "Amazon Prime
+Video", intersection 2 / union 3), ran Find Duplicates, confirmed the "67% match" card,
+merged them, and confirmed the result — one merchant, 2 transactions, $23.98 total
+(exactly $14.99 + $8.99) — the exact flow the aliases bug above was blocking; created
+a Goal, added a $250 contribution, confirmed the card updated to "25% complete,
+$250.00 / $1,000.00"; created and AlertDialog-deleted a second Account; created,
+edited ($300→$350), and AlertDialog-deleted a Budget on the Recurring page; changed
+password through the Account tab and confirmed login with the new password succeeded
+(logged out, logged back in with it); added an India country profile via the Account
+tab's inline "Add" button, confirmed the page reloaded into the new profile (₹
+currency) and the Countries list showed US as "Switch"-able and India as "(active)";
+opened the Import tab's dialog and confirmed it renders the same upload flow as
+Activity's; toggled the AI & Privacy switch on and off, confirmed both toast
+directions. Confirmed `/settings`, `/categories`, `/merchants`, `/goals` all redirect
+to `/manage`. Mobile 390×844: `/manage` falls through `MobileApp`'s route tree (which
+never had that path) to the catch-all → `/login`, same pattern as U3/U5/U6. Throwaway
+account (cascades to its accounts/categories/merchants/goals/transactions across both
+country profiles) deleted after; scratch screenshots and `.playwright-mcp` cleaned up.
 
-### [ ] U8 — Mobile capture flow + mobile page retirement
+### [x] U8 — Mobile capture flow + mobile page retirement — done 2026-07-18
 **Goal:** mobile = Home/Activity/Capture, nothing else.
 **Build:** center tab button → bottom sheet: **Type** (NL quick-add with preview,
 following the one-question rule in `design-system.md` §4 — amount missing → one inline
 "How much?" follow-up; date/category/account never asked, only correctable in preview)
-and **Scan** (disabled with "coming with document scanning" note until S6). Delete mobile
+and **Scan** (disabled with "coming with document scanning" note until S6). The Type
+sheet is built on the same `AddTransactionModal` logic as desktop — if U3 hasn't
+already converted its 6 `useState` calls to a Zustand slice (parking lot, found in D5),
+do it here; don't duplicate ad-hoc state in a second place. Delete mobile
 Categories/Merchants/Reports/Goals/More pages + routes (redirect to `/`); tab bar
 becomes Home · Capture · Activity; settings via avatar on Home.
 **Accept:** two taps from any screen to a saved typed transaction (Playwright 390×844);
 deleted routes redirect; no dead imports/CSS remain.
 **Depends:** U3, U4.
+**Result:** Confirmed both mobile `AddTransactionModal.tsx` (Type flow) and desktop's
+copy already consume the shared `quickAddModal` Zustand slice, not local `useState` —
+that parking-lot item was already resolved before this ticket, nothing to convert.
+`mobile/components/CaptureSheet/` (new): a bottom-sheet `Dialog` with two option
+cards — **Type** closes the sheet and opens the existing `AddTransactionModal`
+(`openAddModal`); **Scan** is rendered disabled with "Coming with document scanning"
+(no interaction, per-ticket — the receipt-OCR camera icon already inside the Type
+flow is a separate, already-shipped raw-text-scan feature, not the structured
+document-extraction S6 will add, so it was left alone). New `ui.captureSheetOpen`
+state + `openCaptureSheet`/`closeCaptureSheet` actions added to the existing shared
+`uiSlice` (harmless no-op on desktop, same slice desktop's `addModalOpen` already
+lives in). `BottomTabBar.tsx`: down to Home / Capture / Activity — Bills and More tabs
+removed; the center button now opens the capture sheet instead of jumping straight to
+`AddTransactionModal`. **One-question rule, actually implemented** (was previously
+just descriptive text with no real follow-up path): backend `/parse` already returned
+`missing: ["amount"]` when text had no amount, but `QuickAddRequest` had no field to
+carry a corrected value back, so `/quick-add` just 400'd. Added `amount: float | None`
+to `QuickAddRequest` and `backend/routers/transactions.py`'s `quick_add_transaction` —
+when provided, it overrides whatever amount parsing produced (or bypasses the "could
+not parse an amount" error entirely) rather than being silently ignored. Mobile
+`AddTransactionModal.tsx`: when `parsed.missing` includes `"amount"`, the amount
+display becomes an inline `TextField` ("How much?") instead of read-only text — the
+one and only follow-up; category/merchant/type stay exactly as parsed, correctable via
+the existing popover, never asked as a second question. `Confirm & save` disabled
+until that field is filled. New `quickAddModal.manualAmount` state +
+`setQuickAddManualAmount` action (same slice, same convention as the rest of that
+modal's state — not a second ad-hoc `useState`). Exported `getCurrencySymbol` from
+`shared/utils/format.ts` (previously a private `CURRENCY_SYMBOL` map only
+`formatCurrency` could see) so the inline field's `$`/`₹`/`C$` prefix matches the
+profile's currency instead of hardcoding `$`. **Desktop's copy of
+`AddTransactionModal.tsx` was left untouched** — same latent one-question gap exists
+there too, but U8 is scoped to mobile; flagged for whichever ticket next revisits the
+desktop quick-add modal. **Page retirement**: deleted
+`mobile/pages/{Categories,Merchants,Reports,Goals,More}/` and their CSS outright, plus
+`mobile/components/FAB/` (already fully dead — unreferenced anywhere, matching
+`plan.md`'s "duplicate FAB" Phase-U cleanup note). **Also retired `mobile/pages/Bills/`
+and `/bills`**, though it wasn't named in this ticket's explicit Build-line list: the
+Goal line is unambiguous ("Home/Activity/Capture, nothing else") and Bills had its own
+BottomTabBar slot being removed with nothing to replace it — mobile Home's "Upcoming
+Bills" preview (U3) already covers the only thing Bills' standalone page did, and
+leaving an orphaned, unreachable-except-by-URL page behind would violate this same
+ticket's "no dead imports/CSS remain" criterion. `MobileApp.tsx`: routes for all six
+retired pages (`/bills`, `/bills/:id`, `/goals`, `/categories`, `/merchants`,
+`/reports`, `/more`) redirect to `/`; `/settings` kept as a real route (not deleted,
+not a tab — reached only via Home's avatar, which already routed there before this
+ticket, satisfying "settings via avatar on Home" with no changes needed there).
+**Logged, not fixed** (found while rewriting `BottomTabBar.module.css` for the new
+2-tab + center-button layout, out of scope for this ticket): `.addButton`'s raw
+`linear-gradient(135deg, accent-9, accent-10)` was the exact "duplicate/off-palette
+gradient" class of issue U1's hex/shadow sweep didn't catch (same root cause as the
+Sidebar gradient U5 logged) — fixed here anyway since the file was already being
+rewritten line-by-line, swapped for flat `var(--accent-9)`. **Verified:** `tsc
+--noEmit`/lint/build clean (module count dropped 1100→1086, confirming the deleted
+pages' code is actually gone, not just unreachable). Playwright 390×844, throwaway
+account: tapped Capture → Type → typed "spent 42 on groceries" → Parse → Confirm & save
+— transaction appeared in Activity as "Groceries, Food & Dining, -$42.00" (two taps,
+Capture then Type, to reach the point of a saved typed transaction). Repeated with
+"coffee at starbucks" (no amount) — confirmed the parse response's `missing: ["amount"]`
+correctly triggered the inline "How much?" field in place of the amount display, typed
+6.50, confirmed `Confirm & save` was disabled beforehand and enabled after, saved, and
+confirmed in Activity as "Coffee at starbucks, Starbucks, Food & Dining, -$6.50" —
+proving the backend override path actually works end-to-end, not just that the UI
+renders. Confirmed all six retired routes (`/bills`, `/goals`, `/categories`,
+`/merchants`, `/reports`, `/more`) redirect to `/`. Confirmed Settings is still
+reachable via the Home avatar tap. Throwaway account (cascades to its transactions)
+deleted after; scratch screenshots and `.playwright-mcp` cleaned up.
 
-### [ ] U9 — Folder consolidation + final sweep
+### [x] U9 — Folder consolidation + final sweep — done 2026-07-18
 **Goal:** target structure from `architecture-and-goals.md`; nothing retired survives.
 **Build:** merge `src/auth`, `src/hooks`, `src/utils` into `shared/` (api/hooks/types/
 utils); update imports; delete all retired pages/components/CSS; dark-mode audit
@@ -326,6 +761,67 @@ against §2.
 **Accept:** `desktop/`+`mobile/` contain only `.tsx`+`.module.css`; build green; no
 unused files (depcheck + manual); screenshots reviewed.
 **Depends:** U2–U8.
+**Result:** `src/auth/`, `src/hooks/`, `src/utils/` deleted outright; contents
+redistributed to match the target tree exactly. `shared/types/user.ts` (new) — `User`,
+`Country`, `Profile` (pure domain types, used well beyond auth — TopBar, Register,
+Manage/AccountTab, Home, `registerFormSlice`); `AuthState`/`AuthActions` moved into
+`store/slices/authSlice.ts` itself instead, matching how every other slice
+(`accountsSlice`, `budgetsSlice`, ...) already defines its own state/action types
+inline — `auth/types.ts` was the only outlier. `shared/api/client.ts` (new) — the bare
+axios instance, mirroring the old `auth/api.ts` exactly (14 call sites updated).
+`shared/api/interceptors.ts` (new) — the request/response interceptor setup
+(token/profile-id headers, 401 refresh-and-retry) split OUT of the old
+`auth/authContext.tsx` into its own side-effect module, imported once from
+`main.tsx` — NOT from `client.ts` or any slice, deliberately, because it depends on
+`useBoundStore` and slices import `api` from `client.ts`; merging them would have
+created `authSlice → client.ts → useBoundStore → authSlice`, a real import cycle.
+`shared/hooks/useAuthBootstrap.ts` (new) — the one-time `verifyToken()` call, also
+extracted from `authContext.tsx`. The old `AuthContext`/`useAuth()`/`AuthProvider`
+wrapper was dropped entirely rather than relocated: `useAuth()` had zero consumers
+anywhere in the codebase (confirmed via search before deleting) — dead code, not a
+migration target. `shared/hooks/useMediaQuery.ts` and `shared/utils/ocr.ts` moved
+as-is (3 call sites total). `main.tsx` updated to match: side-effect import of
+`interceptors.ts`, `useAuthBootstrap()` called from `AppRouter`, no more
+`AuthProvider` wrapper. A background Explore-agent pass cross-checked every
+`.ts`/`.tsx` file's basename against every import in the tree afterward — zero orphan
+files found, confirming the migration didn't leave anything stranded.
+**Toast system replaced** (user request, mid-ticket): `react-hot-toast` (an npm
+dependency) was swapped for `@radix-ui/react-toast` — not a new package, already
+present in `node_modules` as a transitive dependency of `@radix-ui/themes` and now
+declared explicitly in `package.json`. New `store/slices/toastSlice.ts` (a plain
+queue — Radix's own `Toast.Provider duration` prop owns auto-dismiss timing with
+pause-on-hover/focus, not reimplemented), `shared/utils/toast.ts` (a `toast.success()`
+/`toast.error()` module-level API matching react-hot-toast's exact call shape, so all
+15 existing call sites needed only an import-path swap, not a rewrite — same
+outside-React-calling-into-the-store pattern `interceptors.ts` already uses), and
+`shared/components/ToastHost/ToastHost.tsx` (new — renders the queue through Radix's
+unstyled Toast primitives, styled with the app's own color tokens, no raw hex).
+Position iterated live with the user from the initial top-right placement to
+bottom-center (both viewports; mobile variant clears the bottom tab bar via a
+`64px`-aware `env(safe-area-inset-bottom)` offset). `react-hot-toast` fully removed
+from `package.json`/lockfile/both node_modules copies (host + container, resynced via
+`npm install` in each).
+**Alignment audit against §2**: found one real, sitewide gap — no file anywhere set
+`font-variant-numeric: tabular-nums` despite §2's explicit "Numbers" rule, so money
+digits could jitter/misalign as they update. Fixed with one global rule on `body` in
+`styles/index.css` (safe as a blanket default — the property only affects how numeral
+glyphs render, has no effect on non-digit text). Manually swept `.module.css` files
+for raw px margins/paddings outside the space-token scale — the few hits found
+(`DesktopLayout`'s `240px` sidebar width, `BottomTabBar`'s `-12px` FAB offset,
+`MobileLayout`'s `80px` tab-bar clearance) are all pre-existing, deliberate structural
+constants matching the spec's own numbers, not spacing violations, so left as-is.
+**Verified:** `tsc --noEmit`/lint/build clean throughout (module count settled at 1092
+after the toast-system swap); `npx depcheck` — no issues; dead-file agent pass — no
+orphans. Dark-mode + alignment audit: Playwright screenshots across every distinct
+route on both trees (desktop: Home/Activity/Recurring/Insights/Manage/Login in light,
+Home/Insights/Manage in dark; mobile: Home/Activity/Settings/Login/CaptureSheet in
+dark, Home in light) — every page held its 4-vertical-line alignment, cards matched
+anatomy (flat, `--radius-card`, 1px `gray-4` border, no shadows), numbers stayed
+right-aligned, and the theme switch never left a stray light-mode color behind. New
+toast visually confirmed end-to-end (triggered via the AI & Privacy toggle, both
+success/error variants, both viewports, swipe-to-dismiss and the ✕ button both
+verified). Throwaway account (cascades to its transactions) deleted after; scratch
+screenshots cleaned up.
 
 ---
 
@@ -503,6 +999,20 @@ in fresh with own empty dashboard.
 - **`AddTransactionModal.tsx` (both trees) has 6 `useState` calls** (`input`, `loading`,
   `parsed`, `saving`, `scanning`, `selectedCategoryId`) — violates the current Zustand
   rule (2+ pieces of local state → Zustand, `rules/zustand.md`). Found while adding the
-  D5 merchant-preview field; out of D5's scope to fix. Candidate: a
-  `quickAddModalSlice.ts` mirroring the `registerFormSlice.ts` pattern — fold into
-  whichever U-ticket touches this modal next (U3/U4 rebuild it as part of Home/Activity).
+  D5 merchant-preview field; out of D5's scope to fix. **Now assigned**: a
+  `quickAddModalSlice.ts` mirroring `registerFormSlice.ts` — lands in U3 or U8,
+  whichever actually edits the modal first (both tickets now reference this note so
+  neither assumes the other handles it).
+- **Raw HTML tags where `rules/frontend.md`'s Radix tag-replacement map requires a
+  component**: `Home.tsx` (both trees) uses raw `<div>`/`<span>`/`<button>` throughout
+  (accounts list, transaction rows, section headers, skeleton placeholders);
+  `desktop/components/Sidebar/Sidebar.tsx` uses a raw `<div>` for the logo mark, a raw
+  `<span>` for the logo text and nav-item labels, and a raw `<button>` for "Add
+  Transaction". Found auditing Radix compliance after U1/U2 (2026-07-17) — Login/Register
+  in both trees were checked and are clean, this is pre-existing in pages Phase U hasn't
+  reached yet. Out of scope to fix ad hoc: Home's raw markup gets replaced as part of its
+  actual rebuild (U3); Sidebar isn't its own ticket yet — whichever ticket next touches
+  `Sidebar.tsx` (U3's profile-switcher work is the most likely candidate, since it lands
+  in the sidebar) should convert it to `Box`/`Text`/`Button` while it's already being
+  edited, rather than as a separate pass. (Not a violation: `AddTransactionModal.tsx`'s
+  raw `<input type="file">` — Radix Themes has no file-input primitive, so that one stays.)

@@ -37,10 +37,10 @@
 
 .card {
   width: 100%;
-  max-width: 420px;
+  max-width: 400px;
   position: relative;
   z-index: 1;
-  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--gray-4);
   animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
 }
 
@@ -56,12 +56,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--accent-contrast);
   font-weight: 800;
   font-size: 24px;
   line-height: 1;
   margin: 0 auto;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .input {

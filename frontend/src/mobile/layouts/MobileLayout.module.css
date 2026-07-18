@@ -3,11 +3,6 @@
   flex-direction: column;
   min-height: 100dvh;
   background-color: var(--gray-1);
-  transition: background-color var(--duration-normal) var(--ease-out);
-}
-
-[data-theme='dark'] .layout {
-  background-color: var(--bg-deep);
 }
 
 .content {

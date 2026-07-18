@@ -1,5 +1,5 @@
 import { namespaceSlice } from '../namespaceSlice.ts'
-import api from '../../auth/api.ts'
+import api from '../../shared/api/client.ts'
 
 export interface Budget {
   id: number

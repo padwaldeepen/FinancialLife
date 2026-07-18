@@ -1,12 +1,10 @@
 import { useEffect, type JSX } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Box, Flex, Heading, Text, Button, TextField, Select } from '@radix-ui/themes'
-import { Eye, EyeOff } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { Box, Flex, Heading, Text, Button, TextField, Select, Callout } from '@radix-ui/themes'
+import { Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
-import type { Country } from '../../../auth/types.ts'
-import type { RegisterFormErrors } from '../../../store/slices/registerFormSlice.ts'
+import type { Country } from '../../../shared/types/user.ts'
 import styles from './Register.module.css'
 
 const COUNTRIES: { value: Country; label: string }[] = [
@@ -28,11 +26,13 @@ export const Register = (): JSX.Element => {
     showPassword,
     submitting,
     errors,
+    formError,
     setField,
     toggleShowPassword,
     setSubmitting,
-    setErrors,
     clearFieldError,
+    setFormError,
+    validateForm,
     resetForm,
   } = useBoundStore(
     useShallow((s) => ({
@@ -46,11 +46,13 @@ export const Register = (): JSX.Element => {
       showPassword: s.registerForm.showPassword,
       submitting: s.registerForm.submitting,
       errors: s.registerForm.errors,
+      formError: s.registerForm.formError,
       setField: s.setRegisterField,
       toggleShowPassword: s.toggleRegisterShowPassword,
       setSubmitting: s.setRegisterSubmitting,
-      setErrors: s.setRegisterErrors,
       clearFieldError: s.clearRegisterFieldError,
+      setFormError: s.setRegisterFormError,
+      validateForm: s.validateRegisterForm,
       resetForm: s.resetRegisterForm,
     })),
   )
@@ -61,29 +63,9 @@ export const Register = (): JSX.Element => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const validate = () => {
-    const e: RegisterFormErrors = {}
-    if (!fullName) e.fullName = 'Full name is required'
-    else if (fullName.trim().length < 2) e.fullName = 'Minimum 2 characters'
-    if (!username) e.username = 'Username is required'
-    else if (username.trim().length < 3) e.username = 'Minimum 3 characters'
-    else if (!/^[a-zA-Z0-9_]+$/.test(username))
-      e.username = 'Letters, numbers, and underscores only'
-    if (!email) e.email = 'Email is required'
-    else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email)) e.email = 'Invalid email'
-    if (!password) e.password = 'Password is required'
-    else if (password.length < 8) e.password = 'Minimum 8 characters'
-    else if (!/[A-Z]/.test(password)) e.password = 'Include at least one uppercase letter'
-    else if (!/[0-9]/.test(password)) e.password = 'Include at least one number'
-    if (!confirmPassword) e.confirmPassword = 'Please confirm your password'
-    else if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match'
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
-
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validate()) return
+    if (!validateForm()) return
     setSubmitting(true)
     try {
       await register(email, password, country, fullName, username)
@@ -94,7 +76,7 @@ export const Register = (): JSX.Element => {
       const msg = Array.isArray(detail)
         ? detail.map((e: any) => e.msg).join('; ')
         : detail || 'Registration failed'
-      toast.error(msg)
+      setFormError(msg)
     } finally {
       setSubmitting(false)
     }
@@ -118,6 +100,15 @@ export const Register = (): JSX.Element => {
 
           <form onSubmit={onSubmit}>
             <Flex direction="column" gap="4">
+              {formError && (
+                <Callout.Root color="red" size="1">
+                  <Callout.Icon>
+                    <AlertCircle size={14} />
+                  </Callout.Icon>
+                  <Callout.Text>{formError}</Callout.Text>
+                </Callout.Root>
+              )}
+
               <Flex direction="column" gap="1">
                 <Text size="2" weight="medium">
                   Full name

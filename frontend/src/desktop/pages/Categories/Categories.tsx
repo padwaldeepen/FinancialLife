@@ -5,19 +5,15 @@ import {
   Text,
   Card,
   Badge,
-  Tabs,
   Button,
   Dialog,
   TextField,
   Select,
   IconButton,
 } from '@radix-ui/themes'
-import { Tags, ChevronRight, PieChart, Plus, Pencil, Trash2 } from 'lucide-react'
-import { ResponsivePie } from '@nivo/pie'
+import { Tags, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
-import { formatCurrency } from '../../../shared/utils/format.ts'
-import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Categories.module.css'
 
 const COLOR_OPTIONS = [
@@ -42,32 +38,18 @@ interface CategoryFormData {
 const emptyForm = (): CategoryFormData => ({ name: '', color: '#6B7280', parent_id: null })
 
 export const Categories = (): JSX.Element => {
-  const currency = useActiveCurrency()
-  const {
-    tree,
-    loading,
-    spending,
-    spendingLoading,
-    fetchCategories,
-    fetchSpendingByCategory,
-    createCategory,
-    updateCategory,
-    deleteCategory,
-  } = useBoundStore(
-    useShallow((s) => ({
-      tree: s.categories.tree,
-      loading: s.categories.loading,
-      spending: s.categories.spending,
-      spendingLoading: s.categories.spendingLoading,
-      fetchCategories: s.fetchCategories,
-      fetchSpendingByCategory: s.fetchSpendingByCategory,
-      createCategory: s.createCategory,
-      updateCategory: s.updateCategory,
-      deleteCategory: s.deleteCategory,
-    })),
-  )
+  const { tree, loading, fetchCategories, createCategory, updateCategory, deleteCategory } =
+    useBoundStore(
+      useShallow((s) => ({
+        tree: s.categories.tree,
+        loading: s.categories.loading,
+        fetchCategories: s.fetchCategories,
+        createCategory: s.createCategory,
+        updateCategory: s.updateCategory,
+        deleteCategory: s.deleteCategory,
+      })),
+    )
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
-  const [tab, setTab] = useState('list')
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
@@ -78,8 +60,7 @@ export const Categories = (): JSX.Element => {
 
   useEffect(() => {
     fetchCategories()
-    fetchSpendingByCategory()
-  }, [fetchCategories, fetchSpendingByCategory])
+  }, [fetchCategories])
 
   const toggleExpand = (id: number) => {
     setExpanded((prev) => {
@@ -131,10 +112,10 @@ export const Categories = (): JSX.Element => {
     }
   }
 
-  const parents = tree.filter((c) => !c.parent_id)
-  const getChildren = (parentId: number) => tree.filter((c) => c.parent_id === parentId)
-
-  const hasSpendingData = spending.length > 0
+  // `tree` is the backend's nested shape (each node carries its own `.children`), not a
+  // flat list — a parent's children live on the node itself, never as sibling entries
+  // in `tree` with a matching `parent_id` (top-level nodes all have `parent_id: null`).
+  const parents = tree
 
   const renderCategoryActions = (cat: {
     id: number
@@ -159,204 +140,108 @@ export const Categories = (): JSX.Element => {
   return (
     <Box className={styles.page}>
       <Flex className={styles.pageHeader}>
-        <span className={styles.pageTitle}>Categories</span>
+        <Text as="div" className={styles.pageTitle}>
+          Categories
+        </Text>
         <Button onClick={openCreate}>
           <Plus size={16} /> Add Category
         </Button>
       </Flex>
 
-      <Tabs.Root value={tab} onValueChange={setTab} mb="5">
-        <Tabs.List>
-          <Tabs.Trigger value="list">
-            <Tags size={16} /> List
-          </Tabs.Trigger>
-          <Tabs.Trigger value="analytics">
-            <PieChart size={16} /> Analytics
-          </Tabs.Trigger>
-        </Tabs.List>
-      </Tabs.Root>
+      {loading ? (
+        <Flex direction="column" gap="3" p="4">
+          <Box
+            className="skeleton"
+            style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
+          />
+          <Box
+            className="skeleton"
+            style={{ height: 20, width: '75%', borderRadius: 'var(--radius-2)' }}
+          />
+          <Box
+            className="skeleton"
+            style={{ height: 20, width: '55%', borderRadius: 'var(--radius-2)' }}
+          />
+          <Box
+            className="skeleton"
+            style={{ height: 20, width: '90%', borderRadius: 'var(--radius-2)' }}
+          />
+        </Flex>
+      ) : (
+        <Flex direction="column" gap="2">
+          {parents.map((parent) => {
+            const children = parent.children
+            const isExpanded = expanded.has(parent.id)
 
-      {tab === 'analytics' && (
-        <Box mb="5">
-          {spendingLoading ? (
-            <Text color="gray">Loading analytics...</Text>
-          ) : hasSpendingData ? (
-            <>
-              <Box className={styles.chartContainer}>
-                <ResponsivePie
-                  data={spending.map((s) => ({
-                    id: s.name,
-                    label: s.name,
-                    value: s.total,
-                    color: s.color,
-                  }))}
-                  margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-                  innerRadius={0.5}
-                  padAngle={2}
-                  cornerRadius={4}
-                  activeOuterRadiusOffset={8}
-                  colors={{ datum: 'data.color' }}
-                  borderWidth={1}
-                  borderColor={{ theme: 'background' }}
-                  arcLinkLabelsSkipAngle={10}
-                  arcLinkLabelsTextColor="var(--gray-12)"
-                  arcLinkLabelsThickness={2}
-                  arcLinkLabelsColor={{ from: 'color' }}
-                  arcLabelsSkipAngle={10}
-                  arcLabelsTextColor="var(--gray-1)"
-                  valueFormat=">-$0,"
-                  legends={[
-                    {
-                      anchor: 'bottom',
-                      direction: 'row',
-                      translateY: 56,
-                      itemWidth: 100,
-                      itemHeight: 18,
-                      itemTextColor: 'var(--gray-11)',
-                      symbolSize: 12,
-                      symbolShape: 'circle',
-                    },
-                  ]}
-                  theme={{
-                    background: 'transparent',
-                    text: { fill: 'var(--gray-12)' },
-                  }}
-                />
-              </Box>
-
-              <Flex direction="column" gap="2" mt="4">
-                <Text size="2" weight="medium" mb="2">
-                  Breakdown
-                </Text>
-                {spending.map((s) => (
-                  <Flex key={s.id} align="center" gap="3" className={styles.spendingRow}>
-                    <Box
-                      className={styles.colorDot}
-                      style={{ '--swatch-color': s.color } as React.CSSProperties}
-                    />
-                    <Text size="2" className={styles.flex1}>
-                      {s.name}
-                    </Text>
-                    <Text size="2" weight="medium">
-                      {formatCurrency(s.total, currency)}
-                    </Text>
-                    <Text size="1" color="gray" className={styles.colRight}>
-                      {s.percentage}%
-                    </Text>
-                  </Flex>
-                ))}
-              </Flex>
-            </>
-          ) : (
-            <Flex direction="column" align="center" gap="2" py="6">
-              <PieChart size={32} />
-              <Text color="gray">No spending data yet</Text>
-              <Text size="2" color="gray">
-                Add some expenses to see your spending breakdown
-              </Text>
-            </Flex>
-          )}
-        </Box>
-      )}
-
-      {tab === 'list' && (
-        <>
-          {loading ? (
-            <Flex direction="column" gap="3" p="4">
-              <div
-                className="skeleton"
-                style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
-              />
-              <div
-                className="skeleton"
-                style={{ height: 20, width: '75%', borderRadius: 'var(--radius-2)' }}
-              />
-              <div
-                className="skeleton"
-                style={{ height: 20, width: '55%', borderRadius: 'var(--radius-2)' }}
-              />
-              <div
-                className="skeleton"
-                style={{ height: 20, width: '90%', borderRadius: 'var(--radius-2)' }}
-              />
-            </Flex>
-          ) : (
-            <Flex direction="column" gap="2">
-              {parents.map((parent) => {
-                const children = getChildren(parent.id)
-                const isExpanded = expanded.has(parent.id)
-
-                return (
-                  <Card key={parent.id} className={styles.card}>
-                    <Flex
-                      align="center"
-                      gap="3"
-                      className={styles.parentRow}
-                      onClick={() => children.length > 0 && toggleExpand(parent.id)}
-                    >
-                      <Box
-                        className={styles.colorDot}
-                        style={{ '--swatch-color': parent.color } as React.CSSProperties}
-                      />
-                      <Box className={styles.flex1}>
-                        <Flex align="center" gap="2">
-                          <Text size="3" weight="bold">
-                            {parent.name}
-                          </Text>
-                          {parent.is_system && (
-                            <Badge size="1" color="gray">
-                              System
-                            </Badge>
-                          )}
-                        </Flex>
-                        <Text size="1" color="gray">
-                          {children.length} subcategories
-                        </Text>
-                      </Box>
-                      {renderCategoryActions(parent)}
-                      {children.length > 0 && (
-                        <Box
-                          className={`${styles.chevron} ${isExpanded ? styles.chevronExpanded : ''}`}
-                        >
-                          <ChevronRight size={16} />
-                        </Box>
+            return (
+              <Card key={parent.id} className={styles.card}>
+                <Flex
+                  align="center"
+                  gap="3"
+                  className={styles.parentRow}
+                  onClick={() => children.length > 0 && toggleExpand(parent.id)}
+                >
+                  <Box
+                    className={styles.colorDot}
+                    style={{ '--swatch-color': parent.color } as React.CSSProperties}
+                  />
+                  <Box className={styles.flex1}>
+                    <Flex align="center" gap="2">
+                      <Text size="3" weight="bold">
+                        {parent.name}
+                      </Text>
+                      {parent.is_system && (
+                        <Badge size="1" color="gray">
+                          System
+                        </Badge>
                       )}
                     </Flex>
-
-                    {isExpanded && children.length > 0 && (
-                      <Flex direction="column" className={styles.childrenList}>
-                        {children.map((child) => (
-                          <Flex key={child.id} align="center" gap="3" className={styles.childRow}>
-                            <Box
-                              className={styles.colorDotSmall}
-                              style={{ '--swatch-color': child.color } as React.CSSProperties}
-                            />
-                            <Text size="2" className={styles.flex1}>
-                              {child.name}
-                            </Text>
-                            {child.is_system && (
-                              <Badge size="1" color="gray">
-                                System
-                              </Badge>
-                            )}
-                            {renderCategoryActions(child)}
-                          </Flex>
-                        ))}
-                      </Flex>
-                    )}
-                  </Card>
-                )
-              })}
-
-              {parents.length === 0 && (
-                <Flex className={styles.emptyState} direction="column">
-                  <Tags size={32} />
-                  <Text color="gray">No categories yet</Text>
+                    <Text size="1" color="gray">
+                      {children.length} subcategories
+                    </Text>
+                  </Box>
+                  {renderCategoryActions(parent)}
+                  {children.length > 0 && (
+                    <Box
+                      className={`${styles.chevron} ${isExpanded ? styles.chevronExpanded : ''}`}
+                    >
+                      <ChevronRight size={16} />
+                    </Box>
+                  )}
                 </Flex>
-              )}
+
+                {isExpanded && children.length > 0 && (
+                  <Flex direction="column" className={styles.childrenList}>
+                    {children.map((child) => (
+                      <Flex key={child.id} align="center" gap="3" className={styles.childRow}>
+                        <Box
+                          className={styles.colorDotSmall}
+                          style={{ '--swatch-color': child.color } as React.CSSProperties}
+                        />
+                        <Text size="2" className={styles.flex1}>
+                          {child.name}
+                        </Text>
+                        {child.is_system && (
+                          <Badge size="1" color="gray">
+                            System
+                          </Badge>
+                        )}
+                        {renderCategoryActions(child)}
+                      </Flex>
+                    ))}
+                  </Flex>
+                )}
+              </Card>
+            )
+          })}
+
+          {parents.length === 0 && (
+            <Flex className={styles.emptyState} direction="column">
+              <Tags size={32} />
+              <Text color="gray">No categories yet</Text>
             </Flex>
           )}
-        </>
+        </Flex>
       )}
 
       {/* Create/Edit Dialog */}

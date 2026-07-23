@@ -12,6 +12,10 @@ import type { RegisterFormSlice } from './slices/registerFormSlice.ts'
 import type { LoginFormSlice } from './slices/loginFormSlice.ts'
 import type { QuickAddModalSlice } from './slices/quickAddModalSlice.ts'
 import type { ToastSlice } from './slices/toastSlice.ts'
+import type { RecurringPageSlice } from './slices/recurringPageSlice.ts'
+import type { RecurringInsightsSlice } from './slices/recurringInsightsSlice.ts'
+import type { SafeToSpendSlice } from './slices/safeToSpendSlice.ts'
+import type { AdviceSlice } from './slices/adviceSlice.ts'
 
 export type StoreState = AuthSlice &
   UISlice &
@@ -26,4 +30,8 @@ export type StoreState = AuthSlice &
   RegisterFormSlice &
   LoginFormSlice &
   QuickAddModalSlice &
-  ToastSlice
+  ToastSlice &
+  RecurringPageSlice &
+  RecurringInsightsSlice &
+  SafeToSpendSlice &
+  AdviceSlice

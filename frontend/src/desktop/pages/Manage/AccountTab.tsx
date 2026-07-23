@@ -7,24 +7,20 @@ import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { useProfileSwitch } from '../../../shared/hooks/useProfileSwitch.ts'
 import { COUNTRY_FLAG, COUNTRY_NAME } from '../../../shared/utils/countries.ts'
-import type { Country } from '../../../shared/types/user.ts'
 import styles from './Manage.module.css'
-
-const ADDABLE_COUNTRIES: Country[] = ['US', 'IN', 'CA']
 
 export const AccountTab = (): JSX.Element => {
   const { user, logout, changePassword } = useBoundStore(
     useShallow((s) => ({ user: s.auth.user, logout: s.logout, changePassword: s.changePassword })),
   )
-  const { profiles, activeProfileId, switchProfile, addProfile } = useProfileSwitch()
+  const { profiles, activeProfileId, addableCountries, switchProfile, addProfile } =
+    useProfileSwitch()
   const navigate = useNavigate()
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [changingPassword, setChangingPassword] = useState(false)
-
-  const addableCountries = ADDABLE_COUNTRIES.filter((c) => !profiles.some((p) => p.country === c))
 
   const handleLogout = async () => {
     await logout()

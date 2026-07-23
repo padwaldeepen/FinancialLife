@@ -1,5 +1,6 @@
-import { namespaceSlice } from '../namespaceSlice.ts'
+import { namespaceSlice, isFresh } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
+import toast from '../../shared/utils/toast.ts'
 
 interface Merchant {
   id: number
@@ -45,8 +46,9 @@ export type MerchantsSlice = {
     loading: boolean
     detail: DetailData | null
     similarPairs: SimilarPair[]
+    lastFetchedAt: number | null
   }
-  fetchMerchants: () => Promise<void>
+  fetchMerchants: (opts?: { force?: boolean }) => Promise<void>
   fetchMerchantDetail: (id: number) => Promise<void>
   toggleHidden: (id: number, current: boolean) => Promise<void>
   updateMerchant: (id: number, data: { name?: string; is_hidden?: boolean }) => Promise<void>
@@ -55,17 +57,19 @@ export type MerchantsSlice = {
   doMerge: (targetId: number, sourceId: number) => Promise<void>
 }
 
-export const createMerchantsSlice = namespaceSlice('merchants', (set, _get) => ({
+export const createMerchantsSlice = namespaceSlice('merchants', (set, get) => ({
   items: [] as Merchant[],
   loading: true,
   detail: null as DetailData | null,
   similarPairs: [] as SimilarPair[],
+  lastFetchedAt: null as number | null,
 
-  fetchMerchants: async () => {
+  fetchMerchants: async (opts?: { force?: boolean }) => {
+    if (!opts?.force && isFresh(get().lastFetchedAt)) return
     set({ loading: true })
     try {
       const res = await api.get('/api/merchants/')
-      set({ items: res.data })
+      set({ items: res.data, lastFetchedAt: Date.now() })
     } finally {
       set({ loading: false })
     }
@@ -76,7 +80,7 @@ export const createMerchantsSlice = namespaceSlice('merchants', (set, _get) => (
       const res = await api.get(`/api/merchants/${id}`)
       set({ detail: res.data })
     } catch {
-      // handled by caller
+      toast.error('Failed to load merchant details')
     }
   },
 

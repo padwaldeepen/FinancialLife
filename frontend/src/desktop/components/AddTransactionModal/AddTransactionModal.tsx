@@ -16,7 +16,7 @@ import { Sparkles, Check, Camera, X } from 'lucide-react'
 import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
-import { formatCurrency } from '../../../shared/utils/format.ts'
+import { formatCurrency, getCurrencySymbol } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import api from '../../../shared/api/client.ts'
 import { extractTextFromImage, cleanOcrText } from '../../../shared/utils/ocr.ts'
@@ -35,12 +35,14 @@ export const AddTransactionModal = (): JSX.Element => {
     saving,
     scanning,
     selectedCategoryId,
+    manualAmount,
     setInput,
     setLoading,
     setParsed,
     setSaving,
     setScanning,
     setSelectedCategoryId,
+    setManualAmount,
     resetQuickAdd,
     fetchAccounts,
     fetchTransactions,
@@ -57,12 +59,14 @@ export const AddTransactionModal = (): JSX.Element => {
       saving: s.quickAddModal.saving,
       scanning: s.quickAddModal.scanning,
       selectedCategoryId: s.quickAddModal.selectedCategoryId,
+      manualAmount: s.quickAddModal.manualAmount,
       setInput: s.setQuickAddInput,
       setLoading: s.setQuickAddLoading,
       setParsed: s.setQuickAddParsed,
       setSaving: s.setQuickAddSaving,
       setScanning: s.setQuickAddScanning,
       setSelectedCategoryId: s.setQuickAddSelectedCategoryId,
+      setManualAmount: s.setQuickAddManualAmount,
       resetQuickAdd: s.resetQuickAddModal,
       fetchAccounts: s.fetchAccounts,
       fetchTransactions: s.fetchTransactions,
@@ -70,6 +74,7 @@ export const AddTransactionModal = (): JSX.Element => {
     })),
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const amountMissing = Boolean(parsed?.missing?.includes('amount'))
 
   useEffect(() => {
     if (addModalOpen) {
@@ -92,11 +97,13 @@ export const AddTransactionModal = (): JSX.Element => {
 
   const handleSave = async () => {
     if (!parsed) return
+    if (amountMissing && !manualAmount) return
     setSaving(true)
     try {
       await api.post('/api/transactions/quick-add', {
         text: input,
         category_id: selectedCategoryId ?? undefined,
+        amount: amountMissing ? parseFloat(manualAmount) : undefined,
       })
       toast.success('Transaction added!')
       resetQuickAdd()
@@ -215,7 +222,12 @@ export const AddTransactionModal = (): JSX.Element => {
               {parsed ? 'Re-parse' : 'Parse'}
             </Button>
             {parsed && (
-              <Button onClick={handleSave} loading={saving} size="3">
+              <Button
+                onClick={handleSave}
+                loading={saving}
+                disabled={amountMissing && !manualAmount}
+                size="3"
+              >
                 <Check size={16} /> Confirm & save
               </Button>
             )}
@@ -228,9 +240,24 @@ export const AddTransactionModal = (): JSX.Element => {
                   <Text weight="bold" size="3">
                     {parsed.description}
                   </Text>
-                  <Text weight="bold" size="4">
-                    {formatCurrency(parsed.amount || 0, currency)}
-                  </Text>
+                  {amountMissing ? (
+                    <TextField.Root
+                      type="number"
+                      placeholder="How much?"
+                      value={manualAmount}
+                      onChange={(e) => setManualAmount(e.target.value)}
+                      className={styles.amountInput}
+                      autoFocus
+                    >
+                      <TextField.Slot side="left">
+                        <Text size="2">{getCurrencySymbol(currency)}</Text>
+                      </TextField.Slot>
+                    </TextField.Root>
+                  ) : (
+                    <Text weight="bold" size="4">
+                      {formatCurrency(parsed.amount || 0, currency)}
+                    </Text>
+                  )}
                 </Flex>
 
                 <Flex gap="2" align="center">

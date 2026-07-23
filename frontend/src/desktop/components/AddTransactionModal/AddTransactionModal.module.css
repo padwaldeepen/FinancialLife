@@ -23,3 +23,8 @@
 .categoryItem:hover {
   background: var(--accent-3);
 }
+
+.amountInput {
+  width: 140px;
+  flex-shrink: 0;
+}

@@ -1,5 +1,6 @@
 import { namespaceSlice, isFresh } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
+import toast from '../../shared/utils/toast.ts'
 
 export interface UpcomingBill {
   id: number
@@ -41,6 +42,7 @@ export type BillsSlice = {
     items: Bill[]
     upcoming: UpcomingBill[]
     loading: boolean
+    lastFetchedAt: number | null
     upcomingLastFetchedAt: number | null
     billHistory: {
       transactions: any[]
@@ -48,7 +50,7 @@ export type BillsSlice = {
       loading: boolean
     }
   }
-  fetchBills: () => Promise<void>
+  fetchBills: (opts?: { force?: boolean }) => Promise<void>
   fetchUpcomingBills: (days?: number, opts?: { force?: boolean }) => Promise<void>
   fetchBillHistory: (billId: number) => Promise<void>
   createBill: (data: {
@@ -95,14 +97,16 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
   items: [] as Bill[],
   upcoming: [] as UpcomingBill[],
   loading: true,
+  lastFetchedAt: null as number | null,
   upcomingLastFetchedAt: null as number | null,
   billHistory: { transactions: [], monthly_spending: [], loading: false },
 
-  fetchBills: async () => {
+  fetchBills: async (opts?: { force?: boolean }) => {
+    if (!opts?.force && isFresh(get().lastFetchedAt)) return
     set({ loading: true })
     try {
       const res = await api.get('/api/bills/')
-      set({ items: res.data })
+      set({ items: res.data, lastFetchedAt: Date.now() })
     } finally {
       set({ loading: false })
     }
@@ -114,7 +118,7 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
       const res = await api.get(`/api/bills/upcoming?days=${days}`)
       set({ upcoming: res.data, upcomingLastFetchedAt: Date.now() })
     } catch {
-      // silent
+      toast.error('Could not load upcoming bills')
     }
   },
 
@@ -131,6 +135,7 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
       })
     } catch {
       set({ billHistory: { transactions: [], monthly_spending: [], loading: false } })
+      toast.error('Failed to load bill history')
     }
   },
 

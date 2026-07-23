@@ -15,6 +15,10 @@ import { createRegisterFormSlice } from './slices/registerFormSlice.ts'
 import { createLoginFormSlice } from './slices/loginFormSlice.ts'
 import { createQuickAddModalSlice } from './slices/quickAddModalSlice.ts'
 import { createToastSlice } from './slices/toastSlice.ts'
+import { createRecurringPageSlice } from './slices/recurringPageSlice.ts'
+import { createRecurringInsightsSlice } from './slices/recurringInsightsSlice.ts'
+import { createSafeToSpendSlice } from './slices/safeToSpendSlice.ts'
+import { createAdviceSlice } from './slices/adviceSlice.ts'
 import type { StoreState } from './types.ts'
 
 export const useBoundStore = create<StoreState>()(
@@ -34,6 +38,10 @@ export const useBoundStore = create<StoreState>()(
       ...(createLoginFormSlice(...a) as unknown as StoreState),
       ...(createQuickAddModalSlice(...a) as unknown as StoreState),
       ...(createToastSlice(...a) as unknown as StoreState),
+      ...(createRecurringPageSlice(...a) as unknown as StoreState),
+      ...(createRecurringInsightsSlice(...a) as unknown as StoreState),
+      ...(createSafeToSpendSlice(...a) as unknown as StoreState),
+      ...(createAdviceSlice(...a) as unknown as StoreState),
     })),
     { name: 'My Financial Life' },
   ),

@@ -1,12 +1,14 @@
 import { useEffect, type JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Box, Flex, Text, Heading, Card } from '@radix-ui/themes'
-import { Wallet, PiggyBank, CreditCard, TrendingUp, Sparkles } from 'lucide-react'
+import { Wallet, PiggyBank, CreditCard, TrendingUp } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency, formatDate } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import { useHomeData } from '../../../shared/hooks/useHomeData.ts'
+import { useSafeToSpend } from '../../../shared/hooks/useSafeToSpend.ts'
+import { InsightCards } from './InsightCards.tsx'
 import styles from './Home.module.css'
 
 const accountIcons: Record<string, JSX.Element> = {
@@ -33,6 +35,7 @@ export const Home = (): JSX.Element => {
   const { summary, fetchReports } = useBoundStore(
     useShallow((s) => ({ summary: s.reports.summary, fetchReports: s.fetchReports })),
   )
+  const safeToSpend = useSafeToSpend(currency)
 
   useEffect(() => {
     fetchReports()
@@ -52,11 +55,19 @@ export const Home = (): JSX.Element => {
     <Box className={styles.page}>
       <Flex className={styles.layout}>
         <Box className={styles.leftColumn}>
-          {/* Safe-to-Spend Hero — placeholder until Phase I's forecast engine (I5) */}
+          {/* Safe-to-Spend Hero — I5, wired to GET /api/insights/safe-to-spend */}
           <Card className={styles.balanceCard}>
             <Text className={styles.balanceLabel}>Safe to Spend</Text>
-            <Heading className={styles.balanceAmount}>—</Heading>
-            <Text className={styles.balanceAccounts}>Needs Phase I (forecast engine)</Text>
+            <Heading className={styles.balanceAmount}>
+              {safeToSpend.insufficientData || safeToSpend.amount === null
+                ? '—'
+                : formatCurrency(safeToSpend.amount, currency)}
+            </Heading>
+            <Text className={styles.balanceAccounts}>
+              {safeToSpend.insufficientData
+                ? 'Needs about 2 months of transaction history for an accurate forecast'
+                : (safeToSpend.subLine ?? 'No upcoming payday detected yet')}
+            </Text>
           </Card>
 
           {/* Cash on hand / Credit owed — never summed, a credit balance is debt, not
@@ -172,16 +183,8 @@ export const Home = (): JSX.Element => {
             )}
           </Card>
 
-          {/* Insights — empty-state slot per design-system.md §4 until Phase I ships
-              rule-generated insights */}
-          <Card className={styles.contentCard}>
-            <Flex direction="column" align="center" gap="2" className={styles.emptyState}>
-              <Sparkles size={20} color="var(--gray-9)" />
-              <Text size="2" color="gray" align="center">
-                Insights need a bit more data — check back after a few transactions.
-              </Text>
-            </Flex>
-          </Card>
+          {/* Insights — I6, rule-generated advice cards wired to GET /api/insights/advice */}
+          <InsightCards />
 
           {/* Recent Activity */}
           <Card className={styles.contentCard}>

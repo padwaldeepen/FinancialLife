@@ -483,7 +483,10 @@ async def quick_add_transaction(
         else:
             parsed_date = datetime.now()
 
-    if request.amount is not None:
+    # Only fills in the amount when parsing genuinely couldn't find one (the
+    # one-question-rule follow-up) — never overrides an amount the parser already
+    # extracted correctly, even if a caller sends a stale `amount` alongside it.
+    if parsed_amount is None and request.amount is not None:
         parsed_amount = request.amount
 
     category_id = None

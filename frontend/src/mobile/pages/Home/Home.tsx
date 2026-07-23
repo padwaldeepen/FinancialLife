@@ -17,23 +17,25 @@ import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import { useHomeData } from '../../../shared/hooks/useHomeData.ts'
+import { useSafeToSpend } from '../../../shared/hooks/useSafeToSpend.ts'
 import { useProfileSwitch } from '../../../shared/hooks/useProfileSwitch.ts'
 import { COUNTRY_FLAG, COUNTRY_NAME } from '../../../shared/utils/countries.ts'
-import type { Country } from '../../../shared/types/user.ts'
 import styles from './Home.module.css'
 
 const PULL_THRESHOLD = 80
-const ADDABLE_COUNTRIES: Country[] = ['US', 'IN', 'CA']
 
 export const Home = (): JSX.Element => {
   const currency = useActiveCurrency()
   const navigate = useNavigate()
   const { upcomingBills, loading, refresh } = useHomeData()
   const { user } = useBoundStore(useShallow((s) => ({ user: s.auth.user })))
-  const { profiles, activeProfileId, switchProfile, addProfile } = useProfileSwitch()
+  const { profiles, activeProfileId, addableCountries, switchProfile, addProfile } =
+    useProfileSwitch()
   const { comparison, fetchReports } = useBoundStore(
     useShallow((s) => ({ comparison: s.reports.comparison, fetchReports: s.fetchReports })),
   )
+  const safeToSpend = useSafeToSpend(currency)
+  const fetchSafeToSpend = useBoundStore((s) => s.fetchSafeToSpend)
   const [refreshing, setRefreshing] = useState(false)
   const [pullDistance, setPullDistance] = useState(0)
   const touchStartY = useRef(0)
@@ -45,14 +47,12 @@ export const Home = (): JSX.Element => {
 
   const fetchData = async () => {
     setRefreshing(true)
-    await refresh({ force: true })
-    await fetchReports()
+    await Promise.all([refresh({ force: true }), fetchReports(), fetchSafeToSpend({ force: true })])
     setRefreshing(false)
   }
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId)
   const initial = user?.email?.charAt(0).toUpperCase() || 'U'
-  const addableCountries = ADDABLE_COUNTRIES.filter((c) => !profiles.some((p) => p.country === c))
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (window.scrollY > 0) return
@@ -203,16 +203,20 @@ export const Home = (): JSX.Element => {
       </Flex>
 
       <Flex direction="column" gap="4">
-        {/* Safe-to-Spend Hero — placeholder until Phase I's forecast engine (I5) */}
+        {/* Safe-to-Spend Hero — I5, wired to GET /api/insights/safe-to-spend */}
         <Card className={styles.balanceCard}>
           <Text size="2" color="gray">
             Safe to Spend
           </Text>
           <Heading size="7" className={styles.balanceAmount}>
-            —
+            {safeToSpend.insufficientData || safeToSpend.amount === null
+              ? '—'
+              : formatCurrency(safeToSpend.amount, currency)}
           </Heading>
           <Text size="1" color="gray">
-            Needs Phase I (forecast engine)
+            {safeToSpend.insufficientData
+              ? 'Needs about 2 months of transaction history for an accurate forecast'
+              : (safeToSpend.subLine ?? 'No upcoming payday detected yet')}
           </Text>
         </Card>
 

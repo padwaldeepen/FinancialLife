@@ -827,7 +827,7 @@ screenshots cleaned up.
 
 ## Phase I — Intelligence (engines are pure functions in `services/insights/`, test-first)
 
-### [ ] I1 — Recurring detection engine
+### [x] I1 — Recurring detection engine — done 2026-07-22
 **Goal:** find everything that repeats. Spec: `architecture-and-goals.md` §Recurring detection.
 **Build:** `services/insights/recurring.py`: `detect(transactions) -> list[RecurringCharge]`
 — group by merchant_id, **falling back to normalized description when merchant is NULL**
@@ -840,24 +840,145 @@ next_expected_date, confidence. Endpoint `GET /api/insights/recurring`.
 paycheck; 2-occurrence rejected; price-hike still detected with hike flagged; irregular
 merchant rejected.
 **Depends:** D1.
+**Result:** `backend/services/insights/recurring.py` (new, pure functions, no DB access
+— `detect(transactions: list[TransactionInput]) -> list[RecurringCharge]`) +
+`backend/routers/insights.py` (new, `GET /api/insights/recurring`, registered in
+`main.py`). **Test approach**: per T1's established project decision ("no pytest
+files — all verification via Playwright MCP / hand-computed fixtures against the
+running app"), verified via a throwaway fixture script (deleted after) asserting
+exact values, then re-verified against the live endpoint with data seeded directly
+into the DB — not a committed pytest suite. **Grouping**: `merchant_id` when present,
+else normalized description (reusing the same normalization regex as
+`merchant_service.normalize_name`) — keeps income (salary, no merchant) and expense
+groups fully separate by also keying on `transaction_type`, so a coincidental
+description collision between an expense and income group can never merge them.
+**Amount consistency, three tiers**: (1) all occurrences within 2% of the mean →
+exact subscription; (2) a stable "leading" cluster followed by a stable "trailing"
+cluster more than 2% away → still a subscription, `price_hike=True`, `avg_amount` is
+the latest (trailing) amount, not a blended mean — a hiked subscription's forecast
+should use what it costs *now*; (3) neither of those but within 20% of the mean →
+variable/utility bill, `is_subscription=False`. Anything wider than 20% is rejected
+outright, not guessed at. **Interval consistency**: gap between every consecutive
+pair of occurrences (not just the median) must fall within tolerance of one
+candidate cadence (weekly/biweekly/monthly/quarterly/yearly) for that cadence to
+qualify — picks whichever qualifying cadence's target is closest to the median gap.
+**`monthly_equivalent`** uses the same day-count ratios as the frontend's
+`shared/utils/money.ts` bill math (weekly ×52/12, biweekly ×26/12, quarterly ÷3,
+yearly ÷12), kept in sync deliberately so a bill's monthly cost reads identically
+wherever it appears. **Verified**: fixture script asserted 6 named scenarios matching
+every accept-criterion case (Netflix 12mo exact monthly → subscription, no hike; a
+±15% utility → variable bill, not flagged as subscription; 8-occurrence biweekly
+payroll with no merchant → detected via description fallback, `transaction_type:
+income`; a 2-occurrence merchant → absent from results entirely; an 8-months-then-4-
+months price-hike pattern → subscription, `price_hike=True`, `avg_amount` = the
+post-hike amount; a 5-transaction irregular-amount/irregular-interval merchant →
+absent). All assertions passed exactly (e.g. biweekly $2,500 payroll →
+`monthly_equivalent` hand-computed as 2500×26/12 = $5,416.67, matched). Re-verified
+live: registered a throwaway account, seeded Netflix (8mo exact $15.49), Spotify
+(6mo $9.99 → 3mo $11.99 price hike), 9-occurrence biweekly payroll with no merchant,
+and a 2-occurrence merchant via direct SQL, hit `GET /api/insights/recurring` with
+curl — response matched the hand-computed fixture exactly on every field including
+`monthly_equivalent` (payroll: 2200×26/12 = $4,766.67) and the rejected 2-occurrence
+merchant was correctly absent. `ruff check` clean. Throwaway account deleted after.
+**Not built here** (I2's scope): no UI surfaces this endpoint yet — Recurring
+(U5)'s page still only shows manually-created bills/budgets.
 
-### [ ] I2 — Subscriptions section on Recurring page
+### [x] I2 — Subscriptions section on Recurring page — done 2026-07-22
 **Build:** "Detected subscriptions" on U5's page: rows (name, monthly cost, next date,
 price-increase flag) under total headline; "not a subscription" dismiss (persisted,
 excluded from re-detection); undetected bills remain manually addable.
 **Accept:** seeded fixture data shows correct list + total (Playwright); dismiss persists
 across reload.
 **Depends:** I1, U5.
+**Result:** New migration `0002_dismissed_recurring_groups.py` (raw SQL, hand-written
+per `rules/database.md` — no autogenerate; this is the first incremental migration
+since D1's squash, applied via `alembic upgrade head`) — one table keyed on
+`(profile_id, group_key)` with a unique constraint, storing which of I1's detected
+groups the user has dismissed. `backend/routers/insights.py`: `GET /recurring` now
+loads the dismissed set for the profile and filters `detect()`'s output before
+returning (never re-suggests a dismissed group, not just hidden client-side);
+`POST /recurring/dismiss` inserts with `ON CONFLICT ... DO NOTHING` — idempotent, so
+double-dismissing isn't an error. `RecurringChargeResponse` gained a `group_key`
+field so the frontend has something stable to dismiss by (merchant-based groups use
+`merchant:<id>`, merchant-less groups like income use the normalized-description
+fallback from I1 — both need to round-trip through the API).
+`frontend/src/store/slices/recurringInsightsSlice.ts` (new): `fetchRecurringInsights`
++ optimistic `dismissRecurringGroup` (removes the row immediately, reverts with a
+toast if the POST fails — same optimistic-with-rollback pattern every other slice
+uses). `desktop/pages/Recurring/DetectedSubscriptions.tsx` (new): renders only
+`transaction_type: 'expense'` groups (income groups like a detected payroll aren't
+"subscriptions" — I1 detects them for I4's forecast, not for display here); each row
+shows name, cadence, next expected date, monthly cost, and a price-increase badge
+when `price_hike` is set; a quiet no-op empty state (component returns `null`) when
+loading or nothing's detected — not an error/empty-state callout, since "nothing
+found yet" is the normal state until enough transaction history exists. Mounted in
+`Recurring.tsx` between the manually-tracked bills table and Budgets — manually
+added bills are entirely unaffected (I1 never reads or writes the `bills` table, only
+`transactions`), so "undetected bills remain manually addable" required no changes
+at all, just not breaking anything. Reused `frequencyLabel` from
+`shared/utils/money.ts` for cadence display rather than duplicating the label map
+(same string keys — weekly/biweekly/monthly/quarterly/yearly — I1 deliberately
+matched the frontend's existing convention for exactly this reason).
+**Verified:** `tsc`/lint/build/depcheck clean; `ruff check` clean. Playwright desktop
+1280×900, throwaway account: seeded Netflix (8mo exact $15.49) and Spotify (6mo
+$9.99 → 3mo $11.99 price hike) via direct SQL, loaded `/recurring` — Detected
+Subscriptions section showed both rows with the correct total ($27.48 =
+15.49+11.99), Spotify carrying the "Price increased" badge and Netflix not. Clicked
+"Not a subscription" on Netflix — row disappeared immediately, total updated to
+$11.99. Reloaded the page — Netflix stayed gone (only Spotify remained), and a
+direct DB query confirmed a row in `dismissed_recurring_groups` for
+`merchant:<netflix_id>` — proving the dismiss is a real server-side exclusion, not
+just client-side state that would reappear on next fetch. Throwaway account deleted
+after.
 
-### [ ] I3 — Trends & anomaly engine
+### [x] I3 — Trends & anomaly engine — done 2026-07-22
 **Build:** `services/insights/trends.py`: MoM/YoY per category and total; anomaly =
 current month category spend > 2× trailing-3-month avg (min $50 and ≥3 months history —
 honesty rule: insufficient data → no claim); 3-month rising streak detection. Structured
 `Insight` objects with evidence (the numbers behind the claim). `GET /api/insights/`.
 **Accept:** unit tests incl. honesty cases (2 months history → no anomaly emitted).
 **Depends:** D1.
+**Result:** `backend/services/insights/trends.py` (new, pure functions — same
+no-DB-access split as I1's `recurring.py`, reused by the router): `category_trends()`
+returns MoM/YoY per category **plus** a synthesized "Total" row (grand totals across
+all categories), always emitted regardless of history depth — trends are factual
+reporting, not a claim, so there's no honesty gate on them, only on `detect_insights()`'s
+anomaly/streak output. Wired into the existing `insights` router as `GET /api/insights/`
+(returns `{trends: [...], insights: [...]}`), fetching categorized expense
+transactions over a 400-day window (covers current + 3 trailing months + same month
+last year with margin) and passing `today` in explicitly rather than calling
+`datetime.now()` inside the pure function, keeping it testable with an arbitrary
+reference date. **Anomaly honesty rule, implemented precisely as specified**: trailing
+average is computed from the 3 most recent months with *actual nonzero spend* before
+the current month, not just "the 3 preceding calendar months" — a category with a
+history gap doesn't get a falsely-deflated average that makes any real spending look
+anomalous. Requires all three of: ≥3 such prior months, current-month total ≥ $50,
+and current > 2× that trailing average — all three gates verified independently in
+the fixture script (a category with only 2 prior months and a 5x spike correctly
+produced **no** anomaly; a category with 3x ratio but under the $50 floor also
+produced none). **Rising streak**: requires 4 consecutive months of nonzero data
+(current + 3 prior) strictly increasing at every step — a gap anywhere in that window
+means no streak is claimed, same honesty principle. Every `Insight` carries a
+JSON-serializable `evidence` dict with the exact numbers behind its `message` (current
+total, trailing average, multiplier, or the month-by-month series for a streak) —
+the `design-system.md` "transparent AI" requirement I6 will render inline, satisfied
+at the data layer here so I6 has nothing to fabricate. **Verified**: hand-computed
+fixture script (deleted after, per the T1-established "no pytest files" project
+decision) covering 5 categories in one pass — an anomaly case (3 months ~$100 avg,
+spike to $250, 2.5×) correctly flagged with exact evidence numbers; the explicit
+accept-criterion honesty case (2 months history, huge spike) correctly produced zero
+anomalies for that category while its MoM/YoY trend numbers still appeared normally;
+a below-$50-floor case (3x ratio, ~$10→$30) correctly suppressed; a 4-month strictly-
+increasing Shopping series correctly flagged `rising_streak`; a Total row and a
+Rent category's exact MoM (0%) and YoY (+9.09%) percentages both hand-verified exact.
+Re-verified live: seeded a Food & Dining anomaly (3 months at $95/$105/$100, then
+$260) via direct SQL on a throwaway account, hit `GET /api/insights/` — response
+matched the hand-computed values exactly (`mom_change_pct: 160.0`, anomaly
+`multiplier: 2.6`, `trailing_avg: 100.0`). `ruff check` clean. Throwaway account
+deleted after. **Not built here**: no UI renders this endpoint yet — I6 wires it into
+Home's insight cards.
 
-### [ ] I4 — Cash-flow forecast engine
+### [x] I4 — Cash-flow forecast engine — done 2026-07-22
 **Build:** `services/insights/forecast.py`: 60–90 day daily simulation — start = cash
 accounts balance; + income on expected paydays (from I1 income detection); − recurring
 bills on expected dates (I1); − avg daily discretionary (trailing 3 months, excluding
@@ -865,8 +986,48 @@ recurring); output daily balance series + crunch points (days < buffer).
 **Accept:** hand-computed 30-day fixture matches exactly (test); insufficient data →
 explicit "needs ~2 months" response, not a guess.
 **Depends:** I1.
+**Result:** `backend/services/insights/forecast.py` (new, pure function —
+`simulate(start_balance, start_date, horizon_days, recurring_charges,
+avg_daily_discretionary, history_span_days, buffer=0) -> ForecastResult`) wired to
+`GET /api/insights/forecast` (90-day horizon). **Reuses I1's `RecurringCharge`
+objects directly** (not a re-derived shape) — `_occurrences_in_window()` walks each
+charge's `next_expected_date` forward or backward by its `cadence`'s day-count (I1's
+own `CADENCES` table, imported not re-declared) to enumerate every predicted
+occurrence inside the simulation window, so a subscription whose `next_expected_date`
+happens to predate `start_date` (common — I1 computes it from the last historical
+transaction, not from "today") still contributes its future occurrences correctly.
+**Discretionary spend**: router sums expense transactions from the trailing 90 days
+that are *not* among any detected recurring charge's `transaction_ids` — genuinely
+"the spending recurring detection didn't already account for", not a naive average of
+everything. **Honesty rule**: `simulate()` itself gates on `history_span_days < 60`
+and short-circuits to `insufficient_data=True` with a fixed message, before doing any
+simulation work — single source of truth the router doesn't duplicate (confirmed live:
+a fresh throwaway account with zero history got exactly `{"insufficient_data": true,
+"message": "Needs about 2 months of transaction history for an accurate forecast",
+"days": [], "crunch_points": []}`). **Scope decision**: dismissed recurring groups
+(I2's "not a subscription") are excluded from the forecast's recurring charges too,
+for consistency — a group the user has explicitly told the app isn't a recurring
+subscription shouldn't still drive predicted future cash-flow events. Extracted a
+`_fetch_recurring_input()` helper shared between `/recurring` and `/forecast` (both
+need the same transaction shape) rather than duplicating the query.
+**Verified**: hand-computed fixture script (deleted after) with 3 cases — a
+30-day scenario (biweekly $1500 payroll, monthly $1200 rent, monthly $15 Netflix,
+$20/day discretionary, $2000 start) whose end balance ($4,665 = 2000 + 3×1500 −
+1200 − 15 − 31×20) matched exactly, including the exact 3 predicted payday dates and
+2 predicted bill dates; a low-balance scenario that correctly produced a crunch point
+on the exact day the simulated balance first went negative; and the insufficient-data
+short-circuit. Re-verified live: seeded 6 months of biweekly payroll + monthly rent +
+$900 of one-off discretionary spend on a throwaway account (171 days of history,
+$15,900 net balance from the seeded transactions), hit `GET /api/insights/forecast` —
+response matched a full hand recomputation exactly: 7 predicted paydays and 3 rent
+charges landing on the exact predicted dates within the 90-day window, and a final
+balance of $25,390 (verified via the same arithmetic the engine uses, catching my
+own initial off-by-one in the manual check — the window is 91 days inclusive of both
+endpoints, not 90, which the fixture script's assertions had already gotten right).
+`ruff check` clean. Throwaway account deleted after. **Not built here**: I5 wires
+this into the actual "safe to spend" number and Home's hero card.
 
-### [ ] I5 — Safe-to-spend + Home hero wiring
+### [x] I5 — Safe-to-spend + Home hero wiring — done 2026-07-22
 **Build:** `safe_to_spend = cash balance − (bills due before next payday) − (goal
 contributions due)`; endpoint + wire U3's hero (both viewports); sub-line: "next paycheck
 in N days, $X in bills before then".
@@ -874,7 +1035,43 @@ in N days, $X in bills before then".
 data shows honest empty state.
 **Depends:** I4.
 
-### [ ] I6 — Insight cards + advice
+**Result:** `backend/services/insights/safe_to_spend.py` (new, pure function):
+`compute(cash_balance, recurring_charges, goal_monthly_contributions, reference_date,
+history_span_days) -> SafeToSpendResult`. Reuses I4's `MIN_HISTORY_DAYS`/
+`INSUFFICIENT_DATA_MESSAGE` honesty gate. `next_payday` = earliest `next_expected_date`
+among income-type recurring charges, `None` (not fabricated) when no income is detected —
+a distinct, real degenerate case from the insufficient-data gate. `bills_before_payday` =
+sum of expense-charge `avg_amount` where `next_expected_date < next_payday`.
+`goal_contributions_due` = sum of `monthly_contribution` across active, not-yet-complete
+goals (the `Goal` model has no due-date field, so "due" is read as "any active goal's
+full monthly amount" — a defensible reading of the actual schema, not a hidden
+assumption). `backend/routers/insights.py`: extracted `_history_span_days`,
+`_dismissed_filtered_charges`, `_cash_balance` as shared async helpers now used by both
+`/forecast` and `/safe-to-spend` (dismissed I2 subscriptions excluded from both, for
+consistency — a group the user said "isn't a subscription" shouldn't still drive
+predicted cash flow); added `GET /safe-to-spend` → `SafeToSpendResponse`.
+
+Frontend: `store/slices/safeToSpendSlice.ts` (new) — `safeToSpend: {data, loading}` +
+`fetchSafeToSpend()`, registered in `store/types.ts`/`useBoundStore.ts`.
+`shared/hooks/useSafeToSpend.ts` (new) — shared desktop/mobile view hook (`rules/dry.md`):
+fetches on mount, returns `{loading, insufficientData, amount, subLine}`; sub-line built
+via the existing `formatCurrency` helper, `null` when no payday is detected. Wired into
+both `desktop/pages/Home/Home.tsx` and `mobile/pages/Home/Home.tsx` hero cards (mobile's
+pull-to-refresh also now calls `fetchSafeToSpend()` alongside the existing refreshes).
+
+Verified live: registered a throwaway account, seeded 6 months of biweekly $2000 payroll +
+monthly $1200 rent + one active goal (`monthly_contribution=150`) via the real API,
+`GET /api/insights/safe-to-spend` returned `{"safe_to_spend":16650.0,"cash_balance":16800.0,
+"next_payday":"2026-07-24","days_until_payday":2,"bills_before_payday":0.0,
+"goal_contributions_due":150.0}`, matching hand-calculation exactly. Confirmed via
+Playwright on both viewports (1280×900 desktop, 390×844 mobile): hero shows "$16,650.00" /
+"Next paycheck in 2 days, $0.00 in bills before then" on the seeded account, and the honest
+"—" / "Needs about 2 months of transaction history for an accurate forecast" empty state on
+a second fresh throwaway account with no history, on both viewports. `tsc --noEmit` and
+`eslint` clean. Both throwaway accounts deleted after (`DELETE FROM users WHERE email IN
+(...)`, cascades).
+
+### [x] I6 — Insight cards + advice — done 2026-07-22
 **Build:** rules generate advice per AI allocation table (rank subscription costs, flag
 increases, budget drift, goal pacing) — deterministic, evidence attached, template-worded;
 local AI (if Ollama present) or Gemini (if the user's T5 toggle is on) may rephrase
@@ -888,6 +1085,68 @@ card ever shows a number that isn't in its evidence payload (test the generator)
 AI-worded cards are visually distinguishable from template cards (Playwright); dismiss
 persists and suppresses recurrence (test).
 **Depends:** I1, I3, U3.
+
+**Result:** `backend/services/insights/advice.py` (new, pure function, no DB/AI access —
+same split as the rest of `services/insights/`): `generate(charges, trend_insights,
+budgets, goals, today) -> list[AdviceCard]` covering all 5 rule types from the Build
+line plus I3's already-built-but-unwired `anomaly`/`rising_streak` insights:
+`price_hike` (I1's `price_hike` flag), `budget_drift` (≥90% of a budget period used,
+priority split over-budget vs near-limit), `goal_pacing` (deadline-based or
+monthly-contribution-based expected-vs-actual %, **only when a real timeline exists** —
+a goal with neither a deadline nor a monthly contribution gets no verdict, honesty rule
+extended to pacing, verified in the fixture script's "New Car" case), and
+`top_subscriptions` (I1's subscriptions ranked by `monthly_equivalent`). Cards sorted by
+priority (anomaly/price_hike/over-budget first) and capped at 5. **Ollama note**: this
+project has no Ollama client anywhere yet (tracked separately under Phase S, `S1`–`S3`
+haven't landed) — implementing a fake local-AI path here would be exactly the
+"unfinished implementation" pattern the project avoids, so the AI layer is Gemini-only,
+gated by the same `ai_cloud_enabled` toggle every other AI call already checks; with the
+toggle off (or absent, the default) every card is 100% deterministic template text,
+satisfying the accept criterion's "Ollama absent" case by construction.
+
+`backend/services/ai/rephrase.py` (new): `rephrase(template, cloud_enabled) -> str |
+None` — Gemini call gated by `cloud_enabled` + API key presence (same pattern as
+`ai_service.py`/`chat.py`), with an explicit **numeric-safety check**: every number
+substring in the template must still appear in the reworded text, or the rephrase is
+discarded and the template is used instead — enforces "never invent numbers"
+programmatically, not just via prompt wording. `backend/database/alembic/versions/
+0003_dismissed_insight_types.py` (new migration, applied): `dismissed_insight_types`
+table, unique on `(profile_id, insight_type)` — dismiss-by-type per I2's precedent.
+`backend/routers/insights.py`: extracted `_fetch_categorized_transactions` (was inline
+in `GET /`, now shared with `/advice`), added `_budget_statuses`/`_goal_statuses`
+helpers, `GET /advice` (assembles charges/trend-insights/budgets/goals, filters
+dismissed types, calls `rephrase()` per card, returns `ai_generated: bool` per card) and
+`POST /advice/dismiss`.
+
+Frontend: `store/slices/adviceSlice.ts` (new, same optimistic-dismiss-with-rollback
+pattern as `recurringInsightsSlice`), registered in `store/types.ts`/`useBoundStore.ts`.
+`desktop/pages/Home/InsightCards.tsx` (new): renders each card's message, an
+evidence line built per-type from the `evidence` payload (e.g. "$260.00 this month vs a
+$100.00 average"), a purple "AI" badge with a `Bot` icon when `ai_generated` is true
+(distinct from template cards, no badge otherwise), and a dismiss `IconButton` calling
+`dismissAdviceType`; falls back to the pre-existing "Insights need a bit more data"
+empty state when the card list is empty. Wired into `desktop/pages/Home/Home.tsx`,
+replacing the static placeholder card (not built on mobile — the ticket's Build line
+scopes this to desktop Home only).
+
+Verified live: fixture script (`services/insights/advice.py` pure functions, deleted
+after) covering all 5 card types plus two negative goal-pacing cases (on-pace goal via
+`monthly_contribution`, and a goal with neither a deadline nor a contribution — correctly
+produced zero cards for both) — all assertions passed, including priority-ordering and
+the 5-card cap. Live: registered a throwaway account, seeded a Netflix price hike
+(4mo @ $12.99 → 2mo @ $18.99), a Spotify subscription, a Food & Dining spend spike
+(3 months ~$100 avg → $260, seeded via the real API), a $200 Food & Dining budget
+already at $288.98 spent, and a goal backdated via direct SQL to simulate 90 days
+elapsed against a 180-day deadline with only 5% saved. `GET /api/insights/advice`
+returned all 5 expected cards with exact evidence numbers; confirmed the em-dash
+"garbling" seen in one terminal echo was a Windows console codepage artifact, not a
+real bug — raw response bytes and the rendered page both showed the correct "—"
+character. Verified via Playwright on desktop (1280×1000): all 5 cards rendered with
+message + evidence line + dismiss button; dismissing "top_subscriptions" removed it
+immediately and it stayed gone after a full page reload (server-side persistence
+confirmed); a second fresh throwaway account with zero transactions correctly showed
+the honest empty state. `tsc --noEmit`, `eslint`, and `ruff check` all clean. Both
+throwaway accounts deleted after.
 
 ---
 

@@ -1,4 +1,4 @@
-import { namespaceSlice } from '../namespaceSlice.ts'
+import { namespaceSlice, isFresh } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
 
 interface Goal {
@@ -23,8 +23,9 @@ export type GoalsSlice = {
   goals: {
     items: Goal[]
     loading: boolean
+    lastFetchedAt: number | null
   }
-  fetchGoals: () => Promise<void>
+  fetchGoals: (opts?: { force?: boolean }) => Promise<void>
   createGoal: (data: {
     name: string
     target_amount: number
@@ -58,12 +59,14 @@ export type GoalsSlice = {
 export const createGoalsSlice = namespaceSlice('goals', (set, get) => ({
   items: [] as Goal[],
   loading: true,
+  lastFetchedAt: null as number | null,
 
-  fetchGoals: async () => {
+  fetchGoals: async (opts?: { force?: boolean }) => {
+    if (!opts?.force && isFresh(get().lastFetchedAt)) return
     set({ loading: true })
     try {
       const res = await api.get('/api/goals/')
-      set({ items: res.data })
+      set({ items: res.data, lastFetchedAt: Date.now() })
     } finally {
       set({ loading: false })
     }

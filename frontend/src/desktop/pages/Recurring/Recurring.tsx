@@ -1,4 +1,4 @@
-import { useState, useEffect, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -29,6 +29,7 @@ import type { Bill } from '../../../store/slices/billsSlice.ts'
 import type { Budget } from '../../../store/slices/budgetsSlice.ts'
 import { BillFormDialog } from './BillFormDialog.tsx'
 import { BillDetail } from './BillDetail/BillDetail.tsx'
+import { DetectedSubscriptions } from './DetectedSubscriptions.tsx'
 import styles from './Recurring.module.css'
 
 const budgetPeriodLabel: Record<string, string> = {
@@ -74,22 +75,72 @@ export const Recurring = (): JSX.Element => {
         deleteBudget: s.deleteBudget,
       })),
     )
+  const {
+    budgetDialogOpen,
+    editingBudget,
+    budgetName,
+    budgetAmount,
+    budgetPeriod,
+    budgetSaving,
+    budgetDeleteId,
+    budgetDeleting,
+    formOpen,
+    editingBill,
+    selectedBill,
+    saving,
+    setBudgetDialogOpen,
+    setEditingBudget,
+    setBudgetName,
+    setBudgetAmount,
+    setBudgetPeriod,
+    setBudgetSaving,
+    setBudgetDeleteId,
+    setBudgetDeleting,
+    setFormOpen,
+    setEditingBill,
+    setSelectedBill,
+    setSaving,
+    resetRecurringPage,
+  } = useBoundStore(
+    useShallow((s) => ({
+      budgetDialogOpen: s.recurringPage.budgetDialogOpen,
+      editingBudget: s.recurringPage.editingBudget,
+      budgetName: s.recurringPage.budgetName,
+      budgetAmount: s.recurringPage.budgetAmount,
+      budgetPeriod: s.recurringPage.budgetPeriod,
+      budgetSaving: s.recurringPage.budgetSaving,
+      budgetDeleteId: s.recurringPage.budgetDeleteId,
+      budgetDeleting: s.recurringPage.budgetDeleting,
+      formOpen: s.recurringPage.formOpen,
+      editingBill: s.recurringPage.editingBill,
+      selectedBill: s.recurringPage.selectedBill,
+      saving: s.recurringPage.saving,
+      setBudgetDialogOpen: s.setBudgetDialogOpen,
+      setEditingBudget: s.setEditingBudget,
+      setBudgetName: s.setBudgetName,
+      setBudgetAmount: s.setBudgetAmount,
+      setBudgetPeriod: s.setBudgetPeriod,
+      setBudgetSaving: s.setBudgetSaving,
+      setBudgetDeleteId: s.setBudgetDeleteId,
+      setBudgetDeleting: s.setBudgetDeleting,
+      setFormOpen: s.setFormOpen,
+      setEditingBill: s.setEditingBill,
+      setSelectedBill: s.setSelectedBill,
+      setSaving: s.setSaving,
+      resetRecurringPage: s.resetRecurringPage,
+    })),
+  )
 
   useEffect(() => {
+    // Left-over dialog/selection state from a previous visit must never leak into a
+    // fresh one — same rule registerFormSlice/quickAddModalSlice follow.
+    resetRecurringPage()
     fetchBills()
     fetchUpcomingBills()
     fetchAccounts()
     fetchBudgets()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchBills, fetchUpcomingBills, fetchAccounts, fetchBudgets])
-
-  const [budgetDialogOpen, setBudgetDialogOpen] = useState(false)
-  const [editingBudget, setEditingBudget] = useState<Budget | null>(null)
-  const [budgetName, setBudgetName] = useState('')
-  const [budgetAmount, setBudgetAmount] = useState('')
-  const [budgetPeriod, setBudgetPeriod] = useState('monthly')
-  const [budgetSaving, setBudgetSaving] = useState(false)
-  const [budgetDeleteId, setBudgetDeleteId] = useState<number | null>(null)
-  const [budgetDeleting, setBudgetDeleting] = useState(false)
 
   const openBudgetCreate = () => {
     setEditingBudget(null)
@@ -147,11 +198,6 @@ export const Recurring = (): JSX.Element => {
       setBudgetDeleting(false)
     }
   }
-
-  const [formOpen, setFormOpen] = useState(false)
-  const [editingBill, setEditingBill] = useState<Bill | null>(null)
-  const [selectedBill, setSelectedBill] = useState<Bill | null>(null)
-  const [saving, setSaving] = useState(false)
 
   const totalMonthlyCents = sumMonthlyEquivalentCents(bills.filter((b) => b.is_active))
 
@@ -340,6 +386,8 @@ export const Recurring = (): JSX.Element => {
               </Table.Body>
             </Table.Root>
           )}
+
+          <DetectedSubscriptions />
 
           <Flex align="center" justify="between" mb="3">
             <Text as="div" className={styles.sectionTitle}>

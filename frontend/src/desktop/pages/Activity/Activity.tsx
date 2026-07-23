@@ -11,7 +11,7 @@ import {
   Button,
   Checkbox,
 } from '@radix-ui/themes'
-import { Search, Trash2, Calendar, Download, Upload } from 'lucide-react'
+import { Search, Trash2, Calendar, Download, Upload, FileUp } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
 import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
@@ -25,6 +25,7 @@ import { useCsvImport } from '../../../shared/hooks/useCsvImport.ts'
 import type { Transaction } from '../../../store/slices/transactionsSlice.ts'
 import { TransactionDetailDialog } from './TransactionDetailDialog.tsx'
 import { ImportDialog } from './ImportDialog.tsx'
+import { DocumentUploadDialog } from './DocumentUploadDialog.tsx'
 import styles from './Activity.module.css'
 
 type DateGroup = 'today' | 'yesterday' | 'thisWeek' | 'earlier'
@@ -92,6 +93,7 @@ export const Activity = (): JSX.Element => {
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [selectMode, setSelectMode] = useState(false)
+  const [documentUploadOpen, setDocumentUploadOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkCategory, setBulkCategory] = useState('')
   const [bulkAccount, setBulkAccount] = useState('')
@@ -243,6 +245,9 @@ export const Activity = (): JSX.Element => {
         </Button>
         <Button variant="outline" size="2" onClick={() => csv.setImportOpen(true)}>
           <Upload size={14} /> Import CSV
+        </Button>
+        <Button variant="outline" size="2" onClick={() => setDocumentUploadOpen(true)}>
+          <FileUp size={14} /> Upload Receipt
         </Button>
         <Button
           variant={selectMode ? 'solid' : 'outline'}
@@ -427,6 +432,7 @@ export const Activity = (): JSX.Element => {
       </Dialog.Root>
 
       <ImportDialog currency={currency} csv={csv} />
+      <DocumentUploadDialog open={documentUploadOpen} onOpenChange={setDocumentUploadOpen} />
     </Box>
   )
 }

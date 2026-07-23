@@ -16,21 +16,18 @@ import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { useProfileSwitch } from '../../../shared/hooks/useProfileSwitch.ts'
 import { COUNTRY_FLAG, COUNTRY_NAME } from '../../../shared/utils/countries.ts'
-import type { Country } from '../../../shared/types/user.ts'
 import styles from './TopBar.module.css'
-
-const ADDABLE_COUNTRIES: Country[] = ['US', 'IN', 'CA']
 
 export const TopBar = (): JSX.Element => {
   const { user, logout } = useBoundStore(
     useShallow((s) => ({ user: s.auth.user, logout: s.logout })),
   )
   const { dark, toggle } = useAppTheme()
-  const { profiles, activeProfileId, switchProfile, addProfile } = useProfileSwitch()
+  const { profiles, activeProfileId, addableCountries, switchProfile, addProfile } =
+    useProfileSwitch()
   const navigate = useNavigate()
 
   const initial = user?.email?.charAt(0).toUpperCase() || 'U'
-  const addableCountries = ADDABLE_COUNTRIES.filter((c) => !profiles.some((p) => p.country === c))
 
   const handleLogout = async () => {
     await logout()

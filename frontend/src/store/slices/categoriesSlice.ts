@@ -1,4 +1,4 @@
-import { namespaceSlice } from '../namespaceSlice.ts'
+import { namespaceSlice, isFresh } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
 
 interface CategoryNode {
@@ -45,8 +45,9 @@ export type CategoriesSlice = {
     loading: boolean
     spending: CategorySpending[]
     spendingLoading: boolean
+    lastFetchedAt: number | null
   }
-  fetchCategories: () => Promise<void>
+  fetchCategories: (opts?: { force?: boolean }) => Promise<void>
   fetchSpendingByCategory: (days?: number) => Promise<void>
   createCategory: (data: {
     name: string
@@ -60,19 +61,21 @@ export type CategoriesSlice = {
   deleteCategory: (id: number) => Promise<void>
 }
 
-export const createCategoriesSlice = namespaceSlice('categories', (set) => ({
+export const createCategoriesSlice = namespaceSlice('categories', (set, get) => ({
   tree: [] as CategoryNode[],
   flat: [] as FlatCategory[],
   loading: true,
   spending: [] as CategorySpending[],
   spendingLoading: false,
+  lastFetchedAt: null as number | null,
 
-  fetchCategories: async () => {
-    set({ loading: true, tree: [], flat: [] })
+  fetchCategories: async (opts?: { force?: boolean }) => {
+    if (!opts?.force && isFresh(get().lastFetchedAt)) return
+    set({ loading: true })
     try {
       const res = await api.get('/api/categories/')
       const tree = res.data as CategoryNode[]
-      set({ tree, flat: flattenCategories(tree) })
+      set({ tree, flat: flattenCategories(tree), lastFetchedAt: Date.now() })
     } finally {
       set({ loading: false })
     }

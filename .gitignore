@@ -187,6 +187,9 @@ frontend/build/
 backend/build/
 backend/dist/
 
+# Uploaded documents (S1) — user-uploaded receipts/bills/statements, never committed
+backend/uploads/
+
 # Ruff cache
 .ruff_cache/
 

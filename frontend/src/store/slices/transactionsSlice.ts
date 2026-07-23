@@ -121,11 +121,13 @@ export const createTransactionsSlice = namespaceSlice('transactions', (set, get)
     set({ items: items.filter((t) => t.id !== id) })
 
     api.delete(`/api/transactions/${id}`).catch(() => {
-      // Restore at its original sort position, not appended to the end — the list is
-      // date-sorted, and re-adding at the tail would misplace it visually.
+      // Restore date-sorted (list is sorted desc by date), not at the captured
+      // `index` — the array can have grown/shrunk (infinite scroll, another delete)
+      // by the time this rollback runs, making that index stale.
       const current: Transaction[] = get().items
+      const restoreAt = current.findIndex((t) => new Date(t.date) < new Date(tx.date))
       const restored = [...current]
-      restored.splice(index, 0, tx)
+      restored.splice(restoreAt === -1 ? current.length : restoreAt, 0, tx)
       set({ items: restored })
       toast.error('Failed to delete transaction')
     })

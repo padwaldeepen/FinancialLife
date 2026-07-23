@@ -16,8 +16,10 @@ from routers import (
     budgets,
     categories,
     chat,
+    documents,
     export,
     goals,
+    insights,
     merchants,
     reports,
     transactions,
@@ -75,6 +77,8 @@ app.include_router(goals.router, prefix="/api/goals", tags=["Goals"])
 app.include_router(merchants.router)
 app.include_router(export.router, prefix="/api/export", tags=["Export"])
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
+app.include_router(insights.router, prefix="/api/insights", tags=["Insights"])
+app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
 
 
 @app.get("/")

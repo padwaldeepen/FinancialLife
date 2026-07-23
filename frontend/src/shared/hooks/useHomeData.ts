@@ -81,7 +81,7 @@ export const useHomeData = (): HomeData => {
     recentTransactions: transactions.slice(0, 5),
     txLoading,
     upcomingBills,
-    loading: accountsLoading && txLoading,
+    loading: accountsLoading || txLoading,
     refresh,
   }
 }

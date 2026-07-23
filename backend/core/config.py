@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     # machine for users who haven't opted in).
     GEMINI_API_KEY: str = ""
 
+    # S1: uploaded receipts/bills/statements. Relative to the backend working
+    # directory — the docker-compose bind mount (./backend:/app) makes this persist
+    # on the host without a separate named volume.
+    UPLOAD_DIR: str = "uploads"
+    MAX_UPLOAD_SIZE_BYTES: int = 15 * 1024 * 1024
+
 
 settings = Settings()
 

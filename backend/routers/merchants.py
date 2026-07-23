@@ -1,5 +1,3 @@
-import json
-
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -43,17 +41,11 @@ class MerchantMerge(BaseModel):
 
 
 def _to_response(row: dict) -> MerchantResponse:
-    # No jsonb codec is registered on this pool, so `aliases` comes back as raw JSON
-    # text rather than a decoded list whenever it's non-null (merge_merchants writes it
-    # with an explicit json.dumps for the same reason).
-    aliases = row["aliases"]
-    if isinstance(aliases, str):
-        aliases = json.loads(aliases)
     return MerchantResponse(
         id=row["id"],
         name=row["name"],
         normalized_name=row["normalized_name"],
-        aliases=aliases,
+        aliases=row["aliases"],
         is_hidden=row["is_hidden"],
         transaction_count=row["transaction_count"],
         total_spent=float(row["total_spent"]),

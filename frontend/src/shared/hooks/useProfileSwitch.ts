@@ -2,9 +2,15 @@ import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../store/useBoundStore.ts'
 import type { Country, Profile } from '../../shared/types/user.ts'
 
+// Every country a user could ever have a profile for — the one place this list is
+// defined (was previously copy-pasted in TopBar.tsx, Manage/AccountTab.tsx, and
+// mobile Home.tsx).
+const ADDABLE_COUNTRIES: Country[] = ['US', 'IN', 'CA']
+
 interface UseProfileSwitchResult {
   profiles: Profile[]
   activeProfileId: number | null
+  addableCountries: Country[]
   switchProfile: (profileId: number) => void
   addProfile: (country: Country) => Promise<void>
 }
@@ -39,5 +45,13 @@ export const useProfileSwitch = (): UseProfileSwitchResult => {
     window.location.reload()
   }
 
-  return { profiles, activeProfileId, switchProfile, addProfile: addProfileAndSwitch }
+  const addableCountries = ADDABLE_COUNTRIES.filter((c) => !profiles.some((p) => p.country === c))
+
+  return {
+    profiles,
+    activeProfileId,
+    addableCountries,
+    switchProfile,
+    addProfile: addProfileAndSwitch,
+  }
 }

@@ -1,4 +1,4 @@
-import { namespaceSlice } from '../namespaceSlice.ts'
+import { namespaceSlice, isFresh } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
 
 export interface Budget {
@@ -17,8 +17,9 @@ export type BudgetsSlice = {
   budgets: {
     items: Budget[]
     loading: boolean
+    lastFetchedAt: number | null
   }
-  fetchBudgets: () => Promise<void>
+  fetchBudgets: (opts?: { force?: boolean }) => Promise<void>
   createBudget: (data: {
     name: string
     amount: number
@@ -41,12 +42,14 @@ export type BudgetsSlice = {
 export const createBudgetsSlice = namespaceSlice('budgets', (set, get) => ({
   items: [] as Budget[],
   loading: true,
+  lastFetchedAt: null as number | null,
 
-  fetchBudgets: async () => {
+  fetchBudgets: async (opts?: { force?: boolean }) => {
+    if (!opts?.force && isFresh(get().lastFetchedAt)) return
     set({ loading: true })
     try {
       const res = await api.get('/api/budgets/')
-      set({ items: res.data })
+      set({ items: res.data, lastFetchedAt: Date.now() })
     } finally {
       set({ loading: false })
     }

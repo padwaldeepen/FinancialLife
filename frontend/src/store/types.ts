@@ -16,6 +16,7 @@ import type { RecurringPageSlice } from './slices/recurringPageSlice.ts'
 import type { RecurringInsightsSlice } from './slices/recurringInsightsSlice.ts'
 import type { SafeToSpendSlice } from './slices/safeToSpendSlice.ts'
 import type { AdviceSlice } from './slices/adviceSlice.ts'
+import type { DocumentsSlice } from './slices/documentsSlice.ts'
 
 export type StoreState = AuthSlice &
   UISlice &
@@ -34,4 +35,5 @@ export type StoreState = AuthSlice &
   RecurringPageSlice &
   RecurringInsightsSlice &
   SafeToSpendSlice &
-  AdviceSlice
+  AdviceSlice &
+  DocumentsSlice

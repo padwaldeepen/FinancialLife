@@ -169,3 +169,8 @@ Consumers access state as `s.auth.user` and actions as `s.login()`.
   `DesktopApp.tsx` and `MobileApp.tsx` (DRY: one implementation, not two copies). If a
   "shared component" candidate has real page-specific layout/styling, it belongs in
   `desktop/`/`mobile/` instead, per the CSS-never-shared rule above.
+- **Don't split out a component/file for 3-4 lines of markup used exactly once.** A
+  small block of JSX (a label + a value, a single conditional row) stays inline in its
+  parent unless it's reused elsewhere or the parent is already unreadably long. A new
+  file is justified by genuine reuse or genuine size, not by "everything gets its own
+  component" as a default habit — that's over-engineering, not organization.

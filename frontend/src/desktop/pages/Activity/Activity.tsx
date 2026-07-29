@@ -11,7 +11,7 @@ import {
   Button,
   Checkbox,
 } from '@radix-ui/themes'
-import { Search, Trash2, Calendar, Download, Upload, FileUp } from 'lucide-react'
+import { Search, Trash2, Calendar, Download, Upload, FileUp, Paperclip } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
 import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
@@ -26,6 +26,8 @@ import type { Transaction } from '../../../store/slices/transactionsSlice.ts'
 import { TransactionDetailDialog } from './TransactionDetailDialog.tsx'
 import { ImportDialog } from './ImportDialog.tsx'
 import { DocumentUploadDialog } from './DocumentUploadDialog.tsx'
+import { PendingReceipts } from './PendingReceipts.tsx'
+import { DocumentViewerDialog } from './DocumentViewerDialog.tsx'
 import styles from './Activity.module.css'
 
 type DateGroup = 'today' | 'yesterday' | 'thisWeek' | 'earlier'
@@ -94,6 +96,7 @@ export const Activity = (): JSX.Element => {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [selectMode, setSelectMode] = useState(false)
   const [documentUploadOpen, setDocumentUploadOpen] = useState(false)
+  const [viewingDocumentId, setViewingDocumentId] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkCategory, setBulkCategory] = useState('')
   const [bulkAccount, setBulkAccount] = useState('')
@@ -181,6 +184,8 @@ export const Activity = (): JSX.Element => {
           <Search size={16} />
         </TextField.Slot>
       </TextField.Root>
+
+      <PendingReceipts />
 
       <Flex className={styles.filterBar} mb="4" wrap="wrap">
         <Select.Root value={filters.typeFilter} onValueChange={setTypeFilter}>
@@ -362,6 +367,17 @@ export const Activity = (): JSX.Element => {
                         <Text size="1" color="gray">
                           {format(parseISO(t.date), 'MMM d')}
                         </Text>
+                        {t.document_id != null && (
+                          <Paperclip
+                            size={12}
+                            color="var(--gray-9)"
+                            aria-label="View source document"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setViewingDocumentId(t.document_id!)
+                            }}
+                          />
+                        )}
                       </Flex>
                     </Flex>
                     <Flex align="center" gap="3" className={styles.txActions}>
@@ -433,6 +449,12 @@ export const Activity = (): JSX.Element => {
 
       <ImportDialog currency={currency} csv={csv} />
       <DocumentUploadDialog open={documentUploadOpen} onOpenChange={setDocumentUploadOpen} />
+      {viewingDocumentId != null && (
+        <DocumentViewerDialog
+          documentId={viewingDocumentId}
+          onClose={() => setViewingDocumentId(null)}
+        />
+      )}
     </Box>
   )
 }

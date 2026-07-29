@@ -21,6 +21,7 @@ export interface Transaction {
   date: string
   notes: string | null
   ai_categorized: boolean
+  document_id: number | null
   created_at: string
 }
 

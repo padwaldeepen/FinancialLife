@@ -19,6 +19,7 @@ import { createRecurringPageSlice } from './slices/recurringPageSlice.ts'
 import { createRecurringInsightsSlice } from './slices/recurringInsightsSlice.ts'
 import { createSafeToSpendSlice } from './slices/safeToSpendSlice.ts'
 import { createAdviceSlice } from './slices/adviceSlice.ts'
+import { createDocumentsSlice } from './slices/documentsSlice.ts'
 import type { StoreState } from './types.ts'
 
 export const useBoundStore = create<StoreState>()(
@@ -42,6 +43,7 @@ export const useBoundStore = create<StoreState>()(
       ...(createRecurringInsightsSlice(...a) as unknown as StoreState),
       ...(createSafeToSpendSlice(...a) as unknown as StoreState),
       ...(createAdviceSlice(...a) as unknown as StoreState),
+      ...(createDocumentsSlice(...a) as unknown as StoreState),
     })),
     { name: 'My Financial Life' },
   ),

@@ -1,4 +1,4 @@
-import { useRef, useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -9,10 +9,13 @@ import {
   IconButton,
   Dialog,
   Button,
+  Card,
 } from '@radix-ui/themes'
-import { Search, Trash2, X, Calendar } from 'lucide-react'
+import { Search, Trash2, X, Calendar, FileText } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
+import { useShallow } from 'zustand/react/shallow'
 import toast from '../../../shared/utils/toast.ts'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import { useTransactionFilters } from '../../../shared/hooks/useTransactionFilters.ts'
@@ -59,11 +62,28 @@ export const Activity = (): JSX.Element => {
     updateNotes,
   } = useTransactionList(filters)
 
+  const { pending, fetchPendingDocuments, openScanReview } = useBoundStore(
+    useShallow((s) => ({
+      // Select the stable array reference — filtering *inside* the selector returns a new
+      // array every render and makes useShallow loop forever (Zustand pitfall).
+      pending: s.documents.pending,
+      fetchPendingDocuments: s.fetchPendingDocuments,
+      openScanReview: s.openScanReview,
+    })),
+  )
+  // Only receipt-kind docs get the mobile review sheet; statements need the desktop
+  // multi-row table (S4), so they're not surfaced here.
+  const pendingReceipts = pending.filter((d) => d.kind !== 'statement')
+
   const [showFilters, setShowFilters] = useState(false)
   const [swipedId, setSwipedId] = useState<number | null>(null)
   const [selected, setSelected] = useState<Transaction | null>(null)
   const [editNotes, setEditNotes] = useState('')
   const touchStartX = useRef(0)
+
+  useEffect(() => {
+    fetchPendingDocuments()
+  }, [fetchPendingDocuments])
 
   const openDetail = (t: Transaction) => {
     setSelected(t)
@@ -109,6 +129,37 @@ export const Activity = (): JSX.Element => {
           <Search size={16} />
         </TextField.Slot>
       </TextField.Root>
+
+      {pendingReceipts.length > 0 && (
+        <Flex direction="column" gap="2" mb="3">
+          {pendingReceipts.map((doc) => (
+            <Card
+              key={doc.id}
+              className={styles.pendingCard}
+              onClick={() => openScanReview(doc.id)}
+            >
+              <Flex align="center" justify="between" gap="2">
+                <Flex align="center" gap="2" className={styles.txContent}>
+                  <FileText size={16} color="var(--gray-9)" />
+                  <Box>
+                    <Text as="div" size="2" weight="medium">
+                      {doc.extracted_json?.merchant || 'Scanned receipt'}
+                    </Text>
+                    <Text as="div" size="1" color="gray">
+                      {doc.extracted_json?.total != null
+                        ? `${formatCurrency(doc.extracted_json.total, currency)} · tap to review`
+                        : 'Tap to review'}
+                    </Text>
+                  </Box>
+                </Flex>
+                <Badge color="amber" size="1">
+                  Pending
+                </Badge>
+              </Flex>
+            </Card>
+          ))}
+        </Flex>
+      )}
 
       <Flex gap="2" mb="2" align="center" wrap="wrap">
         <Select.Root value={filters.typeFilter} onValueChange={setTypeFilter}>

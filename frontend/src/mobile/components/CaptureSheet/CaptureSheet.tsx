@@ -1,28 +1,43 @@
-import { type JSX } from 'react'
+import { useRef, type JSX } from 'react'
 import { Dialog, Flex, Text, Card } from '@radix-ui/themes'
 import { Type, Camera } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { useDocumentUpload } from '../../../shared/hooks/useDocumentUpload.ts'
 import styles from './CaptureSheet.module.css'
 
-// U8: the center tab button opens this sheet instead of jumping straight into the
-// typed quick-add modal — Type and Scan are two distinct capture paths, not one.
-// Scan stays disabled until S6 lands real document scanning (tiered Ollama/Gemini
-// vision + Tesseract fallback); the receipt-OCR camera icon already inside the Type
-// flow (AddTransactionModal) is a different, already-shipped feature — a raw-text
-// scan that still goes through the same NL parse, not structured document extraction.
+// U8: the center tab button opens this sheet — Type and Scan are two distinct capture
+// paths. S6 wires up Scan: the camera (rear on HTTPS/localhost, gallery picker over LAN
+// HTTP) → the existing S1–S3 document pipeline → mobile review sheet. The receipt-OCR
+// camera icon inside the Type flow (AddTransactionModal) is a separate, older feature
+// (raw text → NL parse), not this structured document extraction.
 export const CaptureSheet = (): JSX.Element => {
-  const { captureSheetOpen, closeCaptureSheet, openAddModal } = useBoundStore(
+  const fileRef = useRef<HTMLInputElement>(null)
+  const { captureSheetOpen, closeCaptureSheet, openAddModal, openScanReview } = useBoundStore(
     useShallow((s) => ({
       captureSheetOpen: s.ui.captureSheetOpen,
       closeCaptureSheet: s.closeCaptureSheet,
       openAddModal: s.openAddModal,
+      openScanReview: s.openScanReview,
     })),
   )
+  const fetchPendingDocuments = useBoundStore((s) => s.fetchPendingDocuments)
+  const { uploading, upload } = useDocumentUpload()
 
   const handleType = () => {
     closeCaptureSheet()
     openAddModal()
+  }
+
+  const handleScanFile = async (file: File) => {
+    const docId = await upload(file, 'receipt')
+    if (docId == null) return
+    // Extraction runs synchronously in the upload endpoint, so the pending list already
+    // has this document with its extracted fields by the time upload resolves — await
+    // the refresh, then open review for exactly this document.
+    await fetchPendingDocuments({ force: true })
+    closeCaptureSheet()
+    openScanReview(docId)
   }
 
   return (
@@ -47,19 +62,37 @@ export const CaptureSheet = (): JSX.Element => {
               </Flex>
             </Flex>
           </Card>
-          <Card className={`${styles.option} ${styles.optionDisabled}`}>
+
+          <Card className={styles.option} onClick={() => !uploading && fileRef.current?.click()}>
             <Flex align="center" gap="3">
               <Flex className={styles.iconCircle} align="center" justify="center">
                 <Camera size={20} />
               </Flex>
               <Flex direction="column">
                 <Text weight="medium">Scan</Text>
+                {/* The explainer sits on the card, visible BEFORE the tap that triggers
+                    the camera-permission prompt — a purpose note raises acceptance. */}
                 <Text size="2" color="gray">
-                  Coming with document scanning
+                  {uploading ? 'Reading it…' : 'Snap the whole receipt — read on this device'}
                 </Text>
               </Flex>
             </Flex>
           </Card>
+
+          {/* `capture="environment"` opens the rear camera directly on HTTPS/localhost; over
+              plain LAN HTTP the browser silently falls back to the gallery/file picker. */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,application/pdf"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) handleScanFile(file)
+              e.target.value = ''
+            }}
+          />
         </Flex>
       </Dialog.Content>
     </Dialog.Root>

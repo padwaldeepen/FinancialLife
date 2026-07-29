@@ -39,7 +39,10 @@ is the equivalent source of truth: `frontend.md`, `backend.md`, `database.md`,
    already has. Name the existing helper.
 5. **Simplification** — redundant/derivable state, deep nesting, dead code, more
    `useState` calls than `rules/zustand.md` allows (more than one piece of state →
-   Zustand, not useState).
+   Zustand, not useState). Also over-engineering in the other direction: a new
+   file/component/helper split out for 3-4 lines used exactly once, where inlining in
+   the parent would've been simpler (`rules/frontend.md`) — flag it the same way as
+   duplication, not as a style nitpick.
 6. **Efficiency** — sequential awaits that could be `Promise.all`, N+1 query
    patterns, redundant fetches, work added to hot paths/mount.
 7. **Altitude** — a bug patched at 2-3 call sites instead of fixed once at the

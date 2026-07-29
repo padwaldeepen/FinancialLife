@@ -63,6 +63,18 @@
   transform: translateX(-48px);
 }
 
+.pendingCard {
+  border-radius: var(--radius-card) !important;
+  border: 1px solid var(--amber-6);
+  background: var(--amber-2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pendingCard:active {
+  background: var(--amber-3);
+}
+
 .emptyState {
   display: flex;
   flex-direction: column;

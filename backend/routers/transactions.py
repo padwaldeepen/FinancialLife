@@ -86,6 +86,7 @@ class TransactionResponse(BaseModel):
     notes: str | None
     ai_categorized: bool
     source: str = "manual"
+    document_id: int | None = None
     created_at: datetime
 
     class Config:
@@ -113,6 +114,7 @@ def _to_response(row: dict) -> TransactionResponse:
         notes=row["notes"],
         ai_categorized=row["ai_categorized"],
         source=row.get("source", "manual"),
+        document_id=row.get("document_id"),
         created_at=row["created_at"],
     )
 
@@ -406,44 +408,71 @@ async def _preview_merchant_name(
     return match.name if match else raw_name
 
 
+async def _cloud_enabled(profile: Profile, conn: asyncpg.Connection) -> bool:
+    row = await conn.fetchrow("SELECT ai_cloud_enabled FROM users WHERE id = $1", profile.user_id)
+    return bool(row["ai_cloud_enabled"]) if row else False
+
+
+async def _rules_first_parse(text: str, cloud_enabled: bool) -> dict:
+    """S7: rules first (T1 contract), Gemini fallback **only when rules can't find the
+    amount** and the user opted into cloud AI. The amount is the one field the
+    preview/one-question flow can't infer for the user, so it's the honest "rules
+    genuinely couldn't" trigger — everything else (description, category, merchant, date)
+    rules + D5 fuzzy matching resolve locally, with the preview for correction. Net effect:
+    common inputs ("coffee 4.50") **never leave the machine**, even with the toggle on;
+    the cloud is touched only for input rules truly can't handle, and never when the
+    toggle is off. Returns a normalized candidate dict with `provider` = "rules" | "gemini"."""
+    rules = parse_transaction(text)
+
+    if rules["amount"] is None and cloud_enabled:
+        ai = await ai_service.parse(text, cloud_enabled=True)
+        if ai is not None and ai.amount is not None:
+            return {
+                "amount": ai.amount,
+                "description": ai.description,
+                "type": ai.transaction_type,
+                "category": ai.category,
+                "merchant": ai.merchant,
+                "date": None,
+                "date_explicit": False,
+                "missing": [],
+                "provider": "gemini",
+            }
+
+    return {
+        "amount": rules["amount"],
+        "description": rules["description"],
+        "type": rules["type"],
+        "category": rules["category"],
+        "merchant": extract_merchant_from_description(rules["description"]),
+        "date": rules["date"],
+        "date_explicit": rules["date_explicit"],
+        "missing": rules["missing"],
+        "provider": "rules",
+    }
+
+
 @router.post("/parse", response_model=ParseResponse)
 async def parse_transaction_text(
     request: ParseRequest,
     profile: Profile = Depends(get_current_profile),
     conn: asyncpg.Connection = Depends(get_db),
 ):
-    user_row = await conn.fetchrow(
-        "SELECT ai_cloud_enabled FROM users WHERE id = $1", profile.user_id
-    )
-    ai_result = await ai_service.parse(request.text, cloud_enabled=user_row["ai_cloud_enabled"])
-
-    if ai_result is not None:
-        merchant_display = await _preview_merchant_name(profile.id, ai_result.merchant, conn)
-        return ParseResponse(
-            amount=ai_result.amount,
-            description=ai_result.description,
-            type=ai_result.transaction_type,
-            category=ai_result.category,
-            merchant=merchant_display,
-            ai_provider="gemini",
-            missing=["amount"] if ai_result.amount is None else [],
-            raw_text=request.text,
-        )
-
-    result = parse_transaction(request.text)
-    parsed_merchant = extract_merchant_from_description(result["description"])
-    merchant_display = await _preview_merchant_name(profile.id, parsed_merchant, conn)
+    cloud_enabled = await _cloud_enabled(profile, conn)
+    parsed = await _rules_first_parse(request.text, cloud_enabled)
+    merchant_display = await _preview_merchant_name(profile.id, parsed["merchant"], conn)
     return ParseResponse(
-        amount=result["amount"],
-        description=result["description"],
-        type=result["type"],
-        category=result["category"],
+        amount=parsed["amount"],
+        description=parsed["description"],
+        type=parsed["type"],
+        category=parsed["category"],
         merchant=merchant_display,
-        date=datetime.combine(result["date"], datetime.min.time())
-        if result["date_explicit"]
+        ai_provider="gemini" if parsed["provider"] == "gemini" else None,
+        date=datetime.combine(parsed["date"], datetime.min.time())
+        if parsed["date_explicit"]
         else None,
-        missing=result["missing"],
-        raw_text=result["raw_text"],
+        missing=parsed["missing"],
+        raw_text=request.text,
     )
 
 
@@ -453,41 +482,30 @@ async def quick_add_transaction(
     profile: Profile = Depends(get_current_profile),
     conn: asyncpg.Connection = Depends(get_db),
 ):
-    user_row = await conn.fetchrow(
-        "SELECT ai_cloud_enabled FROM users WHERE id = $1", profile.user_id
-    )
-    ai_result = await ai_service.parse(request.text, cloud_enabled=user_row["ai_cloud_enabled"])
-    if ai_result is not None and ai_result.amount is not None:
-        parsed_amount = ai_result.amount
-        parsed_description = ai_result.description
-        parsed_type = ai_result.transaction_type
-        parsed_category = ai_result.category
-        merchant_name = ai_result.merchant
-        parsed_date = datetime.now()
-    else:
-        parsed = parse_transaction(request.text)
+    cloud_enabled = await _cloud_enabled(profile, conn)
+    parsed = await _rules_first_parse(request.text, cloud_enabled)
 
-        if parsed["amount"] is None and request.amount is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Could not parse an amount from the text. Try something like 'spent 15 on groceries'.",
-            )
-
-        parsed_amount = parsed["amount"]
-        parsed_description = parsed["description"]
-        parsed_type = parsed["type"]
-        parsed_category = parsed["category"]
-        merchant_name = extract_merchant_from_description(parsed_description)
-        if parsed["date_explicit"]:
-            parsed_date = datetime.combine(parsed["date"], datetime.min.time())
-        else:
-            parsed_date = datetime.now()
-
+    parsed_amount = parsed["amount"]
     # Only fills in the amount when parsing genuinely couldn't find one (the
     # one-question-rule follow-up) — never overrides an amount the parser already
     # extracted correctly, even if a caller sends a stale `amount` alongside it.
     if parsed_amount is None and request.amount is not None:
         parsed_amount = request.amount
+    if parsed_amount is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not parse an amount from the text. Try something like 'spent 15 on groceries'.",
+        )
+
+    parsed_description = parsed["description"]
+    parsed_type = parsed["type"]
+    parsed_category = parsed["category"]
+    merchant_name = parsed["merchant"]
+    parsed_date = (
+        datetime.combine(parsed["date"], datetime.min.time())
+        if parsed["date_explicit"]
+        else datetime.now()
+    )
 
     category_id = None
     if request.category_id is not None:

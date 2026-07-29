@@ -1,6 +1,6 @@
 # My Financial Life — Plan
 
-> Last updated: 2026-07-16
+> Last updated: 2026-07-29
 > Localhost-only, privacy-first personal finance app. One primary user (admin), family later.
 > Countries: USA, India, Canada → **country profiles**: one login per person, 1–3 sealed
 > single-currency country worlds (USD/INR/CAD), switch at login or top bar. Profiles are
@@ -13,7 +13,16 @@
 
 ## Honest Current State (July 2026)
 
-The app today is a **working expense tracker** with a lot of surface area and some real gaps.
+> **Progress note (2026-07-29):** the "Not good enough" table below is the state that
+> *motivated* this plan (early July). Most of it is now resolved — Phases T, D, U, I are
+> **done**, and Phase S is **S1–S4 done** (upload, tiered extraction, single-receipt review,
+> statement mode with dedup). Remaining: S6 (mobile camera), S7 (messy quick-add polish), then
+> the two "Next direction" initiatives, then Phase A. Kept below for history; see the roadmap
+> and `backlog.md` for what's actually done.
+
+The app today is a **working expense tracker with a real intelligence layer** (recurring
+detection, trends, forecast, safe-to-spend, advice) and document understanding (scan/upload →
+review → save, with duplicate protection).
 
 ### Working
 
@@ -43,7 +52,14 @@ The app today is a **working expense tracker** with a lot of surface area and so
 
 1. **Trustworthy numbers first.** Tests on money paths before new features; backups before the first real transaction goes in.
 2. **Rule-based intelligence first.** Statistics before AI; AI (local-first) only where rules can't reach.
-3. **Private by default, cloud by choice, free always.** Rules/Ollama first; Gemini free tier is the single cloud provider, per-user opt-in with explicit warning, off by default. Never a paid API.
+3. **Private by default, cloud by choice, free by default.** Rules/statistics first — most
+   intelligence needs no AI at all. Gemini (free tier) is the **single, optional** cloud
+   provider: per-user opt-in with explicit warning, off by default. **Decided 2026-07-29:**
+   a local-LLM tier (Ollama) is **dropped as a priority** — not needed, since the goal is
+   overwhelmingly rule-based; revisit only if "nothing ever leaves the machine" becomes a
+   hard requirement. **DeepSeek / other paid or non-US AI providers are rejected** (cost +
+   data-residency/privacy for financial data). A **paid Gemini tier** is a possible *future*
+   option — but only if it proves clearly worth it (revisit then); free tier is the default now.
 4. **Three-color minimalist UI.** One neutral scale, one accent, semantic money colors — nothing else. See `design-system.md`.
 5. **Device roles differ.** Mobile = capture (scan, quick-add, glance). Desktop = analyze + manage (reports, admin, bulk edit). Feature set is deliberately bigger on desktop.
 6. **Every phase ends with the app answering a money question it couldn't answer before.**
@@ -181,27 +197,65 @@ standing justification for replacing the old 8-page table-shaped IA.
 - [x] **State cleanup** — done 2026-07-22. Silent `catch {}` blocks in `merchantsSlice.fetchMerchantDetail`, `billsSlice.fetchUpcomingBills`/`fetchBillHistory` now toast on failure; `updateNotes` rollback was already correct (verified, no bug present — the plan note predated a fix already landed). `isFresh` staleness gating (already present in `accounts`/`transactions`/`bills.upcoming`) extended to `goals`, `categories`, `budgets`, `merchants`, `recurringInsights`, `safeToSpend`, `advice` — each gets a `lastFetchedAt` field and an `opts?: { force?: boolean }` param; `reportsSlice.fetchReports` deliberately left as-is per its existing "Home depends on this exact signature" comment. Mobile Home's pull-to-refresh updated to pass `{ force: true }` to `fetchSafeToSpend` so the explicit refresh still bypasses the cache. Filter lists (`useTransactionFilters`) and shared types were already sourced from the slices, not duplicated — verified, no change needed. `tsc`/`eslint` clean; verified live via Playwright (staleness skip renders cached data instantly on a repeat visit within 30s, no stuck loading state).
 - [x] Fixed by construction — verified 2026-07-22, no work needed: dark-mode CSS vars (`--bg-deep`/`--bg-panel`, already deleted in U1), duplicate FAB (mobile has exactly one `CaptureSheet` mount in `MobileLayout`), `window.confirm()` (zero occurrences in the codebase), credit-card balances summed into "Total Balance" (`useHomeData.ts` already splits `cashOnHand`/`creditOwed`, no "Total Balance" concept exists) — all four were already resolved by earlier work, most documented inline where they were fixed.
 
-### Phase I — Intelligence (~3–5 weeks) ← **the point of the project**
+### Phase I — Intelligence (~3–5 weeks) ← **the point of the project** — **DONE 2026-07-22 (backlog I1–I6)**
 
 All rule-based, no AI required, test-first (pure functions over transaction lists).
 
-- [ ] **Recurring detection**: group by merchant → amount consistency (exact for subscriptions, ±20% for utilities) + interval consistency (~7/14/30/90/365 days) → 3+ hits = recurring; predicts next date & amount
-- [ ] **Spending reports**: monthly + annual breakdowns by category/merchant, month-over-month and year-over-year trends, anomaly flags ("food up 40% this month")
-- [ ] **Cash-flow forecast**: day-by-day 60–90 day balance simulation (paydays + recurring bills + avg daily discretionary); crunch-point warnings
-- [ ] **Safe-to-spend**: balance minus everything spoken-for before next payday — the number on the home screen
-- [ ] Insight cards on Home (top 3–5), honest "not enough data yet" states
+- [x] **Recurring detection** (I1): group by merchant → amount consistency (exact for subscriptions, ±20% for utilities) + interval consistency (~7/14/30/90/365 days) → 3+ hits = recurring; predicts next date & amount. Plus detected-subscriptions section with dismiss (I2).
+- [x] **Spending reports** (I3): monthly + annual breakdowns by category/merchant, month-over-month and year-over-year trends, anomaly flags ("food up 40% this month") — honesty-gated (no claim without enough history)
+- [x] **Cash-flow forecast** (I4): day-by-day 90-day balance simulation (paydays + recurring bills + avg daily discretionary); crunch-point warnings; ≥60-day-history gate
+- [x] **Safe-to-spend** (I5): balance minus everything spoken-for before next payday — the hero number on both Home screens
+- [x] Insight/advice cards on Home (I6, top 3–5): rule-generated, evidence-backed, dismiss-by-type, optional Gemini *phrasing* only; honest "not enough data yet" states
 
 ### Phase S — Document Understanding (~3–4 weeks)
 
 Upload or scan a bill / receipt / credit-card statement / bank document → app understands and updates itself. **Never auto-commits: extract → review screen → dedup check → save.**
 
-- [ ] Upload (desktop) and camera scan (mobile) into the `documents` table
-- [ ] Extraction tiers: **A** Ollama vision (local, private) → **B** Gemini vision (only when the user's T5 toggle is on) → **C** Tesseract + rules (zero AI setup, never silently to cloud)
-- [ ] Understanding: "Walmart $30" → merchant = Walmart, category inferred from history + line items (groceries vs alcohol vs travel), date, amount
-- [ ] Statement mode: credit-card/bank PDF → _list_ of transactions, each run through dedup
-- [ ] **Dedup gate on every import**: exact `import_hash` match = auto-skip; fuzzy match = "possible duplicate" review UI with merge/skip/keep-both
-- [ ] Document attached to resulting transaction(s) — tap any transaction to see its source
-- [ ] Typed-input AI fallback (S7): messy phrasing/typos parsed by Ollama (or Gemini if opted in) when the rules parser can't — preview + one-question rule unchanged
+- [x] Upload (desktop) into the `documents` table (S1) — **done**; camera scan (mobile) = **S6, next**
+- [x] Extraction tiers (S2) — **done, Gemini-only**: **B** Gemini vision (only when the T5 toggle is on) → **C** local, always-on (pdfplumber text-layer for digital PDFs, Tesseract OCR for photos) + rules. **Tier A (Ollama) dropped** per the AI decision above — not built, not needed.
+- [x] Understanding (S2): merchant matched via D5, category auto-inferred from merchant history → keyword rules → Gemini hint; date, amount, confidence. Single-receipt review screen (S3) with dedup + paperclip back to source.
+- [x] Statement mode: credit-card/bank PDF → _list_ of transactions, each run through dedup — **done 2026-07-29 (backlog S4)**
+  - **Design decided 2026-07-23** (web research on statement parsing — pdfplumber table
+    extraction vs. LLM: consensus is a *hybrid*, deterministic where the layout is clean +
+    LLM for format variety, since every bank lays statements out differently and
+    regex-per-bank doesn't scale). Maps onto S2's existing two tiers: **tier C** =
+    pdfplumber table extraction + per-row regex (date/description/amount), always on, zero
+    cloud, works on digital statement PDFs; **tier B** = Gemini statement extraction
+    (`extract_statement`, mirrors `extract_receipt`) only when the T5 toggle is on — this
+    is where the endless bank-layout variety is actually handled. No Ollama needed (same
+    reasoning as S2). The **D3 dedup gate already solves the hard part** (statement rows
+    overlap heavily with already-entered transactions): every row runs through
+    `find_duplicates`, exact dupes default-unchecked, fuzzy flagged — the "3 known + 2 new
+    → exactly 2 inserted" test. Review UI is a multi-row table (per-row include checkbox,
+    editable category, dedup badge), distinct from S3's single-receipt dialog. See
+    `docs/backlog.md` S4 for the full build log.
+- [x] **Dedup gate on every import** (D3 + S3/S4): exact `import_hash` match = auto-skip; fuzzy match = "possible duplicate" review UI with merge/skip/keep-both — **done**
+- [x] Document attached to resulting transaction(s) — tap any transaction to see its source (paperclip, S3) — **done**
+- [x] **S6 — Mobile scan capture** — **done 2026-07-29** (backlog S6): mobile Capture "Scan" card → camera (`capture="environment"`, gallery fallback over LAN HTTP) → existing S1–S3 pipeline → mobile review sheet (auto-category, dedup) → save; pending-receipts banner on Activity so interrupted scans aren't orphaned. Verified live at 390×844.
+- [x] **S7 — Messy quick-add fallback** (Gemini-only) — **done 2026-07-29** (backlog S7): audit found the pipeline was Gemini-*first* when the toggle was on (sent everything to cloud); **fixed to rules-first**, Gemini fallback only when rules can't find the amount + toggle on — so common inputs never leave the machine even with the toggle on. Verified via curl + log inspection (zero outbound calls when expected). **No Ollama.**
+
+### Next direction — decided 2026-07-29 (after Phase S completion)
+
+Reassessed against the owner's real goal: one financial life across USA/India (Canada later),
+ingest every receipt/bill/statement, a proper dashboard, and genuine guidance ("what's
+useless, how to save"). **Remittance** is handled the lightweight way (a category, below) —
+the heavy linked-legs+FX version is deferred. Two rule-based initiatives, **no new AI**:
+
+- [ ] **1. Multi-country documents** (locale-aware *local* parsing): the extraction path
+  already has the profile's country — pass it into `parse_receipt_text`/`parse_statement_text`
+  so Indian/Canadian formats parse **without** the cloud: DD/MM vs MM/DD date interpretation by
+  locale, ₹/lakh grouping, and India transaction vocabulary (UPI/IMPS/NEFT) in the amount/
+  description regexes and the category-keyword map. (`services/ingest/document_extract.py`.)
+- [ ] **2. Deeper advisor + remittance-as-a-category** (rule-based guidance): grow
+  `services/insights/advice.py` from reactive flags into savings-rate coaching, "useless
+  spend" detection (forgotten subscriptions, fee/interest leakage), budget guidance, and
+  goal-based planning — deterministic numbers, optional Gemini *phrasing* only.
+  **Remittance-as-a-category** (owner's idea, the pragmatic approach): a "Money Sent Home /
+  Remittance" system category + transfer providers (Wise, Remitly, Xoom, Western Union,
+  MoneyGram, wire) added to the category-keyword map so they **auto-tag from bank statements**
+  (or added manually); the advisor then treats money sent home as a first-class recurring
+  category. This is just a US-profile expense — respects the sealed-profile, no-conversion
+  principle, **zero new architecture**.
 
 ### Phase A — Admin Panel (~1–2 weeks)
 

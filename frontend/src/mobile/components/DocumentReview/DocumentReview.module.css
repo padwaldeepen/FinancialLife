@@ -7,6 +7,8 @@
   margin: 0;
   width: 100%;
   max-width: 100%;
+  max-height: 92vh;
+  overflow-y: auto;
   border-radius: var(--radius-card) var(--radius-card) 0 0;
   padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
   transform: none;
@@ -18,23 +20,24 @@
   font-weight: 600;
 }
 
-.option {
-  border-radius: var(--radius-card) !important;
+.preview {
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: var(--radius-3);
   border: 1px solid var(--gray-4);
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-out);
+  background: var(--gray-2);
 }
 
-.option:active {
-  background-color: var(--gray-3);
+.dupWarn {
+  border: 1px solid var(--amber-6);
+  background: var(--amber-2);
+  border-radius: var(--radius-3);
+  padding: var(--space-3);
 }
 
-.iconCircle {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: var(--gray-4);
-  flex-shrink: 0;
+.grow {
+  flex: 1;
 }
 
 @keyframes slideUp {

@@ -4,6 +4,7 @@ import { Box } from '@radix-ui/themes'
 import { AddTransactionModal } from '../components/AddTransactionModal/AddTransactionModal.tsx'
 import { BottomTabBar } from '../components/BottomTabBar/BottomTabBar.tsx'
 import { CaptureSheet } from '../components/CaptureSheet/CaptureSheet.tsx'
+import { DocumentReview } from '../components/DocumentReview/DocumentReview.tsx'
 import styles from './MobileLayout.module.css'
 
 export const MobileLayout = (): JSX.Element => {
@@ -15,6 +16,7 @@ export const MobileLayout = (): JSX.Element => {
       <BottomTabBar />
       <CaptureSheet />
       <AddTransactionModal />
+      <DocumentReview />
     </Box>
   )
 }

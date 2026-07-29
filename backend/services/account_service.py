@@ -7,13 +7,34 @@ def _row_to_account(row: asyncpg.Record) -> Account:
     return Account(**dict(row))
 
 
+# A new profile starts with a small base set of accounts (not just Checking) so the
+# account picker on receipt/bill review and quick-add is useful out of the box rather
+# than a single option. Balances start at 0 and the user renames/deletes/adds as needed.
+# ("Debit" isn't a distinct type — a debit card draws from Checking, so Checking covers
+# it.) Kept intentionally minimal: the three most common personal accounts, no phantom
+# investment/cash accounts most people won't use.
+_DEFAULT_ACCOUNTS: list[tuple[str, str]] = [
+    ("Checking", "checking"),
+    ("Savings", "savings"),
+    ("Credit Card", "credit"),
+]
+
+
 async def create_default_account(profile: Profile, conn: asyncpg.Connection) -> Account:
-    row = await conn.fetchrow(
-        """INSERT INTO accounts (profile_id, name, type, sort_order)
-           VALUES ($1, 'Checking', 'checking', 0) RETURNING *""",
-        profile.id,
-    )
-    return _row_to_account(row)
+    """Seeds the base accounts for a new profile; returns the first (Checking) so
+    existing callers that expect a single Account back keep working."""
+    created: list[Account] = []
+    for sort_order, (name, acc_type) in enumerate(_DEFAULT_ACCOUNTS):
+        row = await conn.fetchrow(
+            """INSERT INTO accounts (profile_id, name, type, sort_order)
+               VALUES ($1, $2, $3, $4) RETURNING *""",
+            profile.id,
+            name,
+            acc_type,
+            sort_order,
+        )
+        created.append(_row_to_account(row))
+    return created[0]
 
 
 async def get_accounts(profile_id: int, conn: asyncpg.Connection) -> list[Account]:

@@ -1152,7 +1152,7 @@ throwaway accounts deleted after.
 
 ## Phase S — Document Understanding
 
-### [ ] S1 — Documents storage + upload
+### [x] S1 — Documents storage + upload — done 2026-07-23
 **Build:** `documents` table lives since D1; add file storage `backend/uploads/{user_id}/`
 (uuid names, path never client-controlled); `POST /api/documents` (multipart, jpg/png/pdf,
 ≤15MB, auth, sets status=pending), `GET /api/documents/{id}` (ownership-checked, serves
@@ -1161,7 +1161,59 @@ file); desktop upload dropzone on Activity import area.
 type rejected cleanly.
 **Depends:** D1.
 
-### [ ] S2 — Extraction service (local AI, tiered)
+**Result:** `backend/routers/documents.py` (new): `POST /api/documents/` validates
+content-type against an explicit allowlist (`image/jpeg`, `image/png`,
+`application/pdf`) and size (reads at most `MAX_UPLOAD_SIZE_BYTES + 1` bytes so an
+oversize upload is never fully buffered), generates the on-disk filename as
+`uuid4().hex` + an extension derived from the validated content-type — **never** from
+the client-supplied filename — and saves under `backend/uploads/{user_id}/`, then
+inserts a `documents` row (`status='pending'`). `GET /api/documents/{id}` scopes the
+lookup by `profile_id`, 404s if the row doesn't belong to the caller's profile or the
+file is missing on disk, and serves it via `FileResponse` with the stored mime type.
+`core/config.py`: `UPLOAD_DIR`/`MAX_UPLOAD_SIZE_BYTES` settings. `.gitignore`:
+`backend/uploads/` (user data, never committed) — persists fine across restarts because
+`docker-compose.yml`'s existing `./backend:/app` bind mount covers it, no new volume
+needed.
+
+Frontend: `shared/hooks/useDocumentUpload.ts` (new) — client-side type/size pre-check
+(fast-fail UX only, server re-validates independently) then a multipart `POST`.
+`desktop/pages/Activity/DocumentUploadDialog.tsx` (new) — a real drag-and-drop zone
+(`onDragOver`/`onDrop`) with a click-to-browse fallback, wired via a new "Upload
+Receipt" button next to "Import CSV" on Activity. No review queue/approve flow yet —
+out of scope for S1, tracked under S2 (extraction) and later tickets; a successful
+upload just confirms the file landed and is queued.
+
+**Two real bugs found and fixed during live verification** (not just curl — the curl
+round trip passed on the first try, masking both): (1) the shared axios client
+(`shared/api/client.ts`) sets a fixed `Content-Type: application/json` default header,
+which silently overrode `FormData`'s auto-detected multipart boundary — every browser
+upload was sent as broken "JSON" and 422'd. Fixed by explicitly passing `headers: {
+'Content-Type': undefined }` on the upload call so the browser sets the real boundary.
+(2) The catch handler rendered `error.response.data.detail` directly in a toast, which
+crashed with "Objects are not valid as a React child" — FastAPI's own 422 validation
+errors put an **array** of `{type, loc, msg, input}` objects in `detail`, unlike this
+router's hand-raised `HTTPException`s which always use a plain string. Fixed with a
+`typeof detail === 'string'` guard, falling back to a generic message otherwise. Both
+were only reachable from an actual browser upload, not curl — confirms why this
+project's verification standard requires driving the real UI (Playwright), not just
+hitting the API directly.
+
+Verified live: two throwaway accounts (curl) — user A uploaded a real JPEG,
+`GET /api/documents/{id}` returned it byte-for-byte identical to the source file
+(`diff` via Python); user B fetching user A's document ID got a clean 404; a `.txt`
+upload got a clean 415; a ~16MB JPEG got a clean 413; the on-disk filename was
+confirmed to be a bare UUID (`a629ce2af1624b3e89c84ae004e3d09c.jpg`), not the original
+`test_receipt.jpg`. Then via Playwright on desktop (1280×1000): clicked "Upload
+Receipt," used the dropzone's click-to-browse to select a real file, confirmed a `201`
+in the network log and the dialog auto-closing on success (post-fix; pre-fix this is
+where the 422 + React crash were caught). `tsc --noEmit`, `eslint`, `ruff check` clean.
+Both throwaway accounts and all uploaded test files deleted after. **Also**: mid-ticket,
+added an explicit "don't over-engineer" rule (`rules/frontend.md`, `rules/code-review.md`,
+and the `code-review` skill's Simplification finder) at the user's request — no new
+file/component for 3-4 lines used exactly once; call it out as a finding the same way
+duplication is.
+
+### [x] S2 — Extraction service (local AI, tiered) — done 2026-07-23
 **Build:** `services/ingest/document_extract.py`: tier A = Ollama vision (model
 configurable, e.g. qwen2.5-vl class) → structured JSON {merchant, date, total, line_items?,
 category_hint}; tier B fallback = cloud vision (Gemini) **only when the user's T5 toggle is on**;
@@ -1175,7 +1227,138 @@ clear fixtures with zero outbound calls (assert); with toggle on, cloud fallback
 and is logged as such.
 **Depends:** S1, T5 (provider layer), D5 (merchant matching).
 
-### [ ] S3 — Review screen (nothing auto-commits)
+**Result:** **Tier A (Ollama) not built** — this project has no Ollama client
+anywhere (same gap I6 and S1 already flagged; tracked, not this ticket's job to
+invent). Tier order is therefore B (Gemini vision, toggle-gated) → C (Tesseract +
+regex, always available) — "Ollama stopped" is simply the permanent state here, so
+that half of the accept criterion is satisfied by construction rather than by a stub.
+
+`backend/services/ingest/document_extract.py` (new): `parse_receipt_text(raw_text) ->
+ExtractedDocument` is a pure function (no DB, no I/O — same split as
+`services/insights/`) over already-OCR'd text: `_extract_total` prefers a line
+containing "total" that isn't "subtotal"/"tax"/"change"/"cash"/"tender", else falls
+back to the largest dollar amount on the page; `_extract_date` tries ISO
+(`YYYY-MM-DD`) first, then `MM/DD/YYYY`/`MM-DD-YYYY` (2-digit years assumed 20xx);
+`_extract_merchant` takes the first line with ≥3 alphabetic characters in the first 5
+lines (receipts put the merchant name at the top). Honesty rule: Tesseract-only output
+never claims "high" confidence — "medium" only when both total and date were found,
+"low" otherwise, matching the same pattern established in I3/I4/I5. `extract_tesseract`
+wraps this with `pytesseract.image_to_string` for jpg/png; PDF returns an honest
+all-null "low" result — no PDF OCR pipeline exists yet, so "found nothing" is correct,
+not a guess. `_from_gemini_result` defensively coerces a Gemini JSON response (never
+trusts an LLM's output blindly — invalid `total`/`date` triggers a fallback to tier C
+rather than storing garbage). Top-level `extract(file_path, mime_type, cloud_enabled,
+ai_service)` tries Gemini first when `cloud_enabled`, falls through to Tesseract on any
+failure or when the toggle is off.
+
+`backend/services/ai/gemini.py`: added `extract_receipt(image_bytes, mime_type) ->
+dict | None` — sends the image as base64 `inline_data` alongside a JSON-extraction
+prompt (merchant/date/total/line_items/category_hint/confidence) to the same
+`gemini-flash-latest` endpoint `parse()` already uses; extracted a `_strip_json_fences`
+helper shared by both methods (was about to be duplicated a second time — caught before
+it happened, `rules/dry.md`). `backend/services/ai/ai_service.py`: added
+`extract_receipt(image_bytes, mime_type, cloud_enabled)` following the exact same
+gating pattern as `parse()` — toggle off or no API key means the Gemini call is never
+attempted, not attempted-and-ignored.
+
+`backend/routers/documents.py`: extraction now runs synchronously inside `POST
+/api/documents/` right after the file lands on disk (no job queue exists in this
+project; a Tesseract pass or a single Gemini call both complete well within the
+request lifetime, so this is the simplest correct design, not a shortcut) —
+best-effort, wrapped in try/except so any extraction failure leaves `extracted_json`
+null and the document still `pending` rather than failing the upload itself.
+`_extract_and_store`: calls `extract()`, then D5's existing `find_matching_merchant`
+(read-only, never creates) against the extracted merchant string, then
+`_category_from_merchant_history` (most-frequent `category_id` among that merchant's
+past transactions) with `_category_from_hint` (name lookup against the profile's
+categories, case-insensitive) as the fallback — **exactly the priority order the
+ticket specifies**, verified live (see below). Stores everything into
+`documents.extracted_json` via the connection-pool's existing jsonb codec.
+`requirements.txt`/`Dockerfile`: added `pytesseract`, `Pillow`, and the system
+`tesseract-ocr` package.
+
+**Fixture-verified** (deleted after): `parse_receipt_text` against 5 hand-built OCR-text
+cases — a clean receipt (exact merchant/date/total, confidence medium), an ISO-date
+receipt, a blurry/garbled receipt (no clean total line → correctly falls back to the
+max amount, confidence low), pure non-receipt text (all fields null, low), and a
+"subtotal trap" (a real total line exists after a subtotal line — confirms subtotal is
+correctly skipped in favor of the actual total). All 5 passed exactly.
+
+**Verified live**, two synthetic receipt images (generated with PIL inside the backend
+container — the first attempt used PIL's crude default bitmap font and produced
+genuinely bad OCR text, e.g. "Total 13.82" read as "Tol 1382" with the decimal point
+dropped; confirmed via a raw `pytesseract.image_to_string` dump that this was a test-
+fixture quality issue, not a regex bug — the amount-decimal-required regex correctly
+declined to match "1382"; re-generated at a larger font size and got clean OCR text
+matching the fixture-tested cases exactly). With the throwaway account's
+`ai_cloud_enabled` at its default (false): uploaded the clean receipt,
+`extracted_json` showed `tier: "tesseract"`, `merchant: "COSTCO WHOLESALE"`, `date:
+"2026-07-15"`, `total: 13.82`, `confidence: "medium"` — exact match to the OCR text;
+`docker compose logs` over the request window contained zero Gemini-related log lines,
+confirming no outbound call was attempted. Merchant/category enrichment: seeded a
+merchant named exactly "COSTCO WHOLESALE" with a past transaction categorized
+"Shopping," re-uploaded — `merchant_id` and `category_id` both populated correctly (a
+looser "Costco" merchant with only a Levenshtein-fuzzy match correctly did **not**
+match — D5's existing distance threshold is tuned for typos, not substring/extra-word
+differences, confirmed this is D5's existing, correct, unmodified behavior, not a new
+bug). Toggled `ai_cloud_enabled` on via `PUT /api/auth/me/ai-settings`, re-uploaded the
+same receipt: `extracted_json` showed `tier: "gemini"`, `confidence: "high"`, populated
+`line_items` (something Tesseract structurally cannot produce), `category_hint: "Food &
+Dining"` — but `category_id` still resolved to the merchant-history value (15,
+"Shopping"), confirming the merchant-history-before-hint priority the ticket requires;
+backend logs showed `Gemini extracted a receipt (25368 bytes)`, confirming the real
+outbound call fired and was logged as such. Toggled back off after. `ruff check .`
+clean project-wide. Throwaway account and all uploaded test documents deleted after
+(cascades via `profile_id`/`user_id` FKs). **Not built here**: S3's review screen is
+the next ticket — nothing here surfaces `extracted_json` to any UI yet.
+
+**Follow-up (2026-07-23) — PDF text-layer extraction + bill support.** Original S2 left
+PDFs returning an honest all-null "low" result (no PDF pipeline). A real utility bill
+(TECO/Tampa Electric, a digitally-generated PDF) surfaced the gap in practice, so tier C
+now reads a PDF's **text layer directly** via `pdfplumber` — for digitally-generated
+documents this is *more* accurate than any OCR/LLM, since the numbers are exact rather
+than recognized, so this tier alone earns a "high" confidence (the OCR path stays capped
+at "medium" — a recognition step can misread). Added a new `pdf_text` tier value;
+`extract_local` (renamed from `extract_tesseract`) branches on mime type: PDF → pdfplumber
+text → same `parse_receipt_text` heuristics; empty text layer (a scanned/image-only PDF)
+→ honest "low" null result (page-rasterization+OCR for that case is a further improvement,
+not built). Generalized the heuristics from receipts to **bills** at the user's request
+(power/water/rent, not just store receipts): total regex now also matches "amount due"
+(utility bills never say "total" near the charge), skips "previous" lines (so a
+"Previous Amount Due $104.77" balance doesn't beat the real "$96.84" current charge), and
+date parsing now handles month-name dates ("August 05, 2026") which bills use far more
+than receipts. **On Ollama** (the "tier A" the original plan named): discussed with the
+user and deliberately **not** added — digital PDFs are covered deterministically by this
+tier, photos/scans by tier B (Gemini, toggle-gated); a local-LLM tier's only unique value
+is fully-local photo/scan understanding, a large lift (client + multi-GB model + seconds/
+doc) for a gap Gemini already fills. Left as a documented future option; the tier
+structure is ready for it. Fixture-verified against the TECO bill's exact text (correctly
+picks $96.84 over the $104.77 previous balance, the July 15 statement date, "TECO TAMPA
+ELECTRIC"); the original 5 receipt fixtures still pass unchanged. Verified live end-to-end:
+generated a faithful text-layer PDF (reportlab, ad-hoc in-container, not added to
+requirements), uploaded via the real UI → extracted "$96.84 · high confidence" in the
+pending queue → review dialog rendered the actual PDF (see preview fix in S3 below) with
+every field pre-filled → saved as a transaction with paperclip link. `requirements.txt`
+gained `pdfplumber` (pure Python, no new system binary). `ruff`/`tsc`/`eslint` clean.
+
+**Follow-up (2026-07-23) — auto category + base accounts** (user feedback: the review
+form left Category on "None" and the Account picker only listed "Checking", both
+confusing). (1) `infer_category_hint(text)` in `document_extract.py`: an ordered
+keyword→system-category map (electric/kwh/teco → "Electric", water/sewer → "Water",
+grocery/costco → "Groceries", rent/landlord → "Rent", netflix/streaming → "Streaming",
+etc.), most-specific first, populated into `category_hint` for tier C (the no-LLM
+counterpart to Gemini's own hint) — flows through the router's existing
+`_category_from_hint` to a real `category_id`. Deterministic: a category is only
+suggested when a keyword actually appears on the page, never guessed. (2)
+`account_service.create_default_account` now seeds a base set — **Checking, Savings,
+Credit Card** — on every new profile instead of just Checking, so the account picker is
+useful out of the box ("debit" isn't a distinct type — a debit card draws from Checking).
+Fixture-verified: 10 category cases (9 matches + 1 correct no-match) all pass. Verified
+live: a freshly registered profile came back with exactly those three accounts, and the
+TECO bill's review dialog auto-selected **"Electric"** as the category with all three
+accounts in the picker. `ruff` clean.
+
+### [x] S3 — Review screen (nothing auto-commits) — done 2026-07-23
 **Build:** desktop: pending documents queue → editable extracted fields side-by-side with
 the image → dedup check (D3) runs before save → exact dup auto-flagged, fuzzy shows
 merge/skip/keep-both → save creates transaction(s) with source=document_scan,
@@ -1185,7 +1368,74 @@ with paperclip link back to image; saving same receipt twice → duplicate flagg
 double insert.
 **Depends:** S2, U4.
 
-### [ ] S4 — Statement mode (credit-card / bank PDF)
+**Result:** `backend/routers/documents.py`: `GET /api/documents/` — the review queue,
+every `status='pending'` document for the profile with its `extracted_json` (extraction
+failing in S2 isn't fatal — a null `extracted_json` just means the review form starts
+blank, still fully reviewable by hand). `POST /{id}/review` runs the exact same D3
+dedup gate (`services/ingest/dedup.py`'s `find_duplicates`) the CSV import path (U4)
+already uses: `exact` → auto-marks the document `reviewed` and returns the existing
+`transaction_id` without inserting (nothing left to review, so it shouldn't linger in
+the queue forever); `fuzzy` → returns the candidate matches and leaves the document
+`pending` for the user to decide; `none`, or resubmitted with `skip_dedup=true` (the
+"keep both" case) → inserts with `source='document_scan'`, `document_id` set, marks the
+document `reviewed`. `DELETE /{id}` — reject/remove, deletes the row and unlinks the
+file; a transaction already created from a later-deleted document keeps existing (the
+`document_id` FK is `ON DELETE SET NULL`, never cascades). `routers/transactions.py`:
+exposed `document_id` on `TransactionResponse` — the paperclip's data source.
+
+Frontend: `store/slices/documentsSlice.ts` (new, same `isFresh` staleness pattern as
+every other list-fetching slice) — `fetchPendingDocuments`, `reviewDocument` (drops the
+document from the local `pending` list on any outcome except `fuzzy_duplicate`, which
+needs a decision first), `rejectDocument` (optimistic remove + rollback on failure).
+`desktop/pages/Activity/PendingReceipts.tsx` (new) — the queue, quiet when empty (I2's
+pattern), each row showing the extracted merchant/total/confidence badge. `desktop/
+pages/Activity/DocumentReviewDialog.tsx` (new) — image on the left (fetched as an
+authenticated blob + object URL, since a plain `<img src>` can't carry the
+Authorization/X-Profile-Id headers `GET /api/documents/{id}` requires), a fully
+editable form pre-filled from `extracted_json` on the right (description, amount,
+type, account, category, date — every field name-checked against
+`DocumentReviewRequest`), "Discard" (reject) and "Save Transaction" actions. On a
+`fuzzy_duplicate` result, renders the matches inline with "Skip" and "Keep both" —
+**mirrors `useCsvImport.resolveReviewRow`'s existing collapse of "merge" and "skip"
+into the same discard action**, documented there as "no per-field merge target exists
+in this schema," the same real constraint applies here, so this reuses that exact
+established UX pattern rather than inventing a new one. `desktop/pages/Activity/
+DocumentViewerDialog.tsx` (new, ~40 lines, deliberately its own file per the
+just-added over-engineering rule's own carve-out — genuine reuse potential and enough
+self-contained state/effect to earn it) — the paperclip's read-only image view, same
+authenticated-blob approach as the review dialog. Activity's transaction rows now show
+a `Paperclip` icon next to the date whenever `document_id` is set, opening the viewer.
+`DocumentUploadDialog.tsx` (S1) updated to force-refresh the pending list on a
+successful upload so the new document appears without a page reload.
+
+Verified live end-to-end via Playwright (1280×1000, one throwaway account): uploaded a
+synthetic receipt, confirmed it appeared in "Pending Receipts (1)" with the correct
+extracted merchant/total/confidence; opened Review, confirmed the image rendered and
+every field was pre-filled exactly from `extracted_json`; saved — transaction count
+went from 0 to 1, the pending queue emptied, and the new Activity row showed a
+paperclip icon; clicked it and confirmed the viewer dialog displayed the correct
+source image. Uploaded the **identical** receipt a second time, reviewed with the same
+pre-filled values, saved: transaction count stayed at 1 (confirmed via direct SQL
+count, not just the UI) — the exact-duplicate path fired, no double insert, and the
+second document silently left the pending queue since there was nothing left to
+review. Backend smoke-tested independently first via curl covering all four dedup
+outcomes (`created`, `exact_duplicate`, `fuzzy_duplicate`, and the `skip_dedup=true`
+"keep both" resubmit) before any frontend work started, catching the review flow's
+logic correctness before UI verification layered on top. `ruff check .` and
+`tsc --noEmit` both clean project-wide. Throwaway account and uploaded test files
+deleted after.
+
+**Follow-up (2026-07-23) — PDF preview fix.** Both the review dialog and the paperclip
+viewer rendered the fetched document blob in an `<img>`, which browsers can't display
+for a PDF (image formats only) — so any PDF upload showed a broken-image box in review.
+Fixed both `DocumentReviewDialog` and `DocumentViewerDialog` to detect the blob's
+content type (`res.data.type === 'application/pdf'`) and render PDFs in an `<object>`
+embed (with an "Open PDF" link fallback), keeping `<img>` for photos. Verified live: the
+TECO bill PDF (see S2 follow-up) now renders its full embedded page in the review dialog
+alongside the correctly pre-filled fields, saves cleanly, and the paperclip on the
+resulting transaction row opens the same PDF viewer.
+
+### [x] S4 — Statement mode (credit-card / bank PDF) — done 2026-07-29
 **Build:** extraction returns transaction *list* for statements; review screen renders
 rows (include-checkbox, editable category, dedup status per row — critical: statement
 rows usually duplicate already-imported transactions → default-exclude exact matches,
@@ -1194,7 +1444,70 @@ flag fuzzy).
 (Playwright + DB assert).
 **Depends:** S3.
 
-### [ ] S6 — Mobile scan capture
+**Result:** Design informed by web research (logged in `docs/plan.md` Phase S) — the
+mature approach to statement parsing is a hybrid of deterministic table extraction +
+LLM for layout variety, which maps exactly onto S2's existing two tiers.
+
+Backend — `services/ingest/document_extract.py`: `StatementRow`/`ExtractedStatement`
+dataclasses + `parse_statement_text(raw_text, tier)` (pure, fixture-tested). Row
+heuristic: a leading `MM/DD[/YY[YY]]` date, then description, then the **first** currency
+amount after it (deliberately not the last — bank statements append a running-balance
+column; the first number is the transaction, the trailing one the balance; credit-card
+statements have a single amount so first==only). Skips header/subtotal/balance/
+payment-due lines via a keyword filter; a trailing `-`/`CR` (or leading `-`) marks a
+credit → income, else expense; each row gets a `category_hint` from the S2-follow-up
+keyword rules. Missing-year rows inherit the statement's own year (first `20xx` seen).
+`extract_statement_local` = pdfplumber text per page → `parse_statement_text` (tier
+`pdf_text`); `extract_statement` orchestrates Gemini-first (new
+`GeminiService.extract_statement` + `STATEMENT_PROMPT`, `maxOutputTokens` raised to 8192
+so long lists aren't truncated) when the T5 toggle is on, else local — same tier order
+and gating as `extract`. `_statement_from_gemini` defensively coerces the LLM's row
+list.
+
+`routers/documents.py`: upload now branches on `kind` — a `statement` runs
+`_extract_statement_json` (resolves each row's category_hint→id once, cached by hint)
+storing `{kind:"statement", tier, transactions:[...]}`; everything else the existing
+single-receipt path (refactored into `_extract_receipt_json`, shared `_user_cloud_enabled`
+helper). `GET /{id}/statement?account_id=` returns every row tagged with its **D3 dedup
+verdict** against the chosen account's existing transactions (account-scoped, recomputed
+when the account changes). `POST /{id}/statement/import` bulk-creates the kept rows, each
+re-run through `find_duplicates` server-side (the UI's unchecking is convenience, not the
+safety boundary — an exact dupe that slips through is still skipped), all with
+`source='document_scan'` + the `document_id` paperclip, then marks the doc reviewed.
+**Consistency bug caught during curl testing and fixed**: the GET dedup check first passed
+`merchant_name=None` while the import derives the merchant for its hash — so exact-match
+hashes wouldn't line up and dedup silently failed; fixed by having the GET mirror the
+import exactly (`extract_merchant_from_description`, a pure no-DB parse).
+
+Frontend — `documentsSlice`: statement types + `fetchStatementRows`/`importStatement`.
+`useDocumentUpload` takes a `kind`; `DocumentUploadDialog` gained a Receipt-vs-Statement
+`SegmentedControl` (the two extract completely differently and can't be reliably
+auto-distinguished, so the user picks). `StatementReviewDialog` (new): a multi-row table
+— per-row include checkbox, date, description, auto-category, amount (income shown +/
+green), and a dedup badge (New / Possible dup / **Already have it**); exact dupes start
+**unchecked**, new rows checked; account chosen once, changing it re-runs dedup (effect
+has a cancellation guard against out-of-order account switches). Fuzzy rows kept checked
+import with `skip_dedup` ("keep both"). `PendingReceipts` branches: a statement shows
+"Bank / card statement · N transactions found" and opens the statement table;
+receipts keep the single-review dialog.
+
+**Verified.** Fixture: `parse_statement_text` over a credit-card statement (5 rows +
+header/balance noise) and a bank statement with a balance column — all amounts, dates,
+credit/expense types, categories, and the noise-line skipping asserted exactly,
+including the balance-column-not-picked case. Curl: the exact acceptance scenario — 3
+rows imported from a first statement, same statement re-uploaded showed those 3 as
+`exact` + 2 as `none`, importing all 5 returned `imported:2, skipped:3`, DB total = 5
+(no double-count), all rows `source='document_scan'` with `document_id` set. Playwright
+(desktop): uploaded the statement PDF as kind=statement → "5 transactions found" in the
+queue → review table rendered all 5 auto-categorized rows all checked → Import 5 →
+"Imported 5 transactions", Activity showed 5; **re-uploaded the identical statement →
+all 5 rows flagged "Already have it", all checkboxes unchecked, "0 of 5 selected",
+Import button disabled** → DB still exactly 5 ($203.64). `ruff`/`tsc`/`eslint` clean.
+Throwaway accounts and test files deleted after. **Not built**: image (photo) statements
+still fall to OCR with no table structure — digital PDFs (the overwhelming majority) are
+covered; scanned-statement OCR is a later refinement.
+
+### [x] S6 — Mobile scan capture — done 2026-07-29
 **Build:** enable U8's Scan button: camera via `<input type="file" accept="image/*"
 capture="environment">` (native camera on HTTPS/localhost; degrades to gallery picker
 over LAN HTTP per `DEVELOPMENT.md` §5). **One-line explainer before first camera use**
@@ -1205,18 +1518,141 @@ Then upload → extraction → mobile-simplified review (fields + dedup verdict)
 limitation documented in-UI when unavailable.
 **Depends:** S3, U8.
 
-### [ ] S7 — Local-AI quick-add fallback (typed input)
-**Goal:** weird phrasing and messy typing still parse — privately.
-**Build:** in the parse pipeline: rules parser first (T1 contract); if it fails or
-returns low confidence AND Ollama is available → local LLM extracts structured JSON
-(amount, description, merchant, type, relative date) with a strict JSON-schema prompt;
-result flows through D5 merchant matching and the normal preview (one-question rule
-unchanged). Ollama absent → cloud fallback **only if the user's T5 toggle is on**;
-otherwise the rules result stands. All via the T5 provider layer.
-**Accept:** with Ollama running: "pais 30 dolar grocery wallmart yesteday" → correct
-preview (amount 30, Walmart matched, date = yesterday); Ollama stopped + toggle off:
-degrades to rules result, zero outbound calls (assert); toggle on: cloud fallback engages.
-**Depends:** T1, D5, S2 (Ollama client exists).
+**Result:** Mobile-UI-only ticket — reuses the whole S1–S3 backend (upload, extraction,
+review/dedup endpoints) and the shared `documentsSlice`/`useDocumentUpload`. `CaptureSheet`
+(`mobile/components/CaptureSheet`): the previously-disabled Scan card is now live — it
+triggers a hidden `<input capture="environment">` (rear camera on HTTPS/localhost, gallery
+picker over LAN HTTP), and the explainer ("Snap the whole receipt — read on this device")
+sits on the card, visible *before* the tap that fires the permission prompt. On a picked
+file: `upload(file, 'receipt')` → `await fetchPendingDocuments({force:true})` → `openScanReview(id)`.
+`useDocumentUpload.upload` now returns the created document id (`number | null`) so the scan
+flow can open review for exactly that document (desktop's `if (id)` checks still work).
+`uiSlice`: added `scanReviewDocId` + `openScanReview`/`closeScanReview` (global so both the
+scan flow and the Activity entry point open the same sheet).
+
+`mobile/components/DocumentReview` (new): the mobile review sheet — an outer component
+resolves the doc from `documents.pending` and renders a **keyed inner sheet**
+(`key={doc.id}`) so the form's `useState` initializers re-seed per document with no
+state-seeding effects (the desktop-parity pattern). Shows the scanned image (authenticated
+blob → object URL, PDF via `<object>`), the extracted "Read via {tier} · {confidence}"
+line, and editable Description/Amount/Type/Account/Category/Date; Save → `reviewDocument`
+(handles created / exact-duplicate / fuzzy-with-keep-both), Discard → `rejectDocument`.
+Mounted once in `MobileLayout`. `mobile/pages/Activity`: a **pending-receipts banner** (amber
+cards) so an interrupted scan isn't orphaned — tap reopens the review sheet; statements are
+excluded (they need the desktop multi-row table).
+
+**Two real bugs found and fixed during live Playwright verification** (both caught only by
+driving the actual UI): (1) **infinite render loop** — the Activity selector did
+`pending.filter(...)` *inside* `useShallow`, returning a new array reference every render →
+"getSnapshot should be cached" → max-update-depth crash (blank page). Fixed by selecting the
+stable `pending` array and filtering in the render body. (2) **discard refetch race** — on
+Discard, `rejectDocument` optimistically removes the doc from `pending` while
+`scanReviewDocId` was still set, tripping the review component's "doc missing → refetch
+pending" safety net, whose `GET /documents/` raced the `DELETE` and sometimes read the
+not-yet-deleted doc back into the list (stale "Pending" card even though `DELETE` returned
+204 and the DB row was gone). Fixed by clearing `scanReviewDocId` (onClose) *before*
+rejecting, so the effect returns early instead of refetching mid-delete.
+
+**Verified** live via Playwright at 390×844: Capture → Scan card (explainer visible) →
+fixture receipt upload → mobile review sheet rendered the image + "Read via tesseract ·
+medium confidence" + all fields pre-filled incl. auto-detected **Groceries** category → Save
+→ transaction "COSTCO WHOLESALE · Groceries · Jul 15 · −$13.82" appeared in mobile Activity.
+Pending-receipts banner: scanned, closed the sheet without saving → an amber "tap to review"
+card appeared → tapping reopened the sheet. Discard (post-fix): `DELETE → 204`, "Receipt
+discarded" toast, **no stale card**, DB confirmed the row deleted. `tsc`/`eslint` clean.
+Throwaway account + test files deleted after. **Camera note:** Playwright can't drive a real
+camera, so verification used the file-picker fallback path (exactly what LAN-HTTP users get);
+the `capture="environment"` attribute enables the native camera on HTTPS/localhost.
+
+### [x] S7 — Messy quick-add fallback (typed input) — Gemini-only — done 2026-07-29
+**Goal:** weird phrasing and messy typing still parse.
+**Build (revised 2026-07-29 — AI decision: Gemini-only, no Ollama):** the parse pipeline
+already does rules (T1 contract) → optional Gemini (`services/ai/ai_service.py` `parse`,
+gated by the T5 toggle). This ticket is a **verify/polish** pass, not new AI: confirm the
+rules→Gemini fallback actually triggers on low-confidence input, the result flows through D5
+merchant matching + the normal preview (one-question rule unchanged), and it degrades to the
+rules result with **zero outbound calls** when the toggle is off. No local-LLM tier.
+**Accept:** toggle on: "pais 30 dolar grocery wallmart yesteday" → correct preview (amount 30,
+Walmart matched, date = yesterday); toggle off: degrades to rules result, zero outbound calls
+(assert).
+**Depends:** T1, D5, T5.
+
+**Result:** the audit found the pipeline was actually **Gemini-first when the toggle was on**
+— both `/parse` and `/quick-add` called `ai_service.parse` *before* the rules parser, so
+every input (even "coffee 4.50" that rules nail) was sent to Google. That contradicts the
+project's own principle ("rules first… AI parses only what rules can't", `plan.md` Principle
+3 + `architecture-and-goals.md` allocation table) and is a privacy/efficiency regression. So
+S7 became a real fix, not just verification: reordered both endpoints to **rules-first**, via
+a shared `_rules_first_parse(text, cloud_enabled)` helper (+ `_cloud_enabled`) in
+`routers/transactions.py`. **Fallback trigger:** Gemini is called **only when rules can't
+find the amount** *and* the toggle is on — the amount is the one field the preview/
+one-question flow can't infer for the user, so it's the honest "rules genuinely couldn't"
+signal. Everything else (description, category, merchant, date) rules + D5 fuzzy matching
+resolve locally with the preview for correction. Net effect: **common inputs never leave the
+machine even with the toggle on**, and the cloud is touched only for input rules truly can't
+handle (and never when the toggle is off). `parse_transaction` and D5's
+`extract_merchant_from_description`/`find_matching_merchant` reused unchanged; the
+one-question follow-up (`request.amount` fills a missing amount) preserved.
+
+**Verified live** (curl + backend-log inspection — the substantive, privacy-critical
+verification for a backend-internal reordering; the quick-add UI is byte-for-byte unchanged
+and already Playwright-verified in T-phase). Toggle **off**: "coffee 4.50" → rules (amount
+4.5, `ai_provider: null`); "lunch at the cafe" (no amount) → rules result with
+`missing:["amount"]` for the one-question flow; **zero Gemini log lines**. Toggle **on**:
+"coffee 4.50" → still rules, **no Gemini call** (the key privacy win — logs confirm nothing
+outbound); "grabbed lunch, about twenty bucks" (rules can't parse a spelled-out amount) →
+Gemini fired (logged "Gemini parsed…"), returned amount 20.0 / "Grabbed lunch" / Food &
+Dining / `ai_provider: "gemini"`. `/quick-add` save path re-verified: "spent 15 on groceries"
+→ transaction created ($15, Food & Dining, source quick_add); "netflix subscription" +
+one-question `amount:15.99` → created ($15.99, Entertainment). `ruff check .` clean. Throwaway
+account deleted after. **Note on the original accept example:** "pais 30 dolar grocery
+wallmart yesteday" — rules actually *do* extract amount 30 from it, so under the
+privacy-first trigger it stays local (rules + D5 fuzzy-match "wallmart"→Walmart at preview,
+user edits the rest) rather than going to cloud — the deliberate, more private outcome than
+the original ticket wording implied.
+
+---
+
+## Next direction — decided 2026-07-29 (after Phase S)
+
+Two rule-based initiatives serving the multi-country / advisor goal. **No new AI** — Gemini
+stays the single optional cloud tier (per `plan.md` Principle 3).
+
+### [ ] N1 — Multi-country documents (locale-aware local parsing)
+**Goal:** Indian/Canadian receipts & statements parse **locally** (no cloud needed), not just
+US formats.
+**Build:** the extraction path (`routers/documents.py` `_extract_*_json`) already has the
+`profile` → its country. Thread the country into
+`services/ingest/document_extract.py` `parse_receipt_text`/`parse_statement_text`:
+(a) date interpretation by locale — India/UK **DD/MM**, US/CA **MM/DD** (resolves the
+ambiguity honestly instead of always assuming US); (b) recognize **₹** and lakh grouping in
+`_AMOUNT_RE`; (c) add India transaction vocabulary (UPI, IMPS, NEFT, ACH) to the statement
+row/skip regexes and `_CATEGORY_KEYWORDS`. Gemini (tier B) already handles these when opted
+in — this makes the **local** tier competent so cloud isn't required.
+**Accept:** fixture Indian + Canadian statement/receipt text → correct dates/amounts/
+categories (hand-computed); live per-profile verify (an IN profile parses a ₹ DD/MM statement,
+a US profile still parses `$` MM/DD). No regression on the existing US fixtures.
+**Depends:** S2, S4, D1 (country profiles).
+
+### [ ] N2 — Deeper advisor + remittance-as-a-category
+**Goal:** turn advice from reactive flags into real guidance ("what's useless, how to save"),
+and track money sent home.
+**Build:** grow `services/insights/advice.py` with new rule types — **savings-rate coaching**
+(income vs spend vs saved, trend, target nudge), **useless-spend detection** (forgotten/
+low-value subscriptions, fee/interest leakage, impulse categories), **budget guidance**
+(over-budget + realistic re-allocation), **goal-based planning** (on-track? what to change).
+All deterministic numbers with evidence; optional Gemini *phrasing* only (existing `rephrase`),
+never AI-invented figures. **Remittance-as-a-category:** add a "Money Sent Home / Remittance"
+system category (`services/category_service.py`) + transfer providers (Wise, Remitly, Xoom,
+Western Union, MoneyGram, wire/ACH) to `_CATEGORY_KEYWORDS` so they auto-tag from statements
+(still manually editable); advisor treats it as a first-class recurring category. It's a
+US-profile expense — respects sealed profiles / no conversion, **zero new architecture**.
+**Accept:** fixture ledgers → correct savings-rate, a flagged useless subscription, an
+over-budget nudge, a behind-pace goal, each with evidence (hand-computed); a Wise/Remitly
+statement row auto-categorizes to Remittance; advisor surfaces "you send ~$X/month home".
+Live-verify the advisor cards on desktop Home. **Heavy linked-legs+FX remittance stays
+deferred** (see `plan.md`).
+**Depends:** I3, I6 (advice engine), N1 (keyword map).
 
 ---
 

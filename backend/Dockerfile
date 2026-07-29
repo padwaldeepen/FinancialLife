@@ -9,6 +9,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
         postgresql-client \
+        tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --link requirements.txt .

@@ -84,4 +84,7 @@
 - [ ] No new business logic in routers — it belongs in `services/`
 - [ ] **DRY** (`rules/dry.md`): no logic copy-pasted between desktop/mobile trees or
       between routers — shared behavior lives once, in `shared/`/`store/`/`services/`
+- [ ] **No over-engineering**: no new file/component/helper carved out for 3-4 lines
+      used exactly once (`rules/frontend.md`) — a premature extraction is as much a
+      finding as duplication is; call it out the same way
 - [ ] `docs/plan.md` checkbox updated if the change completes a roadmap item

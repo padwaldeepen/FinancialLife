@@ -1,7 +1,11 @@
 import { useRef, useState, type DragEvent, type JSX } from 'react'
-import { Flex, Text, Dialog, Button } from '@radix-ui/themes'
+import { Flex, Text, Dialog, Button, SegmentedControl } from '@radix-ui/themes'
 import { FileUp } from 'lucide-react'
-import { useDocumentUpload } from '../../../shared/hooks/useDocumentUpload.ts'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
+import {
+  useDocumentUpload,
+  type DocumentUploadKind,
+} from '../../../shared/hooks/useDocumentUpload.ts'
 import styles from './Activity.module.css'
 
 interface Props {
@@ -9,16 +13,22 @@ interface Props {
   onOpenChange: (open: boolean) => void
 }
 
-// S1: storage + upload only — no review screen yet (that's a later Phase S ticket),
-// so a successful upload just confirms the file landed and is queued (status=pending).
+// S1: storage + upload. S3 added the single-receipt review; S4 added statement mode —
+// the user picks up front which kind this is, because the two extract completely
+// differently (one transaction vs. a whole list) and can't be reliably auto-told apart.
 export const DocumentUploadDialog = ({ open, onOpenChange }: Props): JSX.Element => {
   const fileRef = useRef<HTMLInputElement>(null)
   const [dragActive, setDragActive] = useState(false)
+  const [kind, setKind] = useState<DocumentUploadKind>('receipt')
   const { uploading, upload } = useDocumentUpload()
+  const fetchPendingDocuments = useBoundStore((s) => s.fetchPendingDocuments)
 
   const handleFile = async (file: File) => {
-    const ok = await upload(file)
-    if (ok) onOpenChange(false)
+    const ok = await upload(file, kind)
+    if (ok) {
+      fetchPendingDocuments({ force: true })
+      onOpenChange(false)
+    }
   }
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -31,9 +41,23 @@ export const DocumentUploadDialog = ({ open, onOpenChange }: Props): JSX.Element
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="480px">
-        <Dialog.Title>Upload Receipt or Bill</Dialog.Title>
+        <Dialog.Title>Upload Document</Dialog.Title>
         <Text size="2" color="gray">
           JPEG, PNG, or PDF — up to 15MB
+        </Text>
+
+        <SegmentedControl.Root
+          value={kind}
+          onValueChange={(v) => setKind(v as DocumentUploadKind)}
+          mt="3"
+        >
+          <SegmentedControl.Item value="receipt">Receipt / Bill</SegmentedControl.Item>
+          <SegmentedControl.Item value="statement">Bank / Card Statement</SegmentedControl.Item>
+        </SegmentedControl.Root>
+        <Text size="1" color="gray" mt="1">
+          {kind === 'statement'
+            ? 'A statement with many transactions — you pick which to import.'
+            : 'A single receipt or bill — becomes one transaction.'}
         </Text>
 
         <Flex

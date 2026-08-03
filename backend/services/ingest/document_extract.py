@@ -59,7 +59,12 @@ class ExtractedStatement:
     transactions: list[StatementRow]
 
 
-_AMOUNT_RE = re.compile(r"\$?\s?(\d{1,3}(?:,\d{3})*\.\d{2})")
+# Amount with either US grouping (1,234.56) or Indian lakh grouping (1,00,000.00) — the
+# `(?:,\d{2,3})*` allows 2- or 3-digit comma groups, and commas are stripped after the
+# match so both styles normalize the same way. Optional currency marker up front
+# (₹ / Rs / INR / $ / C$) so Indian and Canadian documents are recognized, not just US.
+_CURRENCY = r"(?:₹|rs\.?\s?|inr\s?|c\$|\$)?"
+_AMOUNT_RE = re.compile(_CURRENCY + r"\s?(\d{1,3}(?:,\d{2,3})*\.\d{2})", re.IGNORECASE)
 # "amount due" covers utility/rent bills that never say "total" anywhere near the
 # actual charge (power/water/rent, per the S2 ticket's original receipt-only scope
 # generalized to bills at the user's request) — "previous" excludes a prior balance
@@ -89,6 +94,28 @@ _DATE_PATTERNS = [
     (re.compile(r"\b(\d{1,2})-(\d{1,2})-(\d{2,4})\b"), "%m-%d-%Y"),
 ]
 
+# US and Canada write dates month-first (MM/DD); India (and most of the world) day-first
+# (DD/MM). ISO and month-name dates are unambiguous and resolved before this matters.
+_DAY_FIRST_COUNTRIES = {"IN"}
+
+
+def _is_day_first(country: str | None) -> bool:
+    return (country or "").upper() in _DAY_FIRST_COUNTRIES
+
+
+def _resolve_ambiguous_date(a: int, b: int, year: int, day_first: bool) -> date_type | None:
+    """Resolve a DD/MM-vs-MM/DD pair using the profile's locale, trying the other order
+    as a fallback when the first is impossible (e.g. "15/07" can't be month 15) — this
+    auto-corrects an occasional document that doesn't match its profile's convention."""
+    primary = (b, a) if day_first else (a, b)  # (month, day)
+    fallback = (a, b) if day_first else (b, a)
+    for month, day in (primary, fallback):
+        try:
+            return date_type(year, month, day)
+        except ValueError:
+            continue
+    return None
+
 
 def _extract_total(lines: list[str]) -> Decimal | None:
     # Prefer an amount on a line that says "total" but isn't "subtotal"/"tax"/etc —
@@ -113,11 +140,11 @@ def _extract_total(lines: list[str]) -> Decimal | None:
     return max(all_amounts) if all_amounts else None
 
 
-def _extract_date(text: str) -> date_type | None:
-    # ISO (YYYY-MM-DD) is unambiguous; the other two patterns are both interpreted as
-    # MM/DD/YYYY (or MM-DD-YYYY) since that's the dominant receipt format in this
-    # project's target locales (US/CA) — genuinely ambiguous with DD/MM elsewhere, but
-    # a wrong-but-plausible date beats silently picking the "other" locale at random.
+def _extract_date(text: str, country: str | None = None) -> date_type | None:
+    # ISO (YYYY-MM-DD) and "August 05, 2026" are unambiguous — resolved first. The
+    # slash/dash patterns are DD/MM-vs-MM/DD ambiguous, so they're interpreted by the
+    # profile's locale (India = day-first; US/CA = month-first), with an auto-swap
+    # fallback when the primary order is an impossible date.
     iso_pattern, _ = _DATE_PATTERNS[0]
     m = iso_pattern.search(text)
     if m:
@@ -126,8 +153,6 @@ def _extract_date(text: str) -> date_type | None:
         except ValueError:
             pass
 
-    # "August 05, 2026" — as unambiguous as ISO (no MM/DD-vs-DD/MM guessing), and the
-    # dominant date format on bills/statements (rent, utilities) as opposed to receipts.
     m = _MONTH_NAME_RE.search(text)
     if m:
         try:
@@ -135,16 +160,16 @@ def _extract_date(text: str) -> date_type | None:
         except ValueError:
             pass
 
+    day_first = _is_day_first(country)
     for pattern, _fmt in _DATE_PATTERNS[1:]:
         m = pattern.search(text)
         if not m:
             continue
         year = m.group(3)
         year = f"20{year}" if len(year) == 2 else year
-        try:
-            return date_type(int(year), int(m.group(1)), int(m.group(2)))
-        except ValueError:
-            continue
+        resolved = _resolve_ambiguous_date(int(m.group(1)), int(m.group(2)), int(year), day_first)
+        if resolved is not None:
+            return resolved
     return None
 
 
@@ -167,24 +192,29 @@ def _extract_merchant(lines: list[str]) -> str | None:
 # "tampa electric" bill lands on "Electric", not a generic "Bills & Utilities". This is
 # the tier-C (no-LLM) counterpart to Gemini's own category_hint; deterministic rules,
 # no guessing beyond a keyword actually appearing on the page.
+# Includes India/Canada merchants + services alongside US ones (N1) — statement lines
+# there often read "UPI-ZOMATO", "IMPS/AIRTEL", etc., and substring matching catches them.
 _CATEGORY_KEYWORDS: list[tuple[tuple[str, ...], str]] = [
-    (("electric", "energy", "kwh", "kilowatt", "power company", "teco", "duke energy"), "Electric"),
+    # N2: money sent home — checked first so a "WISE/REMITLY" transfer lands here rather
+    # than being mis-tagged by an incidental keyword elsewhere in the line.
+    (("wise", "transferwise", "remitly", "xoom", "western union", "moneygram", "worldremit", "ria money", "remittance"), "Money Sent Home"),
+    (("electric", "energy", "kwh", "kilowatt", "power company", "teco", "duke energy", "hydro", "bescom", "adani electric", "tata power"), "Electric"),
     (("water", "sewer", "aqua", "utilit"), "Water"),
-    (("internet", "comcast", "xfinity", "spectrum", "broadband", "fiber"), "Internet"),
-    (("wireless", "verizon", "t-mobile", "at&t", "cellular", "phone bill"), "Phone"),
+    (("internet", "comcast", "xfinity", "spectrum", "broadband", "fiber", "jiofiber", "act fibernet"), "Internet"),
+    (("wireless", "verizon", "t-mobile", "at&t", "cellular", "phone bill", "airtel", "jio", "vodafone", "bsnl", "recharge"), "Phone"),
     (("mortgage",), "Mortgage"),
     (("rent ", "lease", "apartment", "landlord", "property manage"), "Rent"),
-    (("netflix", "spotify", "hulu", "disney+", "hbo", "streaming"), "Streaming"),
-    (("starbucks", "dunkin", "coffee"), "Coffee Shops"),
-    (("costco", "walmart", "kroger", "safeway", "aldi", "whole foods", "trader joe", "grocery", "groceries"), "Groceries"),
-    (("restaurant", "cafe", "grill", "pizza", "mcdonald", "chipotle", "diner", "dining"), "Dining Out"),
-    (("uber", "lyft", "rideshare"), "Rideshare"),
-    (("shell", "chevron", "exxon", "mobil", "gas station", "fuel"), "Gas"),
-    (("parking",), "Parking"),
-    (("pharmacy", "cvs", "walgreens", "rite aid"), "Pharmacy"),
-    (("gym", "fitness", "planet fitness"), "Gym"),
+    (("netflix", "spotify", "hulu", "disney+", "hbo", "streaming", "hotstar", "jiocinema", "sonyliv"), "Streaming"),
+    (("starbucks", "dunkin", "coffee", "chai", "tim hortons"), "Coffee Shops"),
+    (("costco", "walmart", "kroger", "safeway", "aldi", "whole foods", "trader joe", "grocery", "groceries", "bigbasket", "blinkit", "zepto", "dmart", "reliance fresh", "loblaws", "sobeys"), "Groceries"),
+    (("restaurant", "cafe", "grill", "pizza", "mcdonald", "chipotle", "diner", "dining", "zomato", "swiggy", "dominos"), "Dining Out"),
+    (("uber", "lyft", "rideshare", "ola", "rapido"), "Rideshare"),
+    (("shell", "chevron", "exxon", "mobil", "gas station", "fuel", "petrol", "indian oil", "hpcl", "bharat petroleum"), "Gas"),
+    (("parking", "fastag", "toll"), "Parking"),
+    (("pharmacy", "cvs", "walgreens", "rite aid", "apollo pharmacy", "1mg", "pharmeasy", "shoppers drug"), "Pharmacy"),
+    (("gym", "fitness", "planet fitness", "cult.fit", "cultfit"), "Gym"),
     (("doctor", "clinic", "medical", "hospital", "dental"), "Doctor"),
-    (("amazon", "target", "ebay", "best buy"), "Online"),
+    (("amazon", "target", "ebay", "best buy", "flipkart", "myntra", "ajio", "meesho"), "Online"),
 ]
 
 
@@ -196,15 +226,18 @@ def infer_category_hint(raw_text: str) -> str | None:
     return None
 
 
-def parse_receipt_text(raw_text: str, tier: Tier = "tesseract") -> ExtractedDocument:
+def parse_receipt_text(
+    raw_text: str, tier: Tier = "tesseract", country: str | None = None
+) -> ExtractedDocument:
     """Pure regex/heuristic pass over already-extracted text — split out from
     `extract_local` so the heuristics are fixture-testable without a real image/PDF or
     the tesseract binary. `tier` only affects the confidence ceiling: OCR'd text can
     misread characters (a genuine recognition error), so it never claims "high"; a
-    PDF's text layer is exact — no recognition step, just parsing — so it can."""
+    PDF's text layer is exact — no recognition step, just parsing — so it can. `country`
+    (the profile's) drives DD/MM-vs-MM/DD date interpretation (N1)."""
     lines = [ln for ln in raw_text.splitlines() if ln.strip()]
     total = _extract_total(lines)
-    date = _extract_date(raw_text)
+    date = _extract_date(raw_text, country)
     merchant = _extract_merchant(lines)
 
     # Honesty rule (design-system.md "transparent AI", same principle as I3/I4/I5).
@@ -225,7 +258,9 @@ def parse_receipt_text(raw_text: str, tier: Tier = "tesseract") -> ExtractedDocu
     )
 
 
-def extract_local(file_path: Path, mime_type: str) -> ExtractedDocument:
+def extract_local(
+    file_path: Path, mime_type: str, country: str | None = None
+) -> ExtractedDocument:
     if mime_type == "application/pdf":
         text_parts: list[str] = []
         with pdfplumber.open(file_path) as pdf:
@@ -248,11 +283,11 @@ def extract_local(file_path: Path, mime_type: str) -> ExtractedDocument:
                 line_items=None,
                 category_hint=None,
             )
-        return parse_receipt_text(raw_text, tier="pdf_text")
+        return parse_receipt_text(raw_text, tier="pdf_text", country=country)
 
     image = Image.open(file_path)
     raw_text = pytesseract.image_to_string(image)
-    return parse_receipt_text(raw_text, tier="tesseract")
+    return parse_receipt_text(raw_text, tier="tesseract", country=country)
 
 
 _VALID_CONFIDENCE = {"high", "medium", "low"}
@@ -300,12 +335,14 @@ async def extract(
     mime_type: str,
     cloud_enabled: bool,
     ai_service,
+    country: str | None = None,
 ) -> ExtractedDocument:
     """Tier order: Gemini (only if the user's T5 toggle is on) → Tesseract (always
     available, zero network calls). `ai_service` is this project's single cloud-AI
     gateway (`services/ai/ai_service.py`) — passed in rather than imported as a
     module-level singleton here, so this stays a plain function callable from a
-    fixture without needing to fake global state."""
+    fixture without needing to fake global state. `country` (profile's) drives the
+    local tier's date locale (N1); Gemini infers locale from the document itself."""
     if cloud_enabled:
         image_bytes = file_path.read_bytes()
         gemini_result = await ai_service.extract_receipt(image_bytes, mime_type, cloud_enabled)
@@ -314,7 +351,7 @@ async def extract(
             if parsed is not None:
                 return parsed
 
-    return extract_local(file_path, mime_type)
+    return extract_local(file_path, mime_type, country)
 
 
 # --- Statement mode (S4) -------------------------------------------------------------
@@ -326,7 +363,12 @@ async def extract(
 # == only. Genuinely ambiguous cases are why tier B (LLM) exists and why every row is
 # user-reviewed before saving.
 _STMT_ROW_DATE = re.compile(r"^\s*(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\s+(.+)$")
-_STMT_ROW_AMOUNT = re.compile(r"(-)?\$?\s?(\d{1,3}(?:,\d{3})*\.\d{2})(-|\s?CR)?", re.IGNORECASE)
+# Locale-tolerant like _AMOUNT_RE (₹/Rs/INR/$/C$ + US or Indian grouping). A trailing
+# "CR" marks a credit/payment (income); "DR"/plain/leading-"-" is a debit (expense).
+_STMT_ROW_AMOUNT = re.compile(
+    r"(-)?" + _CURRENCY + r"\s?(\d{1,3}(?:,\d{2,3})*\.\d{2})(-|\s?cr|\s?dr)?",
+    re.IGNORECASE,
+)
 _STMT_SKIP_LINE = re.compile(
     r"\b(beginning|ending|previous|new|total|minimum|balance|payment due|"
     r"available|credit limit|statement|account\s*number|page)\b",
@@ -340,10 +382,14 @@ def _statement_fallback_year(raw_text: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def parse_statement_text(raw_text: str, tier: Tier = "pdf_text") -> ExtractedStatement:
+def parse_statement_text(
+    raw_text: str, tier: Tier = "pdf_text", country: str | None = None
+) -> ExtractedStatement:
     """Pure row parser over already-extracted statement text — no I/O, fixture-testable.
-    Emits a best-effort draft the review screen refines; never the final word."""
+    Emits a best-effort draft the review screen refines; never the final word. `country`
+    (profile's) drives DD/MM-vs-MM/DD interpretation of each row's date (N1)."""
     fallback_year = _statement_fallback_year(raw_text)
+    day_first = _is_day_first(country)
     rows: list[StatementRow] = []
 
     for line in raw_text.splitlines():
@@ -352,12 +398,12 @@ def parse_statement_text(raw_text: str, tier: Tier = "pdf_text") -> ExtractedSta
         date_match = _STMT_ROW_DATE.match(line)
         if not date_match:
             continue
-        mm, dd, yy, rest = date_match.groups()
+        date_a, date_b, yy, rest = date_match.groups()
 
         amt_match = _STMT_ROW_AMOUNT.search(rest)
         if not amt_match:
             continue
-        neg_lead, amt_str, cr_trail = amt_match.groups()
+        neg_lead, amt_str, credit_trail = amt_match.groups()
         try:
             amount = Decimal(amt_str.replace(",", ""))
         except InvalidOperation:
@@ -369,9 +415,11 @@ def parse_statement_text(raw_text: str, tier: Tier = "pdf_text") -> ExtractedSta
         if sum(c.isalpha() for c in description) < 2:
             continue  # a row with no real description is noise, not a transaction
 
-        # Trailing "-" or "CR", or a leading "-", marks a credit/payment (money in on a
-        # card statement); everything else defaults to expense.
-        is_credit = bool(neg_lead) or bool(cr_trail and cr_trail.strip())
+        # A leading "-", or a trailing "-"/"CR", marks a credit/payment (money in); a
+        # trailing "DR" (or nothing) is a debit — the default expense. US card statements
+        # use the trailing "-"; Indian bank statements use CR/DR explicitly.
+        trail = (credit_trail or "").strip().lower()
+        is_credit = bool(neg_lead) or trail in ("-", "cr")
         transaction_type: Literal["expense", "income"] = "income" if is_credit else "expense"
 
         year = int(yy) if yy else fallback_year
@@ -379,10 +427,7 @@ def parse_statement_text(raw_text: str, tier: Tier = "pdf_text") -> ExtractedSta
             year = 2000 + year
         row_date: date_type | None = None
         if year is not None:
-            try:
-                row_date = date_type(year, int(mm), int(dd))
-            except ValueError:
-                row_date = None
+            row_date = _resolve_ambiguous_date(int(date_a), int(date_b), year, day_first)
 
         rows.append(
             StatementRow(
@@ -434,14 +479,16 @@ def _statement_from_gemini(result: dict) -> ExtractedStatement | None:
     return ExtractedStatement(tier="gemini", transactions=rows)
 
 
-def extract_statement_local(file_path: Path, mime_type: str) -> ExtractedStatement:
+def extract_statement_local(
+    file_path: Path, mime_type: str, country: str | None = None
+) -> ExtractedStatement:
     if mime_type != "application/pdf":
         # Statements are effectively always PDFs; an image "statement" would need OCR
         # first — out of scope for tier C here, so return nothing to import rather than
         # a bad guess. (A user can still upload it as a single receipt.)
         image = Image.open(file_path)
         raw_text = pytesseract.image_to_string(image)
-        return parse_statement_text(raw_text, tier="tesseract")
+        return parse_statement_text(raw_text, tier="tesseract", country=country)
 
     text_parts: list[str] = []
     with pdfplumber.open(file_path) as pdf:
@@ -449,7 +496,7 @@ def extract_statement_local(file_path: Path, mime_type: str) -> ExtractedStateme
             page_text = page.extract_text()
             if page_text:
                 text_parts.append(page_text)
-    return parse_statement_text("\n".join(text_parts), tier="pdf_text")
+    return parse_statement_text("\n".join(text_parts), tier="pdf_text", country=country)
 
 
 async def extract_statement(
@@ -457,6 +504,7 @@ async def extract_statement(
     mime_type: str,
     cloud_enabled: bool,
     ai_service,
+    country: str | None = None,
 ) -> ExtractedStatement:
     """Same tier order as `extract`: Gemini (toggle on) → local pdfplumber/regex."""
     if cloud_enabled:
@@ -467,4 +515,4 @@ async def extract_statement(
             if parsed is not None and parsed.transactions:
                 return parsed
 
-    return extract_statement_local(file_path, mime_type)
+    return extract_statement_local(file_path, mime_type, country)

@@ -1,5 +1,6 @@
 import { type JSX } from 'react'
 import { Box, Tabs, Text } from '@radix-ui/themes'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { Categories } from '../Categories/Categories.tsx'
 import { Merchants } from '../Merchants/Merchants.tsx'
 import { Goals } from '../Goals/Goals.tsx'
@@ -7,6 +8,7 @@ import { AccountsTab } from './AccountsTab.tsx'
 import { ImportTab } from './ImportTab.tsx'
 import { AiPrivacyTab } from './AiPrivacyTab.tsx'
 import { AccountTab } from './AccountTab.tsx'
+import { AdminTab } from './AdminTab.tsx'
 import styles from './Manage.module.css'
 
 // One home for every maintenance UI (U7) — retires the standalone Settings, Categories,
@@ -15,6 +17,8 @@ import styles from './Manage.module.css'
 // self-contained CRUD page wired to its own store slice, so mounting it as a tab panel
 // costs nothing and avoids re-deriving ~1400 lines of working, tested logic.
 export const Manage = (): JSX.Element => {
+  const isAdmin = useBoundStore((s) => s.auth.user?.is_admin ?? false)
+
   return (
     <Box className={styles.page}>
       <Text as="div" className={styles.pageTitle}>
@@ -30,6 +34,7 @@ export const Manage = (): JSX.Element => {
           <Tabs.Trigger value="import">Import</Tabs.Trigger>
           <Tabs.Trigger value="ai">AI &amp; Privacy</Tabs.Trigger>
           <Tabs.Trigger value="account">Account</Tabs.Trigger>
+          {isAdmin && <Tabs.Trigger value="admin">Admin</Tabs.Trigger>}
         </Tabs.List>
 
         <Box className={styles.tabContent}>
@@ -54,6 +59,11 @@ export const Manage = (): JSX.Element => {
           <Tabs.Content value="account">
             <AccountTab />
           </Tabs.Content>
+          {isAdmin && (
+            <Tabs.Content value="admin">
+              <AdminTab />
+            </Tabs.Content>
+          )}
         </Box>
       </Tabs.Root>
     </Box>

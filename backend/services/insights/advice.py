@@ -18,7 +18,11 @@ from .trends import Insight
 BUDGET_DRIFT_THRESHOLD_PCT = 90.0
 GOAL_PACING_BEHIND_PCT = 15.0
 TOP_SUBSCRIPTIONS_SHOWN = 3
-MAX_CARDS = 5
+MAX_CARDS = 6
+# Savings-rate coaching (N2): the common personal-finance target is ~20% saved; below
+# the low bar earns a nudge, at/above the target earns a positive note.
+SAVINGS_RATE_TARGET_PCT = 20.0
+SAVINGS_RATE_LOW_PCT = 10.0
 
 AdviceType = Literal[
     "anomaly",
@@ -27,6 +31,10 @@ AdviceType = Literal[
     "budget_drift",
     "goal_pacing",
     "top_subscriptions",
+    "overspending",
+    "savings_rate",
+    "fee_leakage",
+    "remittance",
 ]
 
 
@@ -53,6 +61,35 @@ class GoalStatus:
     monthly_contribution: Decimal | None
     deadline: date_type | None
     created_at: date_type
+
+
+@dataclass
+class SavingsSnapshot:
+    """Income vs. spend for a period (N2) — the basis for savings-rate coaching. Only
+    produces a card when `income > 0` (a real denominator), per the honesty rule."""
+
+    income: Decimal
+    expense: Decimal
+    period_label: str
+
+
+@dataclass
+class FeeLeakage:
+    """Fees + interest paid over a period (N2) — the honest, *detectable* form of
+    "useless spend" (unlike "unused subscriptions", which needs usage data we don't have,
+    so we don't guess at it)."""
+
+    total: Decimal
+    count: int
+    period_label: str
+
+
+@dataclass
+class RemittanceSummary:
+    """Money sent home over a period (N2) — the "Money Sent Home" category total."""
+
+    total: Decimal
+    period_label: str
 
 
 def _top_subscriptions_card(charges: list[RecurringCharge]) -> AdviceCard | None:
@@ -184,21 +221,118 @@ def _trend_insight_cards(insights: list[Insight]) -> list[AdviceCard]:
     ]
 
 
+def _savings_rate_card(snapshot: SavingsSnapshot | None) -> AdviceCard | None:
+    # Only coach when there's real income to measure against — no denominator, no claim.
+    if snapshot is None or snapshot.income <= 0:
+        return None
+    saved = snapshot.income - snapshot.expense
+    rate = float(saved / snapshot.income * 100)
+
+    if saved < 0:
+        return AdviceCard(
+            type="overspending",
+            message=(
+                f"You spent ${snapshot.expense:.2f} {snapshot.period_label} but earned "
+                f"${snapshot.income:.2f} — ${-saved:.2f} more went out than came in."
+            ),
+            evidence={
+                "income": float(snapshot.income),
+                "expense": float(snapshot.expense),
+                "overspent_by": float(-saved),
+                "period": snapshot.period_label,
+            },
+            priority=1,
+        )
+
+    if rate < SAVINGS_RATE_TARGET_PCT:
+        target_saved = snapshot.income * Decimal(str(SAVINGS_RATE_TARGET_PCT / 100))
+        gap = target_saved - saved
+        return AdviceCard(
+            type="savings_rate",
+            message=(
+                f"You saved {rate:.0f}% {snapshot.period_label}. Reaching the 20% mark "
+                f"would set aside ${gap:.2f} more."
+            ),
+            evidence={
+                "income": float(snapshot.income),
+                "expense": float(snapshot.expense),
+                "saved": float(saved),
+                "savings_rate_pct": round(rate, 1),
+                "target_pct": SAVINGS_RATE_TARGET_PCT,
+                "gap_to_target": float(gap),
+                "period": snapshot.period_label,
+            },
+            priority=3 if rate < SAVINGS_RATE_LOW_PCT else 5,
+        )
+
+    # Healthy — a brief positive note (lowest priority, first to be trimmed if crowded).
+    return AdviceCard(
+        type="savings_rate",
+        message=f"Nice — you saved {rate:.0f}% {snapshot.period_label} (${saved:.2f} set aside).",
+        evidence={
+            "income": float(snapshot.income),
+            "expense": float(snapshot.expense),
+            "saved": float(saved),
+            "savings_rate_pct": round(rate, 1),
+            "period": snapshot.period_label,
+        },
+        priority=5,
+    )
+
+
+def _fee_leakage_card(fees: FeeLeakage | None) -> AdviceCard | None:
+    if fees is None or fees.total <= 0 or fees.count <= 0:
+        return None
+    charge_word = "charge" if fees.count == 1 else "charges"
+    return AdviceCard(
+        type="fee_leakage",
+        message=(
+            f"You paid ${fees.total:.2f} in fees & interest {fees.period_label} "
+            f"({fees.count} {charge_word}) — money for nothing. Worth cutting."
+        ),
+        evidence={
+            "total": float(fees.total),
+            "count": fees.count,
+            "period": fees.period_label,
+        },
+        priority=2,
+    )
+
+
+def _remittance_card(remittance: RemittanceSummary | None) -> AdviceCard | None:
+    if remittance is None or remittance.total <= 0:
+        return None
+    return AdviceCard(
+        type="remittance",
+        message=f"You sent ${remittance.total:.2f} home {remittance.period_label}.",
+        evidence={"total": float(remittance.total), "period": remittance.period_label},
+        priority=4,
+    )
+
+
 def generate(
     charges: list[RecurringCharge],
     trend_insights: list[Insight],
     budgets: list[BudgetStatus],
     goals: list[GoalStatus],
     today: date_type,
+    savings: SavingsSnapshot | None = None,
+    fees: FeeLeakage | None = None,
+    remittance: RemittanceSummary | None = None,
 ) -> list[AdviceCard]:
     cards: list[AdviceCard] = []
     cards.extend(_trend_insight_cards(trend_insights))
     cards.extend(_price_hike_cards(charges))
     cards.extend(_budget_drift_cards(budgets))
     cards.extend(_goal_pacing_cards(goals, today))
-    top_sub = _top_subscriptions_card(charges)
-    if top_sub is not None:
-        cards.append(top_sub)
+    for card in (
+        _savings_rate_card(savings),
+        _fee_leakage_card(fees),
+        _remittance_card(remittance),
+        _top_subscriptions_card(charges),
+    ):
+        if card is not None:
+            cards.append(card)
 
     cards.sort(key=lambda c: c.priority)
     return cards[:MAX_CARDS]

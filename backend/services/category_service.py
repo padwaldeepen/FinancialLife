@@ -82,6 +82,15 @@ SYSTEM_CATEGORIES: list[dict] = [
             {"name": "Refund", "color": "#D1FAE5"},
         ],
     },
+    # N2: cross-border money sent home (US→India remittances, etc.) — a first-class
+    # spending category the advisor tracks, auto-tagged from statements by provider name
+    # (Wise/Remitly/Xoom/…). Keeps the sealed-profile model: it's just a US-profile
+    # expense, no cross-profile linking or currency conversion.
+    {
+        "name": "Money Sent Home",
+        "color": "#0EA5E9",
+        "children": [],
+    },
 ]
 
 

@@ -1618,7 +1618,7 @@ the original ticket wording implied.
 Two rule-based initiatives serving the multi-country / advisor goal. **No new AI** — Gemini
 stays the single optional cloud tier (per `plan.md` Principle 3).
 
-### [ ] N1 — Multi-country documents (locale-aware local parsing)
+### [x] N1 — Multi-country documents (locale-aware local parsing) — done 2026-07-29
 **Goal:** Indian/Canadian receipts & statements parse **locally** (no cloud needed), not just
 US formats.
 **Build:** the extraction path (`routers/documents.py` `_extract_*_json`) already has the
@@ -1634,7 +1634,38 @@ categories (hand-computed); live per-profile verify (an IN profile parses a ₹ 
 a US profile still parses `$` MM/DD). No regression on the existing US fixtures.
 **Depends:** S2, S4, D1 (country profiles).
 
-### [ ] N2 — Deeper advisor + remittance-as-a-category
+**Result:** all in `services/ingest/document_extract.py`, no schema change. **Dates:**
+`_is_day_first(country)` (India = day-first; US/CA = month-first) + `_resolve_ambiguous_date(a,
+b, year, day_first)` which interprets a slash/dash pair per locale **and auto-swaps** when the
+primary order is impossible (e.g. "15/07" can't be month 15 → falls back to 15 Jul). ISO and
+month-name dates stay unambiguous and are resolved first. Threaded `country` through
+`_extract_date` → `parse_receipt_text` / `parse_statement_text` → `extract_local` / `extract` /
+`extract_statement_local` / `extract_statement`; the router passes `profile.country` to both
+`extract(...)` and `extract_statement(...)`. Gemini (tier B) is unchanged — it infers locale
+from the document itself. **Amounts:** a shared `_CURRENCY` prefix (`₹ / Rs / INR / $ / C$`)
+and a grouping pattern `\d{1,3}(?:,\d{2,3})*\.\d{2}` that accepts **both** US (`1,234.56`) and
+Indian **lakh** (`1,00,000.00`) grouping (commas stripped after match), applied to both
+`_AMOUNT_RE` and the statement row amount. **Credit/debit:** the statement row now recognizes
+a trailing **`CR`** (credit → income) vs **`DR`** (debit → expense), alongside the existing
+leading/trailing `-`; India uses CR/DR explicitly. **Categories:** added India/Canada
+merchants + services to `_CATEGORY_KEYWORDS` (Zomato/Swiggy/Dominos, Ola/Rapido, Airtel/Jio/
+Vodafone/BSNL/recharge, Flipkart/Myntra/Ajio/Meesho, BigBasket/Blinkit/Zepto/DMart, Indian
+Oil/HPCL/BP, Hotstar/JioCinema, Apollo/1mg/PharmEasy, Tim Hortons/Loblaws/Sobeys/Shoppers,
+hydro) — statement lines like "UPI-ZOMATO-…" match by substring.
+
+**Verified.** Fixture (`parse_receipt_text`/`parse_statement_text`, run in-container, deleted
+after): US receipt MM/DD `$` → correct (no regression); IN receipt DD/MM `₹1,05,499.00` →
+Jul 15 / 105499.00; auto-swap on impossible month (US "15/07" → 15 Jul); the same "05/07/2026"
+→ **May 7 for US, 5 Jul for IN**; an Indian HDFC statement (UPI/IMPS rows, CR/DR, lakh
+amounts) → 4 rows with correct DD/MM dates, DR=expense/CR=income, and Zomato→Dining Out /
+Ola→Rideshare / Airtel→Phone; a US statement still MM/DD with trailing-`-` credit. Live: a
+freshly registered **IN profile** (currency INR) uploaded a real Indian statement PDF →
+`GET /documents/{id}/statement` returned rows dated Jul 3/5/9/15 (day-first), ₹75,000 salary
+as **income** (CR), the rest expenses (DR), and categories resolved to real
+`category_id`s — proving `profile.country` flows profile → router → extraction. `ruff check .`
+clean. Throwaway account + files deleted after.
+
+### [x] N2 — Deeper advisor + remittance-as-a-category — done 2026-07-29
 **Goal:** turn advice from reactive flags into real guidance ("what's useless, how to save"),
 and track money sent home.
 **Build:** grow `services/insights/advice.py` with new rule types — **savings-rate coaching**
@@ -1654,11 +1685,47 @@ Live-verify the advisor cards on desktop Home. **Heavy linked-legs+FX remittance
 deferred** (see `plan.md`).
 **Depends:** I3, I6 (advice engine), N1 (keyword map).
 
+**Result:** three new advice card types in `services/insights/advice.py` (pure functions,
+new `SavingsSnapshot`/`FeeLeakage`/`RemittanceSummary` inputs, `MAX_CARDS` 5→6):
+- **`savings_rate` / `overspending`** — income vs. expense for the month. Overspending
+  (expense > income) → an urgent (priority 1) "you spent $X but earned $Y" card; else, if
+  saved < the 20% target → a coaching nudge showing the gap to 20%; at/above target → a brief
+  positive note. **Honesty gate:** no card at all when income is 0 (no denominator to measure).
+- **`fee_leakage`** — the *detectable, honest* form of "useless spend": total + count of
+  fees/interest over the trailing 90 days (interest, late/ATM/overdraft/annual/finance/NSF/
+  foreign-txn charges, matched on description). Deliberately does **not** attempt "unused
+  subscriptions" — no usage signal exists, so guessing would break the honesty rule.
+- **`remittance`** — money sent home this month (the "Money Sent Home" category total).
+Budget guidance and goal planning were already covered by the existing `budget_drift` /
+`goal_pacing` cards. All numbers carry `evidence`; frontend `InsightCards.tsx` got matching
+evidence-line cases for the four new types; Gemini rephrasing (behind the toggle) unchanged.
+
+**Remittance-as-a-category:** new "Money Sent Home" top-level system category
+(`category_service.py`, seeded on startup for new *and* existing installs since the seeder
+skips-by-name) + a remittance-provider keyword group **checked first** in
+`document_extract.py` `_CATEGORY_KEYWORDS` (wise/transferwise/remitly/xoom/western union/
+moneygram/worldremit/ria/remittance → "Money Sent Home"). Router `_remittance_summary` sums
+that category for the month; `_savings_snapshot` and `_fee_leakage` feed the other two cards.
+Pure US-profile expenses — **no cross-profile linking, no conversion** (sealed-profile model
+intact); heavy linked-legs+FX version stays deferred.
+
+**Verified.** Fixture (`advice.generate`, deleted after): overspending, low-rate coaching,
+healthy-rate positive, the zero-income honesty gate (no card), fee leakage (+ zero → no card),
+remittance (+ zero → no card), and combined priority ordering/cap — all exact. Auto-tagging:
+`infer_category_hint` maps WISE/REMITLY/XOOM/WESTERN UNION/MONEYGRAM → "Money Sent Home", and a
+"WISE TRANSFER TO INDIA" statement row auto-tags to it. Live: registered a US account, seeded
+$3000 income + $2700 expenses (incl. a "$30 Interest charge" and a $500 remittance in the
+category), `GET /api/insights/advice` returned all three new cards with exact numbers; confirmed
+on **desktop Home** via Playwright — "You paid $30.00 in fees & interest… money for nothing",
+"You sent $500.00 home this month", "You saved 10% this month. Reaching the 20% mark would set
+aside $300.00 more", each with a Dismiss button. `ruff`/`tsc`/`eslint` clean. Throwaway account
++ files deleted after.
+
 ---
 
 ## Phase A — Admin Panel (desktop Manage tab, `is_admin` only)
 
-### [ ] A1 — Admin API
+### [x] A1 — Admin API — done 2026-07-29
 **Build:** `routers/admin.py` + `require_admin` dependency: user list/create/deactivate
 (**never** anyone's financial data — isolation rule), system-category CRUD, job
 status (last backup timestamp if configured, pending documents count),
@@ -1669,12 +1736,72 @@ present; reports "not configured" otherwise).
 transactions via any admin route (test proves absence).
 **Depends:** D1.
 
-### [ ] A2 — Admin UI
+**Result:** `backend/routers/admin.py` (new, mounted at `/api/admin`, `tags=["Admin"]`).
+`require_admin` = `get_current_user` + an `is_admin` check → 403 otherwise; every route
+depends on it. **Users (metadata only):** `GET /users` (id/email/username/full_name/
+is_admin/is_active/profile_count — no financial rows), `POST /users` (creates a plain
+non-admin family user + first country profile + base accounts, mirroring self-registration
+minus session issuance — the new user logs in fresh to their own empty dashboard),
+`PATCH /users/{id}/active` with two guards: can't change your **own** active status
+(400), and can't deactivate the **last active admin** (a defensive invariant — in normal
+flow the acting admin is itself another active admin, so it never blocks legitimate use,
+but it protects against future "demote admin" paths). **System categories:**
+`GET/POST/PATCH/DELETE /system-categories` over the global `is_system` rows (create
+validates a parent is itself a system category; delete relies on `transactions.category_id`
+being `ON DELETE SET NULL`). **System status/backup:** `GET /status` returns *aggregate
+counts only* (user/active-user/pending-documents/total-transactions + backup config) —
+never any user's content; `POST /backup` runs `scripts/backup.ps1` if present, else honestly
+reports `not_configured` (backups are deferred, plan.md "Later", so the script isn't there
+yet). **Isolation by design:** there is deliberately **no** admin route that reads another
+user's ledger — the only `FROM transactions` in the file is a `COUNT(*)` system metric.
+Per-user export stays on the existing `/api/export` (self-scoped via `get_current_profile`);
+admin never exports another user's rows.
+
+**Verified live** (curl, two throwaway accounts — a non-admin and an admin elevated via
+`UPDATE users SET is_admin=TRUE`, deleted after): non-admin → **403 on all of**
+`GET/POST /users`, `GET /system-categories`, `GET /status`, `POST /backup`. Admin: `GET
+/users` returned metadata only; `POST /users` created an IN family user (non-admin, 1
+profile); system category create→patch→delete (201→renamed→204); `GET /status` returned
+aggregate counts; `POST /backup` → `not_configured`; deactivate-self → 400; deactivate a
+normal user → `is_active:false`. Isolation confirmed by absence (grep: only the aggregate
+`COUNT(*)`). `ruff check .` clean. **Not built here:** the admin **UI** (Manage tab) is A2.
+
+### [x] A2 — Admin UI — done 2026-07-29
 **Build:** "Admin" tab in Manage, visible only when `is_admin`; users table, system
 categories editor, job/status cards, dedup audit list (skipped/merged imports).
 **Accept:** hidden for non-admin (Playwright as both users); create user → new user logs
 in fresh with own empty dashboard.
 **Depends:** A1, U7.
+
+**Result:** `store/slices/adminSlice.ts` (new — users/systemCategories/status state +
+actions over A1's endpoints; registered in `store/types.ts`/`useBoundStore.ts`).
+`desktop/pages/Manage/AdminTab.tsx` (new): **System** status tiles (active/total users,
+pending documents, transaction count, backup config) + "Run backup now"; **Users** table
+(email/username/role badge/profile count/active) with Add-user dialog (email/username/
+password/full-name/country) and per-row Deactivate/Activate — the current admin's own row
+has no toggle (mirrors A1's self-guard in the UI); **System categories** editor (inline
+color swatch + rename/delete per row, add form). `Manage.tsx` renders the Admin `Tabs.Trigger`
++ `Tabs.Content` **only when `auth.user.is_admin`** — a non-admin never sees or mounts it
+(and A1 server-gates every call regardless). **Dedup audit list not built:** there's no
+dedup-event store (D3 skips/flags in-flight without persisting an audit log), so a list
+would have nothing real to show — omitted rather than faked (honesty rule); a future ticket
+that adds a dedup_events table can add it.
+
+**Bug found and fixed during live Playwright verification:** create-user succeeded
+server-side (201) but the dialog didn't close and the list didn't refresh. Cause: a
+`namespaceSlice` gotcha — inside a slice action, `get()` returns only the namespace **state**,
+not sibling **actions** (those are hoisted to the store root), so `await get().fetchAdminUsers()`
+threw `undefined is not a function` right after the POST, skipping the close/toast. Fixed by
+**inlining the refetch** (`api.get(...) → set(...)`, the pattern the other slices already use)
+in `createAdminUser`/`createSystemCategory`/`updateSystemCategory`.
+
+**Verified live** (Playwright, desktop): as a **non-admin** — Manage shows no Admin tab; as an
+**admin** — Admin tab appears, the panel renders status tiles + the full users table (own row
+correctly has no Deactivate) + the system-categories editor (incl. N2's "Money Sent Home").
+Created a user through the dialog → after the fix the dialog closed and the new row appeared;
+confirmed the created user (id 79) has 1 profile + 3 base accounts + **0 transactions** and can
+log in fresh to its own empty dashboard. `ruff`/`tsc`/`eslint` clean. Three throwaway accounts
+deleted after. **This completes Phase A.**
 
 ---
 

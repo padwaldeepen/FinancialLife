@@ -10,7 +10,13 @@ from database.session import get_db
 from routers.auth import get_current_profile
 from routers.budgets import get_period_range
 from services.ai.rephrase import rephrase
-from services.insights.advice import BudgetStatus, GoalStatus
+from services.insights.advice import (
+    BudgetStatus,
+    FeeLeakage,
+    GoalStatus,
+    RemittanceSummary,
+    SavingsSnapshot,
+)
 from services.insights.advice import generate as generate_advice
 from services.insights.forecast import simulate
 from services.insights.recurring import RecurringCharge, TransactionInput, detect
@@ -428,6 +434,73 @@ async def _goal_statuses(profile_id: int, conn: asyncpg.Connection) -> list[Goal
     ]
 
 
+# Fees/interest a user pays for nothing — the honest, detectable "useless spend" (N2).
+# Matched on description since there's no dedicated Fees category in the seed tree.
+_FEE_KEYWORDS = (
+    "interest",
+    "finance charge",
+    "late fee",
+    "overdraft",
+    "atm fee",
+    "service charge",
+    "annual fee",
+    "foreign transaction fee",
+    "maintenance fee",
+    "nsf fee",
+)
+_ADVICE_WINDOW_DAYS = 90
+
+
+def _current_month_start(today: date) -> date:
+    return today.replace(day=1)
+
+
+async def _savings_snapshot(
+    profile_id: int, conn: asyncpg.Connection, today: date
+) -> SavingsSnapshot:
+    month_start = _current_month_start(today)
+    row = await conn.fetchrow(
+        """SELECT
+             COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'income'), 0) AS income,
+             COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'expense'), 0) AS expense
+           FROM transactions WHERE profile_id = $1 AND date >= $2""",
+        profile_id,
+        month_start,
+    )
+    return SavingsSnapshot(
+        income=row["income"], expense=row["expense"], period_label="this month"
+    )
+
+
+async def _fee_leakage(profile_id: int, conn: asyncpg.Connection, today: date) -> FeeLeakage:
+    like_clauses = " OR ".join(f"lower(description) LIKE '%{kw}%'" for kw in _FEE_KEYWORDS)
+    cutoff = today - timedelta(days=_ADVICE_WINDOW_DAYS)
+    row = await conn.fetchrow(
+        f"""SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count
+            FROM transactions
+            WHERE profile_id = $1 AND transaction_type = 'expense' AND date >= $2
+              AND ({like_clauses})""",
+        profile_id,
+        cutoff,
+    )
+    return FeeLeakage(total=row["total"], count=row["count"], period_label="in the last 90 days")
+
+
+async def _remittance_summary(
+    profile_id: int, conn: asyncpg.Connection, today: date
+) -> RemittanceSummary:
+    month_start = _current_month_start(today)
+    total = await conn.fetchval(
+        """SELECT COALESCE(SUM(t.amount), 0)
+           FROM transactions t JOIN categories c ON c.id = t.category_id
+           WHERE t.profile_id = $1 AND t.transaction_type = 'expense'
+             AND t.date >= $2 AND c.name = 'Money Sent Home'""",
+        profile_id,
+        month_start,
+    )
+    return RemittanceSummary(total=total, period_label="this month")
+
+
 @router.get("/advice", response_model=list[AdviceCardResponse])
 async def advice_cards(
     profile: Profile = Depends(get_current_profile),
@@ -441,8 +514,13 @@ async def advice_cards(
     trend_insights = detect_insights(categorized_transactions, today)
     budgets = await _budget_statuses(profile.id, conn)
     goals = await _goal_statuses(profile.id, conn)
+    savings = await _savings_snapshot(profile.id, conn, today)
+    fees = await _fee_leakage(profile.id, conn, today)
+    remittance = await _remittance_summary(profile.id, conn, today)
 
-    cards = generate_advice(charges, trend_insights, budgets, goals, today)
+    cards = generate_advice(
+        charges, trend_insights, budgets, goals, today, savings, fees, remittance
+    )
 
     dismissed_rows = await conn.fetch(
         "SELECT insight_type FROM dismissed_insight_types WHERE profile_id = $1",

@@ -30,6 +30,14 @@ function evidenceLine(card: AdviceCard, currency: string): string {
       return `${formatCurrency(e.current_amount as number, currency)} of ${formatCurrency(e.target_amount as number, currency)} saved`
     case 'top_subscriptions':
       return `${formatCurrency(e.total_monthly as number, currency)}/month total`
+    case 'overspending':
+      return `${formatCurrency(e.expense as number, currency)} spent vs ${formatCurrency(e.income as number, currency)} earned`
+    case 'savings_rate':
+      return `${formatCurrency(e.saved as number, currency)} saved of ${formatCurrency(e.income as number, currency)} income`
+    case 'fee_leakage':
+      return `${formatCurrency(e.total as number, currency)} across ${e.count as number} charge(s)`
+    case 'remittance':
+      return `${formatCurrency(e.total as number, currency)} ${e.period as string}`
     default:
       return ''
   }

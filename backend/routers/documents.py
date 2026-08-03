@@ -200,7 +200,9 @@ async def _extract_receipt_json(
     profile: Profile,
     conn: asyncpg.Connection,
 ) -> dict:
-    result: ExtractedDocument = await extract(file_path, mime_type, cloud_enabled, ai_service)
+    result: ExtractedDocument = await extract(
+        file_path, mime_type, cloud_enabled, ai_service, country=profile.country
+    )
 
     merchant_id: int | None = None
     if result.merchant:
@@ -233,7 +235,9 @@ async def _extract_statement_json(
     profile: Profile,
     conn: asyncpg.Connection,
 ) -> dict:
-    result = await extract_statement(file_path, mime_type, cloud_enabled, ai_service)
+    result = await extract_statement(
+        file_path, mime_type, cloud_enabled, ai_service, country=profile.country
+    )
 
     # Resolve each row's category hint to a real category_id once here (cached by hint
     # so a statement full of "STARBUCKS" rows does one lookup, not N).

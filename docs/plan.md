@@ -241,33 +241,30 @@ ingest every receipt/bill/statement, a proper dashboard, and genuine guidance ("
 useless, how to save"). **Remittance** is handled the lightweight way (a category, below) —
 the heavy linked-legs+FX version is deferred. Two rule-based initiatives, **no new AI**:
 
-- [ ] **1. Multi-country documents** (locale-aware *local* parsing): the extraction path
-  already has the profile's country — pass it into `parse_receipt_text`/`parse_statement_text`
-  so Indian/Canadian formats parse **without** the cloud: DD/MM vs MM/DD date interpretation by
-  locale, ₹/lakh grouping, and India transaction vocabulary (UPI/IMPS/NEFT) in the amount/
-  description regexes and the category-keyword map. (`services/ingest/document_extract.py`.)
-- [ ] **2. Deeper advisor + remittance-as-a-category** (rule-based guidance): grow
-  `services/insights/advice.py` from reactive flags into savings-rate coaching, "useless
-  spend" detection (forgotten subscriptions, fee/interest leakage), budget guidance, and
-  goal-based planning — deterministic numbers, optional Gemini *phrasing* only.
-  **Remittance-as-a-category** (owner's idea, the pragmatic approach): a "Money Sent Home /
-  Remittance" system category + transfer providers (Wise, Remitly, Xoom, Western Union,
-  MoneyGram, wire) added to the category-keyword map so they **auto-tag from bank statements**
-  (or added manually); the advisor then treats money sent home as a first-class recurring
-  category. This is just a US-profile expense — respects the sealed-profile, no-conversion
-  principle, **zero new architecture**.
+- [x] **1. Multi-country documents** (locale-aware *local* parsing) — **done 2026-07-29** (backlog N1): `profile.country` now flows into `parse_receipt_text`/`parse_statement_text` so Indian/Canadian formats parse **without** the cloud — DD/MM-vs-MM/DD by locale (with auto-swap on impossible dates), ₹/lakh-grouping amounts (`_CURRENCY` + 2-or-3-digit groups), CR/DR credit markers, and India/Canada merchant vocabulary (Zomato/Ola/Airtel/Flipkart/UPI/…) in `_CATEGORY_KEYWORDS`. Fixture + live-per-profile verified; no US regression.
+- [x] **2. Deeper advisor + remittance-as-a-category** — **done 2026-07-29** (backlog N2):
+  three new rule-based advice cards in `services/insights/advice.py` — **savings-rate coaching**
+  (income vs spend; overspending is urgent, below-20% nudges the gap, healthy gets a positive
+  note; no card when income is 0), **fee/interest leakage** (the honest, detectable "useless
+  spend" — trailing-90-day fees/interest; deliberately not guessing "unused subscriptions"),
+  and **remittance** (money sent home this month). Budget/goal guidance already existed
+  (`budget_drift`/`goal_pacing`). **Remittance-as-a-category** shipped: new "Money Sent Home"
+  system category + provider keywords (Wise/Remitly/Xoom/Western Union/MoneyGram/…) that
+  **auto-tag from statements**; the advisor sums it. Sealed-profile model intact (just a
+  US-profile expense, no conversion). Fixture + live + desktop-Playwright verified.
 
-### Phase A — Admin Panel (~1–2 weeks)
+### Phase A — Admin Panel — **DONE 2026-07-29 (backlog A1–A2)**
 
 Desktop-only, `is_admin` gated (column already exists).
 **Isolation rule: every user has their own separate dashboard and data.** All queries are
 scoped by `user_id` (already true in the schema); admin manages the _system_, never sees
 another user's transactions, insights, or dashboard.
 
-- [ ] User management (create/deactivate family users — groundwork for family use later)
-- [ ] System data: manage system categories
-- [ ] Data tools: per-user export-all, backup-now trigger, dedup audit log
-- [ ] Job visibility: last backup, pending documents count
+- [x] User management (create/deactivate family users) — `routers/admin.py` + Manage "Admin" tab (A1/A2); self- and last-admin deactivation guards; created users get a profile + base accounts and log in to a fresh empty dashboard
+- [x] System data: manage system categories — global `is_system` CRUD (create/rename/recolor/delete)
+- [x] Data tools: backup-now trigger (runs `scripts/backup.ps1` if present, else honest "not configured"); per-user export stays self-scoped on `/api/export` (admin never reads another user's rows). **Dedup audit log not built** — no dedup-event store exists yet; omitted rather than faked
+- [x] Job visibility: pending-documents count + aggregate system counts (users/transactions); last-backup shown once backups are configured
+- **Isolation verified:** non-admin → 403 on every admin route; the only `FROM transactions` in the admin router is an aggregate `COUNT(*)` — no admin route returns another user's ledger
 
 ### Later (only after the above is real and used daily)
 

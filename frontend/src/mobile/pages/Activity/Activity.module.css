@@ -65,14 +65,14 @@
 
 .pendingCard {
   border-radius: var(--radius-card) !important;
-  border: 1px solid var(--amber-6);
-  background: var(--amber-2);
+  border: 1px solid var(--accent-6);
+  background: var(--accent-2);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
 .pendingCard:active {
-  background: var(--amber-3);
+  background: var(--accent-3);
 }
 
 .emptyState {

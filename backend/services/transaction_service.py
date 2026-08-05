@@ -2,6 +2,15 @@ import re
 from datetime import date, timedelta
 from decimal import Decimal
 
+import asyncpg
+from fastapi import HTTPException, status
+
+from database.models import Profile
+from services.account_service import get_account
+from services.bill_service import get_bill
+from services.goal_service import get_goal
+from services.merchant_service import get_merchant
+
 CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "Food & Dining": [
         "grocery",
@@ -301,3 +310,40 @@ def parse_transaction(text: str, today: date | None = None) -> dict:
         "missing": missing,
         "raw_text": text,
     }
+
+
+async def check_category_owned(
+    category_id: int | None, profile: Profile, conn: asyncpg.Connection
+) -> None:
+    if category_id is None:
+        return
+    cat = await conn.fetchrow(
+        "SELECT id FROM categories WHERE id = $1 AND (user_id = $2 OR is_system = TRUE)",
+        category_id,
+        profile.user_id,
+    )
+    if not cat:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+
+async def check_related_ids_owned(
+    *,
+    account_id: int | None,
+    bill_id: int | None = None,
+    goal_id: int | None = None,
+    merchant_id: int | None = None,
+    profile: Profile,
+    conn: asyncpg.Connection,
+) -> None:
+    """A caller can freely pass any account/bill/goal/merchant id on a transaction
+    write — without this, nothing stops one profile's transaction from pointing at
+    another profile's account (isolation on writes; matters once family shares the
+    app). `None` (not set / clearing an optional FK) is always allowed."""
+    if account_id is not None and await get_account(account_id, profile.id, conn) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+    if bill_id is not None and await get_bill(bill_id, profile.id, conn) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bill not found")
+    if goal_id is not None and await get_goal(goal_id, profile.id, conn) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found")
+    if merchant_id is not None and await get_merchant(merchant_id, profile.id, conn) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Merchant not found")

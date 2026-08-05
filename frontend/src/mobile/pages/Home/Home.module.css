@@ -73,8 +73,6 @@
   text-align: center;
   padding: var(--space-5);
   border-radius: var(--radius-section);
-  background: var(--accent-9);
-  color: var(--accent-contrast);
   position: relative;
   overflow: hidden;
 }
@@ -85,7 +83,7 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.1;
-  color: var(--accent-contrast);
+  color: var(--gray-12);
 }
 
 .billRow {

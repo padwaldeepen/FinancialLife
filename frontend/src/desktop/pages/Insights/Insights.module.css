@@ -44,12 +44,11 @@
   color: var(--money-negative);
 }
 
-.incomeIcon {
-  color: var(--money-positive);
-}
-
+.incomeIcon,
 .expenseIcon {
-  color: var(--money-negative);
+  /* Money color stays on the number only (design-system.md §1 rule 2) — these
+     icons are decorative labels, not amounts. */
+  color: var(--gray-9);
 }
 
 .chartCard {

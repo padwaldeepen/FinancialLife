@@ -79,13 +79,16 @@ export const CaptureSheet = (): JSX.Element => {
             </Flex>
           </Card>
 
-          {/* `capture="environment"` opens the rear camera directly on HTTPS/localhost; over
-              plain LAN HTTP the browser silently falls back to the gallery/file picker. */}
+          {/* No `capture` attribute — that would force the camera and hide the OS's
+              "Choose from Library" option (R3). Without it, iOS/Android's native file
+              picker offers BOTH "Take Photo" and "Photo Library" from one tap; the
+              camera option itself still needs a secure context (HTTPS/localhost) to
+              actually open — over plain LAN HTTP it's absent from the sheet and only
+              the library option shows, which is a normal OS behavior, not a bug here. */}
           <input
             ref={fileRef}
             type="file"
             accept="image/jpeg,image/png,application/pdf"
-            capture="environment"
             style={{ display: 'none' }}
             onChange={(e) => {
               const file = e.target.files?.[0]

@@ -19,14 +19,6 @@ const accountIcons: Record<string, JSX.Element> = {
   investment: <TrendingUp size={22} />,
 }
 
-const accountColors: Record<string, string> = {
-  checking: 'var(--accent-9)',
-  savings: 'var(--green-9)',
-  credit: 'var(--red-9)',
-  cash: 'var(--orange-9)',
-  investment: 'var(--purple-9)',
-}
-
 export const Home = (): JSX.Element => {
   const currency = useActiveCurrency()
   const navigate = useNavigate()
@@ -107,15 +99,7 @@ export const Home = (): JSX.Element => {
                 {accounts.map((account) => (
                   <Card key={account.id} className={styles.accountCard}>
                     <Flex align="center" gap="3">
-                      <Box
-                        className={styles.accountIcon}
-                        style={
-                          {
-                            '--account-bg': `${accountColors[account.type] || 'var(--gray-9)'}18`,
-                            '--account-color': accountColors[account.type] || 'var(--gray-9)',
-                          } as React.CSSProperties
-                        }
-                      >
+                      <Box className={styles.accountIcon}>
                         {accountIcons[account.type] || <Wallet size={22} />}
                       </Box>
                       <Box className={styles.accountInfo}>

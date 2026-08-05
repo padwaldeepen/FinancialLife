@@ -58,7 +58,7 @@ export const DetectedSubscriptions = (): JSX.Element | null => {
                 <Flex align="center" gap="2">
                   <Text weight="medium">{c.display_name}</Text>
                   {c.price_hike && (
-                    <Badge color="orange" title="The amount changed since earlier charges">
+                    <Badge title="The amount changed since earlier charges">
                       <TrendingUp size={12} /> Price increased
                     </Badge>
                   )}

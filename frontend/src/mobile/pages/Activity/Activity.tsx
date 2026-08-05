@@ -152,9 +152,7 @@ export const Activity = (): JSX.Element => {
                     </Text>
                   </Box>
                 </Flex>
-                <Badge color="amber" size="1">
-                  Pending
-                </Badge>
+                <Badge size="1">Pending</Badge>
               </Flex>
             </Card>
           ))}
@@ -383,8 +381,8 @@ export const Activity = (): JSX.Element => {
                   </Flex>
                 )}
 
-                {selected.is_pending && <Badge color="orange">Pending</Badge>}
-                {selected.is_recurring && <Badge color="blue">Recurring</Badge>}
+                {selected.is_pending && <Badge>Pending</Badge>}
+                {selected.is_recurring && <Badge color="gray">Recurring</Badge>}
 
                 <Flex direction="column" gap="1">
                   <Text size="2" color="gray">

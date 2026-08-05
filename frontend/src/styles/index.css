@@ -86,6 +86,16 @@ img {
   transition: background-color var(--duration-fast) var(--ease-out);
 }
 
+/* Radix's own form-input radius step is smaller than its button radius step even
+   under the same theme radius setting (by design — see radius docs, "contextual,
+   differs per component"). Matching them here so inputs and buttons read as one
+   visual language instead of two. */
+.rt-TextFieldRoot,
+.rt-TextAreaRoot,
+.rt-SelectTrigger {
+  border-radius: var(--radius-3) !important;
+}
+
 /* Improve Radix button hover */
 .rt-Button[data-variant='solid']:hover {
   filter: brightness(1.08);

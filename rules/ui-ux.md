@@ -26,7 +26,8 @@
 - Desktop: sidebar 240px + centered content `max-width: 1200px`; cards snap to a 12-col grid
 - Mobile: single column, `var(--space-4)` side padding on EVERY screen
 - Section gaps: `var(--space-5)` mobile, `var(--space-6)` desktop — always
-- Cards: `var(--space-4)` padding, `--radius-3`, 1px slate-4 border, no shadows
+- Cards: `var(--space-4)` padding, `var(--radius-card)` (design-tokens.css alias for
+  `--radius-4`), 1px slate-4 border, no shadows
 - Amounts: right-aligned, `font-variant-numeric: tabular-nums`
 
 ## Device Roles & Page Map (feature parity is a NON-goal)

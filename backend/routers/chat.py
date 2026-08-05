@@ -17,6 +17,16 @@ log = get_logger(__name__)
 
 router = APIRouter()
 
+# A sealed profile is single-currency (architecture-and-goals.md "Country & currency
+# rules") — every amount this router renders must use the requesting profile's own
+# symbol, never a hardcoded "$" (that was the R1 bug: IN/CA profiles saw dollar signs
+# on rupee/dollar amounts). Mirrors frontend/src/shared/utils/format.ts's mapping.
+_CURRENCY_SYMBOL: dict[str, str] = {"USD": "$", "INR": "₹", "CAD": "C$"}
+
+
+def _symbol(currency: str) -> str:
+    return _CURRENCY_SYMBOL.get(currency, "$")
+
 
 class ChatMessage(BaseModel):
     message: str
@@ -55,7 +65,8 @@ def _looks_like_transaction(text: str) -> bool:
     return has_amount and (has_keyword or len(lower.split()) <= 4)
 
 
-async def _get_profile_summary(conn: asyncpg.Connection, profile_id: int) -> str:
+async def _get_profile_summary(conn: asyncpg.Connection, profile_id: int, currency: str) -> str:
+    s = _symbol(currency)
     now = datetime.now()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     last_month_start = (month_start - timedelta(days=1)).replace(day=1)
@@ -123,12 +134,12 @@ async def _get_profile_summary(conn: asyncpg.Connection, profile_id: int) -> str
         profile_id,
         month_start,
     )
-    top_cats = [f"{r['name']}: ${float(r['total']):.2f}" for r in top_cat_rows if r["name"]]
+    top_cats = [f"{r['name']}: {s}{float(r['total']):.2f}" for r in top_cat_rows if r["name"]]
 
     return (
-        f"This month: Income ${this_month_income:.2f}, Expenses ${this_month_expense:.2f}, "
-        f"Net ${this_month_income - this_month_expense:.2f}. "
-        f"Last month: Income ${prev_income:.2f}, Expenses ${prev_expense:.2f}. "
+        f"This month: Income {s}{this_month_income:.2f}, Expenses {s}{this_month_expense:.2f}, "
+        f"Net {s}{this_month_income - this_month_expense:.2f}. "
+        f"Last month: Income {s}{prev_income:.2f}, Expenses {s}{prev_expense:.2f}. "
         f"Transactions this month: {tx_count}. "
         f"Top categories: {', '.join(top_cats) if top_cats else 'none'}."
     )
@@ -137,14 +148,16 @@ async def _get_profile_summary(conn: asyncpg.Connection, profile_id: int) -> str
 SYSTEM_PROMPT = (
     "You are a friendly financial assistant for a personal finance app called My Financial Life. "
     "You can help users understand their spending, income, and budgets. "
-    "Be concise, warm, and helpful. Use dollar amounts when relevant. "
+    "Be concise, warm, and helpful. The summary below already uses the user's own currency "
+    "symbol — always reuse that exact symbol for any amount you mention, never assume USD "
+    "or write a dollar sign that isn't already in the summary. "
     "Keep responses to 2-3 short sentences."
 )
 
 
-async def _ask_llm(question: str, user_summary: str, cloud_enabled: bool) -> str:
+async def _ask_llm(question: str, user_summary: str, cloud_enabled: bool, currency: str) -> str:
     if not cloud_enabled or not settings.GEMINI_API_KEY:
-        return _answer_from_data(question, user_summary)
+        return _answer_from_data(question, user_summary, currency)
 
     user_msg = (
         f"{SYSTEM_PROMPT}\n\nUser's current financial summary:\n{user_summary}\n\n"
@@ -159,45 +172,47 @@ async def _ask_llm(question: str, user_summary: str, cloud_enabled: bool) -> str
 
     except Exception as e:
         log.warning("Gemini chat failed: %s — %s", type(e).__name__, e)
-        return _answer_from_data(question, user_summary)
+        return _answer_from_data(question, user_summary, currency)
 
 
-def _answer_from_data(question: str, summary: str) -> str:
+def _answer_from_data(question: str, summary: str, currency: str) -> str:
     lower = question.lower()
+    s = _symbol(currency)
+    s_re = re.escape(s)
 
     income = expense = net = 0.0
 
     # Match the number only — not a trailing sentence period. The old `[0-9,.]+`
     # greedily swallowed the "." after e.g. "Net $-1000.00." and crashed float().
     _num = r"(-?\d[\d,]*\.?\d*)"
-    m = re.search(rf"Income \${_num}", summary)
+    m = re.search(rf"Income {s_re}{_num}", summary)
     if m:
         income = float(m.group(1).replace(",", ""))
-    m = re.search(rf"Expenses \${_num}", summary)
+    m = re.search(rf"Expenses {s_re}{_num}", summary)
     if m:
         expense = float(m.group(1).replace(",", ""))
-    m = re.search(rf"Net \${_num}", summary)
+    m = re.search(rf"Net {s_re}{_num}", summary)
     if m:
         net = float(m.group(1).replace(",", ""))
 
     if any(w in lower for w in ["income", "earn", "salary", "make"]):
-        return f"Your income this month is ${income:,.2f}."
+        return f"Your income this month is {s}{income:,.2f}."
     if any(w in lower for w in ["spend", "expense", "spent", "cost"]):
-        return f"You've spent ${expense:,.2f} so far this month."
+        return f"You've spent {s}{expense:,.2f} so far this month."
     if any(w in lower for w in ["save", "net", "balance", "left"]):
         label = "saved" if net >= 0 else "overspent"
-        return f"You've {label} ${abs(net):,.2f} this month (income minus expenses)."
+        return f"You've {label} {s}{abs(net):,.2f} this month (income minus expenses)."
     if any(w in lower for w in ["category", "top", "most"]):
         return f"Your top spending categories are listed in your summary. {summary}"
     if any(w in lower for w in ["budget", "plan"]):
         return (
-            f"Budgeting tip: You've spent ${expense:,.2f} this month. "
+            f"Budgeting tip: You've spent {s}{expense:,.2f} this month. "
             f"Try the 50/30/20 rule — 50% needs, 30% wants, 20% savings."
         )
 
     return (
-        f"Here's your summary: You've earned ${income:,.2f} and spent ${expense:,.2f} "
-        f"this month (net ${net:,.2f}). Ask me about income, expenses, savings, "
+        f"Here's your summary: You've earned {s}{income:,.2f} and spent {s}{expense:,.2f} "
+        f"this month (net {s}{net:,.2f}). Ask me about income, expenses, savings, "
         f"or budgeting tips!"
     )
 
@@ -216,7 +231,7 @@ async def chat(
             return ChatResponse(
                 reply=(
                     f"Got it! I'll log that as: "
-                    f"**{parsed['description']}** — ${parsed['amount']:.2f} "
+                    f"**{parsed['description']}** — {_symbol(profile.currency)}{parsed['amount']:.2f} "
                     f"({parsed['type']}, {parsed.get('category', 'Other')}). "
                     f"Click 'Save' to confirm."
                 ),
@@ -231,10 +246,12 @@ async def chat(
                 )
             )
 
-    summary = await _get_profile_summary(conn, profile.id)
+    summary = await _get_profile_summary(conn, profile.id, profile.currency)
     user_row = await conn.fetchrow(
         "SELECT ai_cloud_enabled FROM users WHERE id = $1", profile.user_id
     )
-    reply = await _ask_llm(text, summary, cloud_enabled=user_row["ai_cloud_enabled"])
+    reply = await _ask_llm(
+        text, summary, cloud_enabled=user_row["ai_cloud_enabled"], currency=profile.currency
+    )
 
     return ChatResponse(reply=reply)

@@ -4,42 +4,12 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-6);
-  background: linear-gradient(135deg, var(--gray-1) 0%, var(--gray-2) 50%, var(--gray-1) 100%);
-  position: relative;
-  overflow: hidden;
-}
-
-.page::before {
-  content: '';
-  position: absolute;
-  top: -30%;
-  right: -20%;
-  width: 600px;
-  height: 600px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-3) 0%, transparent 70%);
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.page::after {
-  content: '';
-  position: absolute;
-  bottom: -20%;
-  left: -15%;
-  width: 500px;
-  height: 500px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--orange-3) 0%, transparent 70%);
-  opacity: 0.4;
-  pointer-events: none;
+  background: var(--gray-2);
 }
 
 .card {
   width: 100%;
   max-width: 400px;
-  position: relative;
-  z-index: 1;
   border: 1px solid var(--gray-4);
   animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
 }
@@ -51,7 +21,7 @@
 .logo {
   width: 56px;
   height: 56px;
-  background: linear-gradient(135deg, var(--accent-9), var(--accent-10));
+  background: var(--accent-9);
   border-radius: var(--radius-4);
   display: flex;
   align-items: center;

@@ -21,7 +21,9 @@ exercising the change **through the real UI** with the Playwright MCP tools.
    tree (per the design-system page map), verify that it is genuinely absent there —
    absence is the expected behavior, confirm it.
 3. **Log in** with the local test user (create one via the register flow if none exists —
-   never use real personal credentials in verification).
+   never use real personal credentials in verification). Delete any throwaway account
+   created for this verification pass once done (e.g. `DELETE FROM users WHERE email = ...`)
+   — don't leave test data in the database.
 4. **Drive the exact flow that changed.** Not a smoke test of the home page — the actual
    feature: if the fix was "notes save correctly," edit a note, reload, confirm it
    persisted. If the feature was "CSV import dedup," import a file twice and confirm the

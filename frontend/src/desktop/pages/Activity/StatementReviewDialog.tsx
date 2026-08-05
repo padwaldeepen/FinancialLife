@@ -13,14 +13,12 @@ interface Props {
   onClose: () => void
 }
 
-const dedupBadge: Record<
-  StatementRow['dedup_status'],
-  { label: string; color: 'gray' | 'amber' | 'red' }
-> = {
-  none: { label: 'New', color: 'gray' },
-  fuzzy: { label: 'Possible dup', color: 'amber' },
-  exact: { label: 'Already have it', color: 'red' },
-}
+const dedupBadge: Record<StatementRow['dedup_status'], { label: string; color?: 'gray' | 'red' }> =
+  {
+    none: { label: 'New', color: 'gray' },
+    fuzzy: { label: 'Possible dup' },
+    exact: { label: 'Already have it', color: 'red' },
+  }
 
 // S4: the multi-row statement review — a table of every extracted transaction, each with
 // an include checkbox and a dedup verdict. Exact duplicates start UNCHECKED (re-importing

@@ -273,24 +273,30 @@ strong** (per-profile isolation, Decimal money, clean slices/services); the find
 targeted. Detail + acceptance in [`backlog.md`](backlog.md) R1–R6.
 
 **Ship-ready block (before daily use):**
-- [ ] **R1 — Correctness fixes:** ChatBot hardcoded account/`$`; `category_spending` broken date
-  window; missing `account_id` ownership check on transaction writes.
-- [ ] **R2 — Palette & polish sweep:** remove off-spec purple/blue/amber hues + money-colour-on-icons
+- [x] **R1 — Correctness fixes:** ChatBot hardcoded account/`$`; `category_spending` broken date
+  window; missing `account_id` ownership check on transaction writes. Done 2026-08-05 — also
+  caught & fixed a hardcoded `$` in the chat *backend* replies (not just the ChatBot component)
+  while verifying live. See backlog.md R1 Result.
+- [x] **R2 — Palette & polish sweep:** remove off-spec purple/blue/amber hues + money-colour-on-icons
   + DB category colours as swatches → slate ink + one orange accent (design-system §1); Home
   insights loading Skeleton. *The single highest-impact change for "looks intentional in 2026."*
-- [ ] **R3 — Capture UX:** offer **both** gallery upload and direct camera on every device (drop the
-  forced `capture`); document the HTTPS-for-phone-camera constraint honestly.
+  Done 2026-08-05 — see backlog.md R2 Result (also caught & fixed a stray amber badge in
+  `StatementReviewDialog.tsx` not in the original ticket).
+- [x] **R3 — Capture UX:** offer **both** gallery upload and direct camera on every device (drop the
+  forced `capture`); document the HTTPS-for-phone-camera constraint honestly. Done 2026-08-05 —
+  see backlog.md R3 Result.
 - [ ] **Then: fresh-start DB wipe** (owner's call) so the clean DB runs the fixed code.
 
 **Code-health block (can run while in use — invisible to the user):**
-- [ ] **R4 — Backend DRY:** shared account/category ownership helpers, one balance function, shared
-  spent-this-period + `ai_cloud_enabled` fetch, all Gemini via `GeminiService`, parameterize the
-  `_fee_leakage` SQL, share Jaccard.
+- [ ] **R4 — Backend DRY:** ~~all Gemini via `GeminiService`~~ done 2026-08-05 (shared
+  `call_gemini()`). Remaining: account/category ownership helpers ✅ (landed early, as part of
+  R1's write-path fix — see backlog.md), one balance function, shared spent-this-period +
+  `ai_cloud_enabled` fetch, parameterize the `_fee_leakage` SQL, share Jaccard.
 - [ ] **R5 — Frontend DRY/state:** move the ~50 duplicated quick-add lines into `quickAddModalSlice`
   actions (no API calls in components); move/retire ChatBot.
-- [ ] **R6 — Over-engineering & dead code:** drop the single-impl `BaseAIService` ABC, the
-  `_row_to_bill_dict` no-op, unused `get_leaf_categories` + dead `ParseResult.date`; money
-  request-models `float → Decimal`.
+- [ ] **R6 — Over-engineering & dead code:** ~~drop the single-impl `BaseAIService` ABC, the
+  `_row_to_bill_dict` no-op, unused `get_leaf_categories` + dead `ParseResult.date`~~ done
+  2026-08-05. Remaining: money request-models `float → Decimal`.
 
 ### Later (only after the above is real and used daily)
 

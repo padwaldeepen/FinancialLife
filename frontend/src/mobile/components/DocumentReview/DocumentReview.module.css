@@ -30,8 +30,8 @@
 }
 
 .dupWarn {
-  border: 1px solid var(--amber-6);
-  background: var(--amber-2);
+  border: 1px solid var(--accent-6);
+  background: var(--accent-2);
   border-radius: var(--radius-3);
   padding: var(--space-3);
 }

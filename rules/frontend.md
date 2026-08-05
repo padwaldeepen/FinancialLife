@@ -63,24 +63,98 @@ Radix handles all input visuals (padding, border, font, placeholder color) via i
 Use `color` prop (`"red"`, etc.) on `TextField.Root` for error/invalid states.
 
 ## Theme & Color System
-- All theming via `theme.tsx` which wraps `<Theme accentColor="orange" grayColor="slate">`
-- `useAppTheme()` hook for dark mode toggle: `const { dark, toggle } = useAppTheme()`
-- Use Radix CSS tokens exclusively — never hardcode colors:
+
+`theme.tsx` (`<Theme accentColor="orange" grayColor="slate" radius="large" ...>`) is the
+**single source of truth for every color/radius/scaling value in the app** — this is not
+a project convention, it's how Radix Themes actually works: `accentColor`/`grayColor`
+generate `--accent-*`/`--gray-*` CSS variables that every Radix component and every
+correctly-written `.module.css` file reads from. **Change one prop in `theme.tsx`, the
+whole app repaints — but only for code that follows the rule below.** ([Radix theme
+overview](https://www.radix-ui.com/themes/docs/theme/overview),
+[color docs](https://www.radix-ui.com/themes/docs/theme/color))
+
+### The one rule that actually matters here
+**Never hardcode a literal Radix color-scale name** (`"orange"`, `"indigo"`, `var(--orange-6)`,
+etc.) when what you mean is "the app's accent color." Two ways to do it wrong, and the fix:
+```tsx
+// WRONG — locks this badge to orange forever, ignores theme.tsx
+<Badge color="orange">Pending</Badge>
+
+// RIGHT — omit color entirely; it inherits accentColor from <Theme>
+<Badge>Pending</Badge>
+```
+```css
+/* WRONG — hardcodes the orange scale directly */
+.pendingCard { border: 1px solid var(--orange-6); }
+
+/* RIGHT — reads from whatever accentColor is set to */
+.pendingCard { border: 1px solid var(--accent-6); }
+```
+`color`/named-scale props and vars are still correct for **money semantics** (an intentional,
+documented exception — `var(--green-11)` for income, `var(--red-11)` for expense/destructive,
+per `docs/design-system.md` §1) and for anything genuinely meant to stay that color regardless
+of theme (there is currently nothing else in this app that qualifies). Everything else that
+means "the app's one accent" must go through `--accent-*` or an unset `color` prop, or a future
+`accentColor` change in `theme.tsx` silently won't reach it.
+
+- `useAppTheme()` hook for dark mode toggle: `const { dark, toggle } = useAppTheme()`.
+  Dark mode is the `appearance` prop + a `data-theme` attribute switch — never hand-pick
+  separate dark-mode color values; the same `--gray-*`/`--accent-*` variables resolve to
+  different actual colors automatically. ([dark mode docs](https://www.radix-ui.com/themes/docs/theme/dark-mode))
+- Token reference (use these, not raw px/hex, in every `.module.css`):
   - Backgrounds: `var(--gray-1)`, `var(--gray-2)`, `var(--color-panel)`, `var(--color-panel-solid)`
   - Borders: `var(--gray-4)`, `var(--gray-5)`, `var(--gray-6)`
   - Text: `var(--gray-12)` (primary), `var(--gray-11)` (secondary), `var(--gray-10)` (tertiary)
-  - Accent: `var(--accent-9)`, `var(--accent-10)`, `var(--accent-11)`, `var(--accent-contrast)`
-  - Semantic: `var(--red-9)` (error), `var(--green-9)` (success), `var(--orange-9)` (warning)
-  - Spacing: `var(--space-1)` through `var(--space-9)`
-  - Radius: `var(--radius-1)` through `var(--radius-4)`
-  - Font size: `var(--font-size-1)` through `var(--font-size-8)`
-- Dark mode through Radix `appearance` prop — no separate CSS variables
+  - Accent, by step (12-step scale, same shape as gray): steps 1–2 backgrounds, 3–5
+    interactive states (hover/pressed fills), 6–8 borders/separators, 9–10 solid/prominent
+    (buttons, the hero-card stripe), 11–12 high-contrast text. Plus semantic aliases
+    `var(--accent-contrast)` (text/icon color *on* a solid accent-9 fill), `var(--accent-surface)`,
+    `var(--accent-indicator)`, `var(--accent-track)`.
+  - Spacing: `var(--space-1)` (4px) through `var(--space-9)` (64px) — never a raw px margin/padding
+  - Radius: `var(--radius-1)` through `var(--radius-6)`, plus `var(--radius-full)` (pills) and
+    `var(--radius-thumb)`. The theme's `radius` prop is a multiplier applied contextually per
+    component — `Card`/`Dialog`/`Popover` panels always inherit the theme radius and don't take
+    a `radius` prop at all. (`--radius-card`/`--radius-section` in `design-tokens.css` are this
+    project's aliases on top of that scale — keep using those, don't reintroduce raw `--radius-N`
+    in page CSS.) ([radius docs](https://www.radix-ui.com/themes/docs/theme/radius))
+  - Font size: `var(--font-size-1)` through `var(--font-size-9)` — each step bundles size +
+    line-height + letter-spacing together, so prefer the `size` prop on `<Text>`/`<Heading>`
+    over raw CSS wherever the content is inside one of those components. A hand-picked pixel
+    size in `.module.css` (e.g. the 48px hero balance number) is only acceptable for a genuinely
+    one-off display number bigger than the scale goes — not as a habit.
+    ([typography docs](https://www.radix-ui.com/themes/docs/theme/typography))
+  - **Shadows are a real 6-step token set (`--shadow-1`..`--shadow-6`) that this app
+    deliberately never uses** — `docs/design-system.md` §2 is flat/no-shadow by design. Don't
+    add `box-shadow: var(--shadow-N)` to "make a card pop"; that's reintroducing depth the
+    design intentionally removed.
+
+### Prefer layout props over custom CSS
+`Box`/`Flex`/`Grid`/`Section`/`Container` accept the full spacing/sizing scale as props
+(`gap="3"`, `p="4"`, `maxWidth="...`) and support responsive object values
+(`size={{ initial: '2', md: '4' }}`) — reach for these before writing layout rules in
+`.module.css`. Radix's own breakpoints (`xs` 520px, `sm` 768px, `md` 1024px, `lg` 1280px,
+`xl` 1640px, all `min-width`) exist for exactly this. This project's actual device split
+(`desktop/` vs `mobile/` trees) means these are rarely needed — the only real media queries
+in the codebase today collapse the desktop sidebar at `1024px`, which lines up with Radix's
+own `md` breakpoint. If a component ever needs a real in-tree responsive breakpoint, use
+`1024px` (matches `md`) rather than inventing a new number.
+([breakpoints docs](https://www.radix-ui.com/themes/docs/theme/breakpoints),
+[layout docs](https://www.radix-ui.com/themes/docs/overview/layout))
+
+### Known debt — card-shape duplication
+14 `.module.css` files each independently redeclare the same "card" shape (`border: 1px
+solid var(--gray-4); border-radius: var(--radius-card); padding: var(--space-4)`) as their
+own local class instead of one shared class. Don't add a 15th copy — and if you're touching
+one of the existing ones for an unrelated reason, it's fine to leave it as-is (this is a
+scoped future refactor, not something to fix incidentally mid-unrelated-change).
 
 ## CSS Modules
 - One `.module.css` per component, co-located in the same folder
 - Only layout and positioning in CSS modules — no colors, fonts, or spacing that Radix provides
 - Class naming: camelCase (automatically transformed by Vite)
-- Media queries: mobile-first, breakpoints at 640/768/1024/1280px
+- Media queries are rare here (desktop/mobile are separate trees, not one fluid
+  responsive layout) — see "Prefer layout props over custom CSS" above for when one's
+  actually needed and which breakpoint to use
 - No `@apply`, no Tailwind directives, no CSS-in-JS, no inline styles
 - Always use Radix spacing tokens: `padding: var(--space-4)` not `padding: 16px`
 - Exception: third-party components that render outside the theme tree (e.g. react-hot-toast `Toaster`) may use inline styles since CSS variables are out of scope
@@ -92,10 +166,9 @@ Use `color` prop (`"red"`, etc.) on `TextField.Root` for error/invalid states.
   including per-form, transient-until-submit state like a login/register form — it goes
   in a Zustand slice instead. See `rules/zustand.md` for the full rule and the worked
   examples (`registerFormSlice.ts`, `loginFormSlice.ts`).
-- All API calls go inside Zustand slice actions, using `api` from `auth/api.ts`
+- All API calls go inside Zustand slice actions, using `api` from `shared/api/client.ts`
 - No TanStack Query / React Query — use Zustand actions with axios instead
 - No React Context for data fetching or global state
-- AuthContext is the one exception — it provides `useAuth()` for consuming auth state, but the actual data lives in Zustand
 
 ### useState vs Zustand — Decision Guide
 

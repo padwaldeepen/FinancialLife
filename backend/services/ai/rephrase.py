@@ -9,16 +9,12 @@ every other insights endpoint.
 
 import re
 
-import httpx
-
 from core.config import settings
 from core.logging import get_logger
 
-log = get_logger(__name__)
+from .gemini import call_gemini
 
-GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
-)
+log = get_logger(__name__)
 
 PROMPT_PREFIX = (
     "Reword this personal-finance advice sentence to sound warmer and more natural. "
@@ -41,19 +37,13 @@ async def rephrase(template: str, cloud_enabled: bool) -> str | None:
         return None
 
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                f"{GEMINI_URL}?key={settings.GEMINI_API_KEY}",
-                json={
-                    "contents": [{"parts": [{"text": f"{PROMPT_PREFIX}{template}"}]}],
-                    "generationConfig": {"temperature": 0.5, "maxOutputTokens": 120},
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
         text = (
-            data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            await call_gemini(
+                [{"text": f"{PROMPT_PREFIX}{template}"}],
+                temperature=0.5,
+                max_tokens=120,
+                timeout=10,
+            )
         ).strip()
 
         if not text or not _numbers_preserved(template, text):

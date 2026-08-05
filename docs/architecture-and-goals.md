@@ -46,7 +46,7 @@ manual entry          →                                  safe-to-spend
 
 ### Today (v1 — implemented)
 `users`, `accounts`, `categories` (hierarchical), `transactions`, `merchants`,
-`bills` + `transaction_bill_links`, `goals`, `budgets`.
+`bills`, `goals`, `budgets`.
 Integrity is sound: `Numeric(12,2)` money, FKs everywhere, unique constraints,
 indexes on `(user_id, date)`, `(user_id, merchant_id)`, `(user_id, category_id)`.
 
@@ -156,7 +156,7 @@ transactions       every movement of money — the heart; everything else gives 
                    (amount, date, type, account, category, merchant,
                     source, import_hash, document_id, notes)
 bills              expected recurring obligations (rent, utilities): amount, frequency, due day
-transaction_bill_links   proof a bill was paid: links transactions to bills per period
+                   (proof of payment: transactions.bill_id, no separate link table)
 goals              what you're saving toward / paying down: target, progress, deadline
 budgets            spending limits per category/period (lightweight — awareness, not envelopes)
 documents          scanned/uploaded files (receipt/bill/statement) + extracted JSON + status

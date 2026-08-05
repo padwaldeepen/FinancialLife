@@ -212,15 +212,3 @@ async def get_category_descendants(
     for row in rows:
         ids.extend(await get_category_descendants(row["id"], user_id, conn))
     return ids
-
-
-async def get_leaf_categories(user_id: int, conn: asyncpg.Connection) -> list[Category]:
-    """Get all categories that have no children (leaf nodes)."""
-    rows = await conn.fetch(
-        """SELECT c.* FROM categories c
-           WHERE (c.user_id = $1 OR c.is_system = TRUE)
-             AND NOT EXISTS (SELECT 1 FROM categories child WHERE child.parent_id = c.id)
-           ORDER BY c.name""",
-        user_id,
-    )
-    return [_row_to_category(row) for row in rows]

@@ -4,7 +4,6 @@ from decimal import Decimal
 import asyncpg
 
 from core.logging import get_logger
-from database.models import TransactionBillLink
 
 log = get_logger(__name__)
 
@@ -18,16 +17,12 @@ _BILL_JOIN = """
 """
 
 
-def _row_to_bill_dict(row: asyncpg.Record) -> dict:
-    return dict(row)
-
-
 async def get_bills(profile_id: int, conn: asyncpg.Connection) -> list[dict]:
     rows = await conn.fetch(
         _BILL_JOIN + " WHERE b.profile_id = $1 AND b.is_active ORDER BY b.due_day, b.name",
         profile_id,
     )
-    return [_row_to_bill_dict(r) for r in rows]
+    return [dict(r) for r in rows]
 
 
 async def get_bill(bill_id: int, profile_id: int, conn: asyncpg.Connection) -> dict | None:
@@ -36,7 +31,7 @@ async def get_bill(bill_id: int, profile_id: int, conn: asyncpg.Connection) -> d
         bill_id,
         profile_id,
     )
-    return _row_to_bill_dict(row) if row else None
+    return dict(row) if row else None
 
 
 async def create_bill(
@@ -174,35 +169,6 @@ async def suggest_bill_match(
     return None
 
 
-async def auto_link_transaction(
-    transaction_id: int,
-    bill_id: int,
-    conn: asyncpg.Connection,
-    is_auto: bool = True,
-) -> TransactionBillLink | None:
-    bill_row = await conn.fetchrow("SELECT due_day, frequency FROM bills WHERE id = $1", bill_id)
-    if not bill_row:
-        return None
-
-    next_due = _next_due_date(bill_row["due_day"], bill_row["frequency"])
-    period_start = next_due - timedelta(days=30)
-    period_end = next_due + timedelta(days=1)
-
-    row = await conn.fetchrow(
-        """INSERT INTO transaction_bill_links
-             (transaction_id, bill_id, period_start, period_end, is_auto_linked)
-           VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (transaction_id, bill_id) DO NOTHING
-           RETURNING *""",
-        transaction_id,
-        bill_id,
-        datetime.combine(period_start, datetime.min.time()),
-        datetime.combine(period_end, datetime.min.time()),
-        is_auto,
-    )
-    return TransactionBillLink(**dict(row)) if row else None
-
-
 def _next_due_date(due_day: int, frequency: str) -> date:
     """Calculate the next due date based on frequency and due_day."""
     today = date.today()
@@ -281,11 +247,18 @@ async def compute_upcoming_async(
     for bill in bills:
         next_due = _next_due_date(bill["due_day"], bill["frequency"])
         if today <= next_due <= cutoff:
+            # "Already paid this period" is a transaction tied to this bill dated
+            # within the ~30-day window leading up to (and including) this
+            # occurrence's due date. Both bounds matter — without the upper bound,
+            # a payment made for last period's occurrence would also satisfy this
+            # period's (wider, overlapping) window and be double-counted as paid.
+            period_start = datetime.combine(next_due - timedelta(days=30), datetime.min.time())
+            period_end = datetime.combine(next_due + timedelta(days=1), datetime.min.time())
             has_paid_row = await conn.fetchrow(
-                """SELECT 1 FROM transaction_bill_links
-                   WHERE bill_id = $1 AND period_start <= $2 AND period_end >= $2""",
+                "SELECT 1 FROM transactions WHERE bill_id = $1 AND date >= $2 AND date < $3 LIMIT 1",
                 bill["id"],
-                datetime.combine(today, datetime.min.time()),
+                period_start,
+                period_end,
             )
             upcoming.append(
                 {

@@ -286,10 +286,6 @@ async def link_transaction(
     if not bill:
         raise HTTPException(status_code=404, detail="Bill not found")
 
-    link = await bill_service.auto_link_transaction(transaction_id, bill_id, conn, is_auto=False)
-    if not link:
-        raise HTTPException(status_code=404, detail="Could not create bill link")
-
     await conn.execute(
         "UPDATE transactions SET bill_id = $1 WHERE id = $2", bill_id, transaction_id
     )
@@ -309,15 +305,9 @@ async def unlink_transaction(
     if not bill:
         raise HTTPException(status_code=404, detail="Bill not found")
 
-    async with conn.transaction():
-        await conn.execute(
-            "DELETE FROM transaction_bill_links WHERE transaction_id = $1 AND bill_id = $2",
-            transaction_id,
-            bill_id,
-        )
-        await conn.execute(
-            "UPDATE transactions SET bill_id = NULL WHERE id = $1 AND profile_id = $2",
-            transaction_id,
-            profile.id,
-        )
+    await conn.execute(
+        "UPDATE transactions SET bill_id = NULL WHERE id = $1 AND profile_id = $2",
+        transaction_id,
+        profile.id,
+    )
     return {"message": "Transaction unlinked from bill"}

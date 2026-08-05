@@ -2,7 +2,6 @@ import re
 from datetime import datetime, timedelta
 
 import asyncpg
-import httpx
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
@@ -11,6 +10,7 @@ from core.logging import get_logger
 from database.models import Profile
 from database.session import get_db
 from routers.auth import get_current_profile
+from services.ai.gemini import call_gemini
 from services.transaction_service import parse_transaction
 
 log = get_logger(__name__)
@@ -142,11 +142,6 @@ SYSTEM_PROMPT = (
 )
 
 
-GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
-)
-
-
 async def _ask_llm(question: str, user_summary: str, cloud_enabled: bool) -> str:
     if not cloud_enabled or not settings.GEMINI_API_KEY:
         return _answer_from_data(question, user_summary)
@@ -157,19 +152,8 @@ async def _ask_llm(question: str, user_summary: str, cloud_enabled: bool) -> str
     )
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"{GEMINI_URL}?key={settings.GEMINI_API_KEY}",
-                json={
-                    "contents": [{"parts": [{"text": user_msg}]}],
-                    "generationConfig": {"temperature": 0.4, "maxOutputTokens": 300},
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
         text = (
-            data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            await call_gemini([{"text": user_msg}], temperature=0.4, max_tokens=300, timeout=30)
         ).strip()
         return text or "I couldn't generate a response. Please try again."
 
@@ -183,13 +167,16 @@ def _answer_from_data(question: str, summary: str) -> str:
 
     income = expense = net = 0.0
 
-    m = re.search(r"Income \$([0-9,.]+)", summary)
+    # Match the number only — not a trailing sentence period. The old `[0-9,.]+`
+    # greedily swallowed the "." after e.g. "Net $-1000.00." and crashed float().
+    _num = r"(-?\d[\d,]*\.?\d*)"
+    m = re.search(rf"Income \${_num}", summary)
     if m:
         income = float(m.group(1).replace(",", ""))
-    m = re.search(r"Expenses \$([0-9,.]+)", summary)
+    m = re.search(rf"Expenses \${_num}", summary)
     if m:
         expense = float(m.group(1).replace(",", ""))
-    m = re.search(r"Net \$(-?[0-9,.]+)", summary)
+    m = re.search(rf"Net \${_num}", summary)
     if m:
         net = float(m.group(1).replace(",", ""))
 

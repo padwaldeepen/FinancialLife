@@ -105,11 +105,20 @@ img {
   filter: brightness(0.95);
 }
 
-/* Better focus rings */
+/* Better focus rings, for plain non-Radix focusable elements. Most Radix components
+   (Button, Select, Checkbox, Switch, ...) already draw their own focus ring via this
+   same `outline` property, so the cascade just picks one winner — no visual conflict.
+   TextField/TextArea are the one exception: Radix rings THEM with a box-shadow, a
+   separate visual layer our outline doesn't override, so both painted at once — a
+   second, wrongly-radiused ring stacked on Radix's own. Suppress only there. */
 *:focus-visible {
   outline: 2px solid var(--accent-9);
   outline-offset: 2px;
   border-radius: var(--radius-2);
+}
+
+:is(.rt-TextFieldRoot, .rt-TextAreaRoot) :focus-visible {
+  outline: none;
 }
 
 /* Smooth page transitions */

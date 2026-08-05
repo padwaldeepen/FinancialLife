@@ -1,21 +1,4 @@
-.page {
-  max-width: 700px;
-  animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
-}
 
-.pageHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-5);
-}
-
-.pageTitle {
-  font-size: var(--font-size-6);
-  font-weight: 700;
-  color: var(--gray-12);
-  letter-spacing: -0.01em;
-}
 
 .card {
   cursor: pointer;

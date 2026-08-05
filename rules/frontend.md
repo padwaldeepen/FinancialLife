@@ -247,3 +247,11 @@ Consumers access state as `s.auth.user` and actions as `s.login()`.
   parent unless it's reused elsewhere or the parent is already unreadably long. A new
   file is justified by genuine reuse or genuine size, not by "everything gets its own
   component" as a default habit — that's over-engineering, not organization.
+- **Before writing new CSS or a new file, check three things in order**: (1) does a
+  Radix prop already do this (`size`, `weight`, `color`, `gap`, `mb`, ...) — if so, use
+  the prop, no CSS at all; (2) does this belong at the shared-layout level instead of
+  per-page (e.g. an animation/spacing/positioning rule identical across many pages
+  belongs in that tree's layout component, not redeclared in every page's
+  `.module.css`); (3) only if neither covers it, write scoped CSS in that component's
+  own `.module.css`. A component needing zero real custom styling doesn't get an empty
+  or near-empty `.module.css` file just because that's the usual pattern.

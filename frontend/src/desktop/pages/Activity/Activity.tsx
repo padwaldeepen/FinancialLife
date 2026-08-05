@@ -28,6 +28,7 @@ import { ImportDialog } from './ImportDialog.tsx'
 import { DocumentUploadDialog } from './DocumentUploadDialog.tsx'
 import { PendingReceipts } from './PendingReceipts.tsx'
 import { DocumentViewerDialog } from './DocumentViewerDialog.tsx'
+import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 import styles from './Activity.module.css'
 
 type DateGroup = 'today' | 'yesterday' | 'thisWeek' | 'earlier'
@@ -163,15 +164,10 @@ export const Activity = (): JSX.Element => {
   for (const t of transactions) grouped[getDateGroup(t.date)].push(t)
 
   return (
-    <Box className={styles.page}>
-      <Flex className={styles.pageHeader} direction="column">
-        <Text as="div" className={styles.pageTitle}>
-          Activity
-        </Text>
-        <Text as="div" className={styles.pageSubtitle}>
-          {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
-        </Text>
-      </Flex>
+    <Box>
+      <PageHeader
+        subtitle={`${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}`}
+      />
 
       <TextField.Root
         className={styles.searchInput}

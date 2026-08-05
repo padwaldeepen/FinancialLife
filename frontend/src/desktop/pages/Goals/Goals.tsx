@@ -18,6 +18,7 @@ import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Goals.module.css'
+import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 
 const goalIcons: Record<string, JSX.Element> = {
   save_up: <PiggyBank size={18} />,
@@ -152,395 +153,396 @@ export const Goals = (): JSX.Element => {
   const completed = (g: (typeof goals)[0]) => g.progress_pct >= 100
 
   return (
-    <Box className={styles.page}>
-      <Flex className={styles.pageHeader}>
-        <span className={styles.pageTitle}>Goals</span>
-        <Dialog.Root open={open} onOpenChange={setOpen}>
-          <Dialog.Trigger>
-            <Button size="2">
-              <Plus size={16} /> Add Goal
-            </Button>
-          </Dialog.Trigger>
-          <Dialog.Content maxWidth="400px">
-            <Dialog.Title>Create Goal</Dialog.Title>
-            <Flex direction="column" gap="3" mt="3">
-              <Flex direction="column" gap="1">
-                <Text size="2" weight="medium">
-                  Name
-                </Text>
-                <TextField.Root
-                  placeholder="e.g. Emergency Fund"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </Flex>
-              <Flex direction="column" gap="1">
-                <Text size="2" weight="medium">
-                  Goal Type
-                </Text>
-                <Select.Root value={goalType} onValueChange={setGoalType}>
-                  <Select.Trigger />
-                  <Select.Content>
-                    <Select.Item value="save_up">Save Up</Select.Item>
-                    <Select.Item value="pay_down">Pay Down</Select.Item>
-                    <Select.Item value="monthly_envelope">Monthly Envelope</Select.Item>
-                  </Select.Content>
-                </Select.Root>
-              </Flex>
-              <Flex direction="column" gap="1">
-                <Text size="2" weight="medium">
-                  Target Amount
-                </Text>
-                <TextField.Root
-                  type="number"
-                  placeholder="10000"
-                  value={goalAmount}
-                  onChange={(e) => setGoalAmount(e.target.value)}
-                >
-                  <TextField.Slot side="left">$</TextField.Slot>
-                </TextField.Root>
-              </Flex>
-              <Flex direction="column" gap="1">
-                <Text size="2" weight="medium">
-                  Initial Amount (optional)
-                </Text>
-                <TextField.Root
-                  type="number"
-                  placeholder="0"
-                  value={initialAmount}
-                  onChange={(e) => setInitialAmount(e.target.value)}
-                >
-                  <TextField.Slot side="left">$</TextField.Slot>
-                </TextField.Root>
-              </Flex>
-              <Button onClick={handleCreate} loading={saving} size="3" mt="2">
-                Create Goal
+    <Dialog.Root open={open} onOpenChange={setOpen}>
+      <Box>
+        <PageHeader
+          action={
+            <Dialog.Trigger>
+              <Button size="2">
+                <Plus size={16} /> Add Goal
               </Button>
+            </Dialog.Trigger>
+          }
+        />
+        <Dialog.Content maxWidth="400px">
+          <Dialog.Title>Create Goal</Dialog.Title>
+          <Flex direction="column" gap="3" mt="3">
+            <Flex direction="column" gap="1">
+              <Text size="2" weight="medium">
+                Name
+              </Text>
+              <TextField.Root
+                placeholder="e.g. Emergency Fund"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
             </Flex>
-          </Dialog.Content>
-        </Dialog.Root>
-      </Flex>
-
-      {loading ? (
-        <Flex direction="column" gap="3" p="4">
-          <div
-            className="skeleton"
-            style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
-          />
-          <div
-            className="skeleton"
-            style={{ height: 16, width: '60%', borderRadius: 'var(--radius-2)' }}
-          />
-          <div
-            className="skeleton"
-            style={{ height: 20, width: '85%', borderRadius: 'var(--radius-2)' }}
-          />
-          <div
-            className="skeleton"
-            style={{ height: 16, width: '40%', borderRadius: 'var(--radius-2)' }}
-          />
-        </Flex>
-      ) : goals.length === 0 ? (
-        <Flex className={styles.emptyState} direction="column">
-          <span className={styles.emptyTitle}>No goals yet</span>
-          <span className={styles.emptyHint}>Create your first goal to start tracking</span>
-        </Flex>
-      ) : (
-        <Flex direction="column" gap="3">
-          {goals.map((goal) => {
-            const done = completed(goal)
-            return (
-              <Card
-                key={goal.id}
-                size="2"
-                className={styles.card}
-                onClick={() => setDetailGoal(goal)}
+            <Flex direction="column" gap="1">
+              <Text size="2" weight="medium">
+                Goal Type
+              </Text>
+              <Select.Root value={goalType} onValueChange={setGoalType}>
+                <Select.Trigger />
+                <Select.Content>
+                  <Select.Item value="save_up">Save Up</Select.Item>
+                  <Select.Item value="pay_down">Pay Down</Select.Item>
+                  <Select.Item value="monthly_envelope">Monthly Envelope</Select.Item>
+                </Select.Content>
+              </Select.Root>
+            </Flex>
+            <Flex direction="column" gap="1">
+              <Text size="2" weight="medium">
+                Target Amount
+              </Text>
+              <TextField.Root
+                type="number"
+                placeholder="10000"
+                value={goalAmount}
+                onChange={(e) => setGoalAmount(e.target.value)}
               >
-                <Flex direction="column" gap="2">
-                  <Flex align="center" justify="between">
-                    <Flex align="center" gap="2">
-                      {goalIcons[goal.type] || <Target size={18} />}
-                      <Text size="3" weight="bold">
-                        {goal.name}
-                      </Text>
-                      <Badge color={done ? 'green' : 'gray'} size="1">
-                        {goalLabels[goal.type] || goal.type}
-                      </Badge>
-                    </Flex>
-                    <IconButton
-                      variant="ghost"
-                      size="1"
-                      color="red"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDelete(goal.id)
-                      }}
-                      aria-label="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </IconButton>
-                  </Flex>
+                <TextField.Slot side="left">$</TextField.Slot>
+              </TextField.Root>
+            </Flex>
+            <Flex direction="column" gap="1">
+              <Text size="2" weight="medium">
+                Initial Amount (optional)
+              </Text>
+              <TextField.Root
+                type="number"
+                placeholder="0"
+                value={initialAmount}
+                onChange={(e) => setInitialAmount(e.target.value)}
+              >
+                <TextField.Slot side="left">$</TextField.Slot>
+              </TextField.Root>
+            </Flex>
+            <Button onClick={handleCreate} loading={saving} size="3" mt="2">
+              Create Goal
+            </Button>
+          </Flex>
+        </Dialog.Content>
 
-                  <Flex align="center" justify="between">
-                    <Text size="2" color="gray">
-                      {goal.progress_pct}% complete
-                    </Text>
-                    <Text size="2" weight="medium" color={done ? 'green' : undefined}>
-                      {formatCurrency(goal.current_amount, currency)} /{' '}
-                      {formatCurrency(goal.target_amount, currency)}
-                    </Text>
-                  </Flex>
-
-                  <Box className={styles.barOuter}>
-                    <Box
-                      className={styles.barInner}
-                      style={
-                        {
-                          '--bar-width': `${Math.min(goal.progress_pct, 100)}%`,
-                          '--bar-color': done
-                            ? 'var(--green-9)'
-                            : goal.color
-                              ? goal.color
-                              : 'var(--accent-9)',
-                        } as React.CSSProperties
-                      }
-                    />
-                  </Box>
-
-                  {done && (
-                    <Text size="1" color="green" weight="medium">
-                      Goal achieved!
-                    </Text>
-                  )}
-                </Flex>
-                {/* Detail Dialog */}
-                <Dialog.Root
-                  open={detailGoal?.id === goal.id}
-                  onOpenChange={(open) => {
-                    if (!open) setDetailGoal(null)
-                  }}
+        {loading ? (
+          <Flex direction="column" gap="3" p="4">
+            <div
+              className="skeleton"
+              style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
+            />
+            <div
+              className="skeleton"
+              style={{ height: 16, width: '60%', borderRadius: 'var(--radius-2)' }}
+            />
+            <div
+              className="skeleton"
+              style={{ height: 20, width: '85%', borderRadius: 'var(--radius-2)' }}
+            />
+            <div
+              className="skeleton"
+              style={{ height: 16, width: '40%', borderRadius: 'var(--radius-2)' }}
+            />
+          </Flex>
+        ) : goals.length === 0 ? (
+          <Flex className={styles.emptyState} direction="column">
+            <span className={styles.emptyTitle}>No goals yet</span>
+            <span className={styles.emptyHint}>Create your first goal to start tracking</span>
+          </Flex>
+        ) : (
+          <Flex direction="column" gap="3">
+            {goals.map((goal) => {
+              const done = completed(goal)
+              return (
+                <Card
+                  key={goal.id}
+                  size="2"
+                  className={styles.card}
+                  onClick={() => setDetailGoal(goal)}
                 >
-                  <Dialog.Content maxWidth="420px">
-                    {detailGoal && (
-                      <>
-                        <Flex align="center" gap="2" mb="3">
-                          {goalIcons[detailGoal.type]}
-                          <Dialog.Title mb="0">{detailGoal.name}</Dialog.Title>
-                          <Badge color={done ? 'green' : 'gray'} size="1">
-                            {goalLabels[detailGoal.type]}
-                          </Badge>
-                        </Flex>
+                  <Flex direction="column" gap="2">
+                    <Flex align="center" justify="between">
+                      <Flex align="center" gap="2">
+                        {goalIcons[goal.type] || <Target size={18} />}
+                        <Text size="3" weight="bold">
+                          {goal.name}
+                        </Text>
+                        <Badge color={done ? 'green' : 'gray'} size="1">
+                          {goalLabels[goal.type] || goal.type}
+                        </Badge>
+                      </Flex>
+                      <IconButton
+                        variant="ghost"
+                        size="1"
+                        color="red"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDelete(goal.id)
+                        }}
+                        aria-label="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </IconButton>
+                    </Flex>
 
-                        <Flex direction="column" gap="2" mb="4">
-                          <Flex align="center" justify="between">
-                            <Text size="2" color="gray">
-                              Progress
-                            </Text>
-                            <Text size="2" weight="medium">
-                              {formatCurrency(detailGoal.current_amount, currency)} /{' '}
-                              {formatCurrency(detailGoal.target_amount, currency)}
+                    <Flex align="center" justify="between">
+                      <Text size="2" color="gray">
+                        {goal.progress_pct}% complete
+                      </Text>
+                      <Text size="2" weight="medium" color={done ? 'green' : undefined}>
+                        {formatCurrency(goal.current_amount, currency)} /{' '}
+                        {formatCurrency(goal.target_amount, currency)}
+                      </Text>
+                    </Flex>
+
+                    <Box className={styles.barOuter}>
+                      <Box
+                        className={styles.barInner}
+                        style={
+                          {
+                            '--bar-width': `${Math.min(goal.progress_pct, 100)}%`,
+                            '--bar-color': done
+                              ? 'var(--green-9)'
+                              : goal.color
+                                ? goal.color
+                                : 'var(--accent-9)',
+                          } as React.CSSProperties
+                        }
+                      />
+                    </Box>
+
+                    {done && (
+                      <Text size="1" color="green" weight="medium">
+                        Goal achieved!
+                      </Text>
+                    )}
+                  </Flex>
+                  {/* Detail Dialog */}
+                  <Dialog.Root
+                    open={detailGoal?.id === goal.id}
+                    onOpenChange={(open) => {
+                      if (!open) setDetailGoal(null)
+                    }}
+                  >
+                    <Dialog.Content maxWidth="420px">
+                      {detailGoal && (
+                        <>
+                          <Flex align="center" gap="2" mb="3">
+                            {goalIcons[detailGoal.type]}
+                            <Dialog.Title mb="0">{detailGoal.name}</Dialog.Title>
+                            <Badge color={done ? 'green' : 'gray'} size="1">
+                              {goalLabels[detailGoal.type]}
+                            </Badge>
+                          </Flex>
+
+                          <Flex direction="column" gap="2" mb="4">
+                            <Flex align="center" justify="between">
+                              <Text size="2" color="gray">
+                                Progress
+                              </Text>
+                              <Text size="2" weight="medium">
+                                {formatCurrency(detailGoal.current_amount, currency)} /{' '}
+                                {formatCurrency(detailGoal.target_amount, currency)}
+                              </Text>
+                            </Flex>
+                            <Box className={styles.barOuter}>
+                              <Box
+                                className={styles.barInner}
+                                style={
+                                  {
+                                    '--bar-width': `${Math.min(detailGoal.progress_pct, 100)}%`,
+                                    '--bar-color': done ? 'var(--green-9)' : 'var(--accent-9)',
+                                  } as React.CSSProperties
+                                }
+                              />
+                            </Box>
+                            <Text size="1" color="gray">
+                              {detailGoal.progress_pct}% complete
                             </Text>
                           </Flex>
-                          <Box className={styles.barOuter}>
-                            <Box
-                              className={styles.barInner}
-                              style={
-                                {
-                                  '--bar-width': `${Math.min(detailGoal.progress_pct, 100)}%`,
-                                  '--bar-color': done ? 'var(--green-9)' : 'var(--accent-9)',
-                                } as React.CSSProperties
-                              }
-                            />
-                          </Box>
-                          <Text size="1" color="gray">
-                            {detailGoal.progress_pct}% complete
-                          </Text>
-                        </Flex>
 
-                        <Flex direction="column" gap="1" mb="4">
-                          {detailGoal.monthly_contribution && (
-                            <Flex justify="between">
-                              <Text size="2" color="gray">
-                                Monthly contribution
-                              </Text>
-                              <Text size="2">
-                                {formatCurrency(detailGoal.monthly_contribution, currency)}
-                              </Text>
-                            </Flex>
-                          )}
-                          {detailGoal.deadline && (
-                            <Flex justify="between">
-                              <Text size="2" color="gray">
-                                Deadline
-                              </Text>
-                              <Text size="2">{detailGoal.deadline}</Text>
-                            </Flex>
-                          )}
-                          {detailGoal.category_name && (
-                            <Flex justify="between">
-                              <Text size="2" color="gray">
-                                Category
-                              </Text>
-                              <Text size="2">{detailGoal.category_name}</Text>
-                            </Flex>
-                          )}
-                        </Flex>
+                          <Flex direction="column" gap="1" mb="4">
+                            {detailGoal.monthly_contribution && (
+                              <Flex justify="between">
+                                <Text size="2" color="gray">
+                                  Monthly contribution
+                                </Text>
+                                <Text size="2">
+                                  {formatCurrency(detailGoal.monthly_contribution, currency)}
+                                </Text>
+                              </Flex>
+                            )}
+                            {detailGoal.deadline && (
+                              <Flex justify="between">
+                                <Text size="2" color="gray">
+                                  Deadline
+                                </Text>
+                                <Text size="2">{detailGoal.deadline}</Text>
+                              </Flex>
+                            )}
+                            {detailGoal.category_name && (
+                              <Flex justify="between">
+                                <Text size="2" color="gray">
+                                  Category
+                                </Text>
+                                <Text size="2">{detailGoal.category_name}</Text>
+                              </Flex>
+                            )}
+                          </Flex>
 
-                        <Flex gap="2" mt="3">
-                          <Button
-                            size="2"
-                            variant="soft"
-                            className={styles.flex1}
-                            onClick={openEdit}
-                          >
-                            <Pencil size={14} /> Edit
-                          </Button>
-                          <Button
-                            size="2"
-                            className={styles.flex1}
-                            onClick={() => setContributeOpen(true)}
-                          >
-                            <Plus size={14} /> Add Contribution
-                          </Button>
-                        </Flex>
+                          <Flex gap="2" mt="3">
+                            <Button
+                              size="2"
+                              variant="soft"
+                              className={styles.flex1}
+                              onClick={openEdit}
+                            >
+                              <Pencil size={14} /> Edit
+                            </Button>
+                            <Button
+                              size="2"
+                              className={styles.flex1}
+                              onClick={() => setContributeOpen(true)}
+                            >
+                              <Plus size={14} /> Add Contribution
+                            </Button>
+                          </Flex>
 
-                        {/* Contribute Dialog */}
-                        <Dialog.Root open={contributeOpen} onOpenChange={setContributeOpen}>
-                          <Dialog.Content maxWidth="360px">
-                            <Dialog.Title>Add Contribution</Dialog.Title>
-                            <Flex direction="column" gap="3" mt="3">
-                              <Flex direction="column" gap="1">
-                                <Text size="2" weight="medium">
-                                  Amount
-                                </Text>
-                                <TextField.Root
-                                  type="number"
-                                  placeholder="100"
-                                  value={contributeAmount}
-                                  onChange={(e) => setContributeAmount(e.target.value)}
-                                >
-                                  <TextField.Slot side="left">$</TextField.Slot>
-                                </TextField.Root>
-                              </Flex>
-                              <Button
-                                onClick={handleContribute}
-                                loading={contributing}
-                                size="3"
-                                mt="2"
-                              >
-                                Add
-                              </Button>
-                            </Flex>
-                          </Dialog.Content>
-                        </Dialog.Root>
-
-                        {/* Edit Goal Dialog */}
-                        <Dialog.Root open={editOpen} onOpenChange={setEditOpen}>
-                          <Dialog.Content maxWidth="400px">
-                            <Dialog.Title>Edit Goal</Dialog.Title>
-                            <Flex direction="column" gap="3" mt="3">
-                              <Flex direction="column" gap="1">
-                                <Text size="2" weight="medium">
-                                  Name
-                                </Text>
-                                <TextField.Root
-                                  placeholder="Goal name"
-                                  value={editName}
-                                  onChange={(e) => setEditName(e.target.value)}
-                                />
-                              </Flex>
-                              <Flex direction="column" gap="1">
-                                <Text size="2" weight="medium">
-                                  Type
-                                </Text>
-                                <Select.Root value={editType} onValueChange={setEditType}>
-                                  <Select.Trigger />
-                                  <Select.Content>
-                                    <Select.Item value="save_up">Save Up</Select.Item>
-                                    <Select.Item value="pay_down">Pay Down</Select.Item>
-                                    <Select.Item value="monthly_envelope">
-                                      Monthly Envelope
-                                    </Select.Item>
-                                  </Select.Content>
-                                </Select.Root>
-                              </Flex>
-                              <Flex direction="column" gap="1">
-                                <Text size="2" weight="medium">
-                                  Target Amount
-                                </Text>
-                                <TextField.Root
-                                  type="number"
-                                  placeholder="10000"
-                                  value={editTarget}
-                                  onChange={(e) => setEditTarget(e.target.value)}
-                                >
-                                  <TextField.Slot side="left">$</TextField.Slot>
-                                </TextField.Root>
-                              </Flex>
-                              <Flex direction="column" gap="1">
-                                <Text size="2" weight="medium">
-                                  Current Amount
-                                </Text>
-                                <TextField.Root
-                                  type="number"
-                                  placeholder="0"
-                                  value={editCurrent}
-                                  onChange={(e) => setEditCurrent(e.target.value)}
-                                >
-                                  <TextField.Slot side="left">$</TextField.Slot>
-                                </TextField.Root>
-                              </Flex>
-                              <Flex direction="column" gap="1">
-                                <Text size="2" weight="medium">
-                                  Monthly Contribution (optional)
-                                </Text>
-                                <TextField.Root
-                                  type="number"
-                                  placeholder="100"
-                                  value={editMonthly}
-                                  onChange={(e) => setEditMonthly(e.target.value)}
-                                >
-                                  <TextField.Slot side="left">$</TextField.Slot>
-                                </TextField.Root>
-                              </Flex>
-                              <Flex direction="column" gap="1">
-                                <Text size="2" weight="medium">
-                                  Deadline (optional)
-                                </Text>
-                                <TextField.Root
-                                  type="date"
-                                  value={editDeadline}
-                                  onChange={(e) => setEditDeadline(e.target.value)}
-                                />
-                              </Flex>
-                              <Flex gap="3" mt="2" justify="end">
+                          {/* Contribute Dialog */}
+                          <Dialog.Root open={contributeOpen} onOpenChange={setContributeOpen}>
+                            <Dialog.Content maxWidth="360px">
+                              <Dialog.Title>Add Contribution</Dialog.Title>
+                              <Flex direction="column" gap="3" mt="3">
+                                <Flex direction="column" gap="1">
+                                  <Text size="2" weight="medium">
+                                    Amount
+                                  </Text>
+                                  <TextField.Root
+                                    type="number"
+                                    placeholder="100"
+                                    value={contributeAmount}
+                                    onChange={(e) => setContributeAmount(e.target.value)}
+                                  >
+                                    <TextField.Slot side="left">$</TextField.Slot>
+                                  </TextField.Root>
+                                </Flex>
                                 <Button
-                                  variant="soft"
-                                  color="gray"
-                                  onClick={() => setEditOpen(false)}
+                                  onClick={handleContribute}
+                                  loading={contributing}
+                                  size="3"
+                                  mt="2"
                                 >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  onClick={handleUpdate}
-                                  loading={savingEdit}
-                                  disabled={!editName.trim() || !editTarget}
-                                >
-                                  Save Changes
+                                  Add
                                 </Button>
                               </Flex>
-                            </Flex>
-                          </Dialog.Content>
-                        </Dialog.Root>
-                      </>
-                    )}
-                  </Dialog.Content>
-                </Dialog.Root>
-              </Card>
-            )
-          })}
-        </Flex>
-      )}
-    </Box>
+                            </Dialog.Content>
+                          </Dialog.Root>
+
+                          {/* Edit Goal Dialog */}
+                          <Dialog.Root open={editOpen} onOpenChange={setEditOpen}>
+                            <Dialog.Content maxWidth="400px">
+                              <Dialog.Title>Edit Goal</Dialog.Title>
+                              <Flex direction="column" gap="3" mt="3">
+                                <Flex direction="column" gap="1">
+                                  <Text size="2" weight="medium">
+                                    Name
+                                  </Text>
+                                  <TextField.Root
+                                    placeholder="Goal name"
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                  />
+                                </Flex>
+                                <Flex direction="column" gap="1">
+                                  <Text size="2" weight="medium">
+                                    Type
+                                  </Text>
+                                  <Select.Root value={editType} onValueChange={setEditType}>
+                                    <Select.Trigger />
+                                    <Select.Content>
+                                      <Select.Item value="save_up">Save Up</Select.Item>
+                                      <Select.Item value="pay_down">Pay Down</Select.Item>
+                                      <Select.Item value="monthly_envelope">
+                                        Monthly Envelope
+                                      </Select.Item>
+                                    </Select.Content>
+                                  </Select.Root>
+                                </Flex>
+                                <Flex direction="column" gap="1">
+                                  <Text size="2" weight="medium">
+                                    Target Amount
+                                  </Text>
+                                  <TextField.Root
+                                    type="number"
+                                    placeholder="10000"
+                                    value={editTarget}
+                                    onChange={(e) => setEditTarget(e.target.value)}
+                                  >
+                                    <TextField.Slot side="left">$</TextField.Slot>
+                                  </TextField.Root>
+                                </Flex>
+                                <Flex direction="column" gap="1">
+                                  <Text size="2" weight="medium">
+                                    Current Amount
+                                  </Text>
+                                  <TextField.Root
+                                    type="number"
+                                    placeholder="0"
+                                    value={editCurrent}
+                                    onChange={(e) => setEditCurrent(e.target.value)}
+                                  >
+                                    <TextField.Slot side="left">$</TextField.Slot>
+                                  </TextField.Root>
+                                </Flex>
+                                <Flex direction="column" gap="1">
+                                  <Text size="2" weight="medium">
+                                    Monthly Contribution (optional)
+                                  </Text>
+                                  <TextField.Root
+                                    type="number"
+                                    placeholder="100"
+                                    value={editMonthly}
+                                    onChange={(e) => setEditMonthly(e.target.value)}
+                                  >
+                                    <TextField.Slot side="left">$</TextField.Slot>
+                                  </TextField.Root>
+                                </Flex>
+                                <Flex direction="column" gap="1">
+                                  <Text size="2" weight="medium">
+                                    Deadline (optional)
+                                  </Text>
+                                  <TextField.Root
+                                    type="date"
+                                    value={editDeadline}
+                                    onChange={(e) => setEditDeadline(e.target.value)}
+                                  />
+                                </Flex>
+                                <Flex gap="3" mt="2" justify="end">
+                                  <Button
+                                    variant="soft"
+                                    color="gray"
+                                    onClick={() => setEditOpen(false)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    onClick={handleUpdate}
+                                    loading={savingEdit}
+                                    disabled={!editName.trim() || !editTarget}
+                                  >
+                                    Save Changes
+                                  </Button>
+                                </Flex>
+                              </Flex>
+                            </Dialog.Content>
+                          </Dialog.Root>
+                        </>
+                      )}
+                    </Dialog.Content>
+                  </Dialog.Root>
+                </Card>
+              )
+            })}
+          </Flex>
+        )}
+      </Box>
+    </Dialog.Root>
   )
 }

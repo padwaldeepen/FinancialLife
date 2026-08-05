@@ -212,3 +212,13 @@ async def get_category_descendants(
     for row in rows:
         ids.extend(await get_category_descendants(row["id"], user_id, conn))
     return ids
+
+
+async def get_valid_category_ids(user_id: int, conn: asyncpg.Connection) -> set[int]:
+    """Every category id a write from this user may reference — their own plus system
+    categories. Batch-fetch this once before a bulk import loop instead of one
+    ownership query per row."""
+    rows = await conn.fetch(
+        "SELECT id FROM categories WHERE user_id = $1 OR is_system = TRUE", user_id
+    )
+    return {r["id"] for r in rows}

@@ -63,7 +63,7 @@ review → save, with duplicate protection).
 4. **Three-color minimalist UI.** One neutral scale, one accent, semantic money colors — nothing else. See `design-system.md`.
 5. **Device roles differ.** Mobile = capture (scan, quick-add, glance). Desktop = analyze + manage (reports, admin, bulk edit). Feature set is deliberately bigger on desktop.
 6. **Every phase ends with the app answering a money question it couldn't answer before.**
-7. **Docs stay honest.** `plan.md` (this file) + `backlog.md` (detailed tickets) + `architecture-and-goals.md` + `design-system.md` + `DEVELOPMENT.md` + `how-it-works.md` (plain-language guide) are the only docs. Anything stale gets deleted — git history is the archive.
+7. **Docs stay honest.** `README.md` (plain-language pitch + setup) + `plan.md` (this file) + `backlog.md` (detailed tickets) + `architecture-and-goals.md` + `design-system.md` + `DEVELOPMENT.md` are the only docs. Anything stale gets deleted — git history is the archive. (`how-it-works.md` was folded into `README.md` 2026-08-05 — its "[coming soon]" tags had all shipped, making it a second, drifting copy of what the README should say.)
 
 ### Explicitly OUT of scope
 

@@ -9,14 +9,16 @@ from pydantic import BaseModel, Field
 from database.models import Profile
 from database.session import get_db
 from routers.auth import get_current_profile
+from services.account_service import get_valid_account_ids
 from services.ai.ai_service import AIService
 from services.bill_service import suggest_bill_match
+from services.category_service import get_valid_category_ids
 from services.ingest.dedup import DedupCandidate, compute_import_hash, find_duplicates
 from services.merchant_service import (
     extract_merchant_from_description,
     find_matching_merchant,
     find_or_create_merchant,
-    get_merchant,
+    get_valid_merchant_ids,
     normalize_name,
 )
 from services.transaction_service import (
@@ -635,15 +637,9 @@ async def import_transactions(
     # Batch-fetched once (not per-row) so a caller can't post a foreign profile's
     # account/category id into this profile's transactions — matches the ownership
     # guard on the single-transaction create/update endpoints.
-    valid_account_ids = {
-        r["id"] for r in await conn.fetch("SELECT id FROM accounts WHERE profile_id = $1", profile.id)
-    }
-    valid_category_ids = {
-        r["id"]
-        for r in await conn.fetch(
-            "SELECT id FROM categories WHERE user_id = $1 OR is_system = TRUE", profile.user_id
-        )
-    }
+    valid_account_ids = await get_valid_account_ids(profile.id, conn)
+    valid_category_ids = await get_valid_category_ids(profile.user_id, conn)
+    valid_merchant_ids = await get_valid_merchant_ids(profile.id, conn)
 
     async with conn.transaction():
         for i, tx in enumerate(request.transactions):
@@ -659,7 +655,7 @@ async def import_transactions(
                 # offset-naive and offset-aware datetimes"). Normalize once, up front.
                 tx_date = tx.date.replace(tzinfo=None) if tx.date.tzinfo else tx.date
                 merchant_id = tx.merchant_id
-                if merchant_id is not None and await get_merchant(merchant_id, profile.id, conn) is None:
+                if merchant_id is not None and merchant_id not in valid_merchant_ids:
                     raise ValueError(f"merchant {merchant_id} not found")
                 merchant_name = None
                 if merchant_id is None:

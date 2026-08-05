@@ -1,116 +1,67 @@
 # My Financial Life
 
-Free, open-source personal finance tracker. Track your expenses by typing "spent 15 on groceries" — zero friction, zero cost.
+A private, self-hosted personal finance app. It lives on your own computer — not in
+someone else's cloud, nothing to subscribe to. Type `spent 15 on groceries` or snap a
+receipt and it's logged; it tells you plainly where you stand instead of waiting for you
+to dig through a spreadsheet.
 
-## Features
+## Highlights
 
-- 🔐 JWT authentication
-- 💰 Natural language quick-add ("spent 15 on groceries")
-- 📊 Interactive dashboard with Nivo charts
-- 📱 Mobile app (PWA) + 💻 Desktop app — different UX for each
-- 🌙 Dark/light mode
-- 🤖 Free AI parsing (no paid API)
+- **Type or scan** — natural-language quick-add, or photograph a receipt/statement
+  (duplicate-safe).
+- **One number, "safe to spend"** — accounts for upcoming bills and your usual pace, not
+  just today's balance.
+- **Notices things on its own** — a subscription price crept up, a category's running
+  high — always with the real numbers behind the claim.
+- **Every family member gets their own private login.** Multi-country support (US/India/
+  Canada) — each country is a separate, single-currency world, never merged or converted.
+- **Private by default.** Nothing leaves your machine unless you turn on the one optional
+  cloud AI feature yourself. No bank linking, no ads, no subscriptions.
 
-## Tech Stack
+## Tech stack
 
-- **Frontend**: React 19, TypeScript, Vite, CSS Modules, Radix UI, Nivo charts
-- **State**: Zustand (all state — client + server data via slice actions)
-- **Backend**: FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL, JWT auth
-- **AI**: Rule-based NL parsing (no paid API, no OpenAI)
+React 19 + TypeScript + Vite + Radix UI + Zustand (frontend) · FastAPI + raw `asyncpg`
+SQL (no ORM) + PostgreSQL (backend) · rules-based parsing + local OCR, with optional
+[Gemini](https://ai.google.dev/) (free tier, opt-in, off by default) · Docker Compose.
 
-## Quick Start
-
-### Without Docker (recommended for development)
-
-#### Backend
-
-```bash
-# Prerequisites: Python 3.13+, PostgreSQL running locally
-
-cd backend
-
-# Create and activate virtual environment
-python -m venv venv
-
-# Windows:
-venv\Scripts\activate
-# macOS/Linux:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run database migrations
-alembic upgrade head
-
-# Start the server
-uvicorn main:app --host 0.0.0.0 --port 8080 --reload
-```
-
-#### Frontend
+## Quick start
 
 ```bash
-cd frontend
-npm install
-npm run dev
+git clone <this-repo>
+cd FinanceFlareAI
+cp backend/.env.example backend/.env
 ```
 
-Open http://localhost:3000
-
-### With Docker
+Set `SECRET_KEY` in `backend/.env` to a random value (the backend won't start without
+one): `python -c "import secrets; print(secrets.token_hex(32))"`. `GEMINI_API_KEY` is
+optional — leave it blank to run fully offline.
 
 ```bash
-docker-compose up --build -d
+docker compose up -d
 ```
 
-Access:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8080
-- API Docs: http://localhost:8080/docs
+Frontend: http://localhost:3000 · Backend: http://localhost:8080/docs
 
-## Environment Variables
+**From your phone**: same WiFi, open `http://<your-pc's-LAN-IP>:3000`. No app install.
+Camera receipt-scanning needs HTTPS, so over plain LAN it falls back to picking from your
+gallery instead — see `docs/DEVELOPMENT.md` for details.
 
-Backend config is in `backend/.env`. Copy the template:
+Local dev without Docker, backups, and troubleshooting: `docs/DEVELOPMENT.md`.
 
-```bash
-copy backend\.env.example backend\.env   # Windows
-# cp backend/.env.example backend/.env   # macOS/Linux
-```
+## Project structure
 
-Then edit with your credentials. No OpenAI key needed — all AI features use free local parsing.
+`backend/` — FastAPI, raw SQL via asyncpg, Alembic migrations · `frontend/src/` —
+`desktop/` and `mobile/` are separate UI trees sharing one backend and `shared/`/`store/`
+logic · `docs/` — architecture, design system, roadmap · `rules/` — coding conventions.
 
-## Project Structure
+This project is built with AI coding assistants — `AGENTS.md` and `rules/*.md` are the
+brief they (and any contributor) should read first.
 
-```
-My Financial Life/
-├── backend/
-│   ├── database/         SQLAlchemy models + session
-│   ├── routers/          FastAPI route handlers (thin)
-│   ├── services/         Business logic + NL parsing
-│   ├── alembic/          Database migrations
-│   └── main.py           FastAPI app
-├── frontend/
-│   ├── shared/           Shared logic (stores, services, theme)
-│   ├── desktop/          Desktop-specific UI
-│   ├── mobile/           Mobile-specific UI
-│   └── main.tsx          Device detection entry point
-├── rules/                opencode instruction files
-├── AGENTS.md
-├── opencode.json
-└── docker-compose.yml
-```
+## Privacy & security
 
-## Development Commands
-
-| Command | Description |
-|---------|-------------|
-| `uvicorn main:app --reload` | Start backend |
-| `alembic upgrade head` | Run migrations |
-| `alembic revision --autogenerate -m "desc"` | Create migration |
-| `npm run dev` | Start frontend |
-| `npm run build` | Build frontend |
-| `pip install -r requirements.txt` | Install dependencies |
+No secrets are committed to this repo — real `.env` files are gitignored and were never
+part of the git history.
 
 ## License
 
-AGPL-3.0 — Free for everyone.
+AGPL-3.0 — free for everyone.

@@ -119,3 +119,10 @@ async def get_account_balance(account_id: int, conn: asyncpg.Connection) -> floa
         account_id,
     )
     return float(row["income"]) - float(row["expense"])
+
+
+async def get_valid_account_ids(profile_id: int, conn: asyncpg.Connection) -> set[int]:
+    """Every account id belonging to this profile (active or not). Batch-fetch this
+    once before a bulk import loop instead of one ownership query per row."""
+    rows = await conn.fetch("SELECT id FROM accounts WHERE profile_id = $1", profile_id)
+    return {r["id"] for r in rows}

@@ -1,6 +1,6 @@
 # Development Guide
 
-> Last updated: 2026-07-16
+> Last updated: 2026-08-05
 > Practical setup, backups, tooling, and troubleshooting. Current status lives in
 > `plan.md`; execution tickets in `backlog.md`.
 
@@ -36,7 +36,7 @@ cd frontend; npm install; npm run dev
 1. Register a user, log in
 2. Quick-add: `coffee 4.50` → transaction appears
 3. Create a bill, link a transaction
-4. Open Reports — charts render
+4. Open Insights — charts render
 5. Export CSV — file downloads
 
 If any step fails on a clean clone, that's a setup bug — fix it and update this file.
@@ -73,10 +73,11 @@ cd frontend; npm run lint:fix; npm run format:fix; npm run build
 
 # Backend
 cd backend; ruff check .; ruff format .
-
-# Tests (Phase T onward)
-cd backend; pytest
 ```
+
+No pytest files in this project — verify money math and features by driving the running
+app (curl + hand-computed fixtures for backend logic, Playwright for UI), not automated
+test files.
 
 Then review the diff against `rules/code-review.md`.
 
@@ -152,7 +153,7 @@ LAN: local HTTPS via Caddy or Tailscale (still optional, not required for daily 
 |---|---|
 | Backend exits at startup with `SECRET_KEY is not set` | Create `backend/.env` from `env.example`, set `SECRET_KEY` |
 | DB connection refused | `docker compose ps` → postgres up? `docker compose restart postgres` |
-| Migrations out of sync | `cd backend; alembic upgrade head`; if broken beyond repair on dev data: drop volume `docker volume rm myfinanciallife_postgres_data` (destroys data — backup first) |
+| Migrations out of sync | `cd backend; alembic upgrade head`; if broken beyond repair on dev data: drop volume `docker volume rm financeflareai_postgres_data` (destroys data — backup first) |
 | Port 3000/8080 busy | `netstat -ano | findstr :3000` → kill PID, or change port in `docker-compose.yml` |
 | Phone can't reach app | Same WiFi? Windows Firewall may block node/docker — allow on private networks |
 | Frontend shows stale API types | Restart `npm run dev`; check axios base URL matches backend port |
@@ -165,8 +166,8 @@ LAN: local HTTPS via Caddy or Tailscale (still optional, not required for daily 
 docker compose up -d          # start all
 docker compose down           # stop all
 docker compose logs -f backend
-alembic revision --autogenerate -m "desc"   # new migration (from backend/)
+alembic revision -m "desc"    # new migration (from backend/) — hand-write the SQL,
+                               # never --autogenerate (no ORM metadata to diff against)
 alembic upgrade head
 npm run dev / npm run build   # from frontend/
-pytest                        # from backend/
 ```

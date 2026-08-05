@@ -12,7 +12,7 @@ import {
   Box,
   ScrollArea,
 } from '@radix-ui/themes'
-import { Sparkles, Check, Camera, X } from 'lucide-react'
+import { Sparkles, Check, Upload, X } from 'lucide-react'
 import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -20,6 +20,7 @@ import { formatCurrency, getCurrencySymbol } from '../../../shared/utils/format.
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import api from '../../../shared/api/client.ts'
 import { extractTextFromImage, cleanOcrText } from '../../../shared/utils/ocr.ts'
+import { useDocumentUpload } from '../../../shared/hooks/useDocumentUpload.ts'
 import styles from './AddTransactionModal.module.css'
 
 export const AddTransactionModal = (): JSX.Element => {
@@ -47,6 +48,7 @@ export const AddTransactionModal = (): JSX.Element => {
     fetchAccounts,
     fetchTransactions,
     fetchUpcomingBills,
+    fetchPendingDocuments,
   } = useBoundStore(
     useShallow((s) => ({
       addModalOpen: s.ui.addModalOpen,
@@ -71,10 +73,12 @@ export const AddTransactionModal = (): JSX.Element => {
       fetchAccounts: s.fetchAccounts,
       fetchTransactions: s.fetchTransactions,
       fetchUpcomingBills: s.fetchUpcomingBills,
+      fetchPendingDocuments: s.fetchPendingDocuments,
     })),
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
   const amountMissing = Boolean(parsed?.missing?.includes('amount'))
+  const { upload: uploadDocument } = useDocumentUpload()
 
   useEffect(() => {
     if (addModalOpen) {
@@ -121,9 +125,29 @@ export const AddTransactionModal = (): JSX.Element => {
     }
   }
 
-  const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const scanFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      if (file.type !== 'application/pdf') {
+        toast.error('Drop an image or PDF — try a receipt, bill, or statement')
+        return
+      }
+      setScanning(true)
+      try {
+        const docId = await uploadDocument(file, 'receipt')
+        if (docId) {
+          fetchPendingDocuments({ force: true })
+          toast.success('Document uploaded! Review it in Activity.')
+          resetQuickAdd()
+          closeAddModal()
+        } else {
+          toast.error('Failed to upload document')
+        }
+      } finally {
+        setScanning(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      }
+      return
+    }
     setScanning(true)
     try {
       const raw = await extractTextFromImage(file)
@@ -143,6 +167,17 @@ export const AddTransactionModal = (): JSX.Element => {
     }
   }
 
+  const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) await scanFile(file)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    const file = e.dataTransfer.files?.[0]
+    if (file) await scanFile(file)
+  }
+
   const selectedCategory = selectedCategoryId
     ? categories.find((c) => c.id === selectedCategoryId)
     : null
@@ -157,7 +192,11 @@ export const AddTransactionModal = (): JSX.Element => {
         }
       }}
     >
-      <Dialog.Content aria-describedby={undefined}>
+      <Dialog.Content
+        aria-describedby={undefined}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+      >
         <Flex align="center" justify="between" mb="4">
           <Dialog.Title>Quick Add</Dialog.Title>
           <IconButton
@@ -198,22 +237,22 @@ export const AddTransactionModal = (): JSX.Element => {
                   size="2"
                   onClick={() => fileInputRef.current?.click()}
                   loading={scanning}
-                  aria-label="Scan receipt"
+                  aria-label="Upload receipt"
                 >
-                  <Camera size={16} />
+                  <Upload size={16} />
                 </IconButton>
               </TextField.Slot>
             </TextField.Root>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,application/pdf"
               className={styles.hiddenInput}
               onChange={handleFileScan}
             />
             <Text size="1" color="gray">
               Try: &ldquo;spent 15 on groceries&rdquo;, &ldquo;uber 15&rdquo;, &ldquo;salary
-              5000&rdquo;
+              5000&rdquo; — or drag in a receipt image or PDF statement
             </Text>
           </Flex>
 

@@ -44,7 +44,7 @@ export const Home = (): JSX.Element => {
   }
 
   return (
-    <Box className={styles.page}>
+    <Box>
       <Flex className={styles.layout}>
         <Box className={styles.leftColumn}>
           {/* Safe-to-Spend Hero — I5, wired to GET /api/insights/safe-to-spend */}

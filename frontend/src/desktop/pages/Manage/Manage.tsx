@@ -1,5 +1,5 @@
 import { type JSX } from 'react'
-import { Box, Tabs, Text } from '@radix-ui/themes'
+import { Box, Tabs } from '@radix-ui/themes'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { Categories } from '../Categories/Categories.tsx'
 import { Merchants } from '../Merchants/Merchants.tsx'
@@ -20,11 +20,7 @@ export const Manage = (): JSX.Element => {
   const isAdmin = useBoundStore((s) => s.auth.user?.is_admin ?? false)
 
   return (
-    <Box className={styles.page}>
-      <Text as="div" className={styles.pageTitle}>
-        Manage
-      </Text>
-
+    <Box>
       <Tabs.Root defaultValue="accounts">
         <Tabs.List>
           <Tabs.Trigger value="accounts">Accounts</Tabs.Trigger>

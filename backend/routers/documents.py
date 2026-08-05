@@ -22,6 +22,7 @@ from database.session import get_db
 from routers.auth import get_current_profile
 from routers.transactions import FuzzyMatchInfo
 from services.ai.ai_service import AIService
+from services.category_service import get_valid_category_ids
 from services.ingest.dedup import DedupCandidate, compute_import_hash, find_duplicates
 from services.ingest.document_extract import ExtractedDocument, extract, extract_statement
 from services.merchant_service import (
@@ -578,14 +579,7 @@ async def import_statement(
     await _load_statement_document(document_id, profile, conn)
     await check_related_ids_owned(account_id=payload.account_id, profile=profile, conn=conn)
 
-    # Batch-fetched once (not per-row) so a caller can't post a foreign profile's
-    # category id into this profile's transactions.
-    valid_category_ids = {
-        r["id"]
-        for r in await conn.fetch(
-            "SELECT id FROM categories WHERE user_id = $1 OR is_system = TRUE", profile.user_id
-        )
-    }
+    valid_category_ids = await get_valid_category_ids(profile.user_id, conn)
 
     imported = 0
     skipped = 0

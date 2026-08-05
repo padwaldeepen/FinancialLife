@@ -15,6 +15,7 @@ import { Tags, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Categories.module.css'
+import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 
 const COLOR_OPTIONS = [
   '#6B7280',
@@ -138,15 +139,14 @@ export const Categories = (): JSX.Element => {
   }
 
   return (
-    <Box className={styles.page}>
-      <Flex className={styles.pageHeader}>
-        <Text as="div" className={styles.pageTitle}>
-          Categories
-        </Text>
-        <Button onClick={openCreate}>
-          <Plus size={16} /> Add Category
-        </Button>
-      </Flex>
+    <Box>
+      <PageHeader
+        action={
+          <Button onClick={openCreate}>
+            <Plus size={16} /> Add Category
+          </Button>
+        }
+      />
 
       {loading ? (
         <Flex direction="column" gap="3" p="4">

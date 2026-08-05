@@ -31,6 +31,7 @@ import { BillFormDialog } from './BillFormDialog.tsx'
 import { BillDetail } from './BillDetail/BillDetail.tsx'
 import { DetectedSubscriptions } from './DetectedSubscriptions.tsx'
 import styles from './Recurring.module.css'
+import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 
 const budgetPeriodLabel: Record<string, string> = {
   monthly: 'Monthly',
@@ -253,15 +254,14 @@ export const Recurring = (): JSX.Element => {
   }
 
   return (
-    <Box className={styles.page}>
-      <Flex className={styles.pageHeader}>
-        <Text as="div" className={styles.pageTitle}>
-          Recurring
-        </Text>
-        <Button size="2" onClick={openCreate}>
-          <Plus size={16} /> Add Bill
-        </Button>
-      </Flex>
+    <Box>
+      <PageHeader
+        action={
+          <Button size="2" onClick={openCreate}>
+            <Plus size={16} /> Add Bill
+          </Button>
+        }
+      />
 
       {loading ? (
         <Flex direction="column" gap="3" p="4">

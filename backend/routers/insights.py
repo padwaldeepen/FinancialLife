@@ -473,15 +473,15 @@ async def _savings_snapshot(
 
 
 async def _fee_leakage(profile_id: int, conn: asyncpg.Connection, today: date) -> FeeLeakage:
-    like_clauses = " OR ".join(f"lower(description) LIKE '%{kw}%'" for kw in _FEE_KEYWORDS)
     cutoff = today - timedelta(days=_ADVICE_WINDOW_DAYS)
     row = await conn.fetchrow(
-        f"""SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count
-            FROM transactions
-            WHERE profile_id = $1 AND transaction_type = 'expense' AND date >= $2
-              AND ({like_clauses})""",
+        """SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count
+           FROM transactions
+           WHERE profile_id = $1 AND transaction_type = 'expense' AND date >= $2
+             AND description ILIKE ANY($3::text[])""",
         profile_id,
         cutoff,
+        [f"%{kw}%" for kw in _FEE_KEYWORDS],
     )
     return FeeLeakage(total=row["total"], count=row["count"], period_label="in the last 90 days")
 

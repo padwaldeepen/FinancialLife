@@ -1,22 +1,7 @@
-.page {
-  max-width: 720px;
-  animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
-}
 
-.pageTitle {
-  font-size: var(--font-size-6);
-  font-weight: 700;
-  color: var(--gray-12);
-  letter-spacing: -0.01em;
-  margin-bottom: var(--space-5);
-}
 
 .tabContent {
   padding-top: var(--space-5);
-}
-
-.section {
-  margin-bottom: var(--space-6);
 }
 
 .sectionHeader {
@@ -69,20 +54,4 @@
 
 .maxWidth380 {
   max-width: 380px;
-}
-
-.importPreviewContainer {
-  max-height: 320px;
-  overflow-y: auto;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }

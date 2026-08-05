@@ -9,6 +9,7 @@ import { BreakdownChart } from './BreakdownChart.tsx'
 import { ComparisonCard } from './ComparisonCard.tsx'
 import { AnnualTimeline } from './AnnualTimeline.tsx'
 import styles from './Insights.module.css'
+import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 
 const MONTH_NAMES = [
   'Jan',
@@ -69,34 +70,33 @@ export const Insights = (): JSX.Element => {
   }
 
   return (
-    <Box className={styles.page}>
-      <Flex className={styles.pageHeader}>
-        <Text as="div" className={styles.pageTitle}>
-          Insights
-        </Text>
-        <Flex align="center" gap="2">
-          <Select.Root value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
-            <Select.Trigger />
-            <Select.Content>
-              {MONTH_NAMES.map((m, i) => (
-                <Select.Item key={m} value={String(i + 1)}>
-                  {m}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-          <Select.Root value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-            <Select.Trigger />
-            <Select.Content>
-              {years.map((y) => (
-                <Select.Item key={y} value={String(y)}>
-                  {y}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-        </Flex>
-      </Flex>
+    <Box>
+      <PageHeader
+        action={
+          <Flex align="center" gap="2">
+            <Select.Root value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+              <Select.Trigger />
+              <Select.Content>
+                {MONTH_NAMES.map((m, i) => (
+                  <Select.Item key={m} value={String(i + 1)}>
+                    {m}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+            <Select.Root value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+              <Select.Trigger />
+              <Select.Content>
+                {years.map((y) => (
+                  <Select.Item key={y} value={String(y)}>
+                    {y}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+          </Flex>
+        }
+      />
 
       {periodLoading && !periodComparisonMoM ? (
         <Flex direction="column" gap="3" p="4">

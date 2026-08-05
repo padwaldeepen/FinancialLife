@@ -22,6 +22,7 @@ import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Merchants.module.css'
+import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 
 export const Merchants = (): JSX.Element => {
   const currency = useActiveCurrency()
@@ -177,13 +178,14 @@ export const Merchants = (): JSX.Element => {
   }
 
   return (
-    <Box className={styles.page}>
-      <Flex className={styles.pageHeader}>
-        <span className={styles.pageTitle}>Merchants</span>
-        <Button variant="soft" onClick={handleFetchSimilar}>
-          <Merge size={16} /> Find Duplicates
-        </Button>
-      </Flex>
+    <Box>
+      <PageHeader
+        action={
+          <Button variant="soft" onClick={handleFetchSimilar}>
+            <Merge size={16} /> Find Duplicates
+          </Button>
+        }
+      />
 
       <Flex gap="3" align="center">
         <TextField.Root

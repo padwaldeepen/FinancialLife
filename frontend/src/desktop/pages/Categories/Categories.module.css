@@ -1,22 +1,3 @@
-.page {
-  max-width: 700px;
-  animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
-}
-
-.pageHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-5);
-}
-
-.pageTitle {
-  font-size: var(--font-size-6);
-  font-weight: 700;
-  color: var(--gray-12);
-  letter-spacing: -0.01em;
-}
-
 .card {
   cursor: default;
   border-radius: var(--radius-card) !important;
@@ -106,15 +87,4 @@
 
 .dialogNarrow {
   max-width: 380px;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }

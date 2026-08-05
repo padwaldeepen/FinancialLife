@@ -435,3 +435,10 @@ async def find_similar_merchants(
 
     pairs.sort(key=lambda p: p["similarity"], reverse=True)
     return pairs
+
+
+async def get_valid_merchant_ids(profile_id: int, conn: asyncpg.Connection) -> set[int]:
+    """Every merchant id belonging to this profile. Batch-fetch this once before a
+    bulk import loop instead of one ownership query per row."""
+    rows = await conn.fetch("SELECT id FROM merchants WHERE profile_id = $1", profile_id)
+    return {r["id"] for r in rows}

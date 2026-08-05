@@ -1,8 +1,7 @@
 from core.config import settings
 from core.logging import get_logger
 
-from .base import ParseResult
-from .gemini import GeminiService
+from .gemini import GeminiService, ParseResult
 
 log = get_logger(__name__)
 

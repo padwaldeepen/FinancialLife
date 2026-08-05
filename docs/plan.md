@@ -266,6 +266,32 @@ another user's transactions, insights, or dashboard.
 - [x] Job visibility: pending-documents count + aggregate system counts (users/transactions); last-backup shown once backups are configured
 - **Isolation verified:** non-admin → 403 on every admin route; the only `FROM transactions` in the admin router is an aggregate `COUNT(*)` — no admin route returns another user's ledger
 
+### Phase R — Review Remediation & Polish (from the 2026-07-30 audit) ← **do R1–R3 before daily use**
+
+Two whole-codebase agent audits before the owner starts using it for real. **Architecture is
+strong** (per-profile isolation, Decimal money, clean slices/services); the findings are real but
+targeted. Detail + acceptance in [`backlog.md`](backlog.md) R1–R6.
+
+**Ship-ready block (before daily use):**
+- [ ] **R1 — Correctness fixes:** ChatBot hardcoded account/`$`; `category_spending` broken date
+  window; missing `account_id` ownership check on transaction writes.
+- [ ] **R2 — Palette & polish sweep:** remove off-spec purple/blue/amber hues + money-colour-on-icons
+  + DB category colours as swatches → slate ink + one orange accent (design-system §1); Home
+  insights loading Skeleton. *The single highest-impact change for "looks intentional in 2026."*
+- [ ] **R3 — Capture UX:** offer **both** gallery upload and direct camera on every device (drop the
+  forced `capture`); document the HTTPS-for-phone-camera constraint honestly.
+- [ ] **Then: fresh-start DB wipe** (owner's call) so the clean DB runs the fixed code.
+
+**Code-health block (can run while in use — invisible to the user):**
+- [ ] **R4 — Backend DRY:** shared account/category ownership helpers, one balance function, shared
+  spent-this-period + `ai_cloud_enabled` fetch, all Gemini via `GeminiService`, parameterize the
+  `_fee_leakage` SQL, share Jaccard.
+- [ ] **R5 — Frontend DRY/state:** move the ~50 duplicated quick-add lines into `quickAddModalSlice`
+  actions (no API calls in components); move/retire ChatBot.
+- [ ] **R6 — Over-engineering & dead code:** drop the single-impl `BaseAIService` ABC, the
+  `_row_to_bill_dict` no-op, unused `get_leaf_categories` + dead `ParseResult.date`; money
+  request-models `float → Decimal`.
+
 ### Later (only after the above is real and used daily)
 
 - **Automated backups** — deferred while the app holds only test data, but a **hard gate

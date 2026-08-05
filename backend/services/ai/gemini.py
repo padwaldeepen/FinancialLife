@@ -1,18 +1,29 @@
 import base64
 import json
+from dataclasses import dataclass
 
 import httpx
 
 from core.config import settings
 from core.logging import get_logger
 
-from .base import BaseAIService, ParseResult
-
 log = get_logger(__name__)
 
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
 )
+
+
+@dataclass
+class ParseResult:
+    amount: float | None
+    description: str
+    transaction_type: str  # "expense" | "income"
+    category: str | None
+    merchant: str | None
+    confidence: float
+    raw_text: str
+
 
 RECEIPT_PROMPT = """You are a receipt/bill scanner. Extract structured data from this image.
 
@@ -71,46 +82,53 @@ def _strip_json_fences(text: str) -> str:
     return cleaned.strip()
 
 
-class GeminiService(BaseAIService):
+async def call_gemini(
+    parts: list[dict], *, temperature: float, max_tokens: int, timeout: float
+) -> str:
+    """The single low-level Gemini call for the whole app: POST the given content
+    parts and return the model's raw text reply. Raises on transport/HTTP error —
+    every caller wraps this in try/except and falls back to its deterministic path,
+    so the gateway itself stays a thin, shared primitive (used here plus by the
+    chat and rephrase endpoints)."""
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(
+            f"{GEMINI_URL}?key={settings.GEMINI_API_KEY}",
+            json={
+                "contents": [{"parts": parts}],
+                "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    return data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+
+
+def _inline_image(data: bytes, mime_type: str) -> dict:
+    return {"inline_data": {"mime_type": mime_type, "data": base64.b64encode(data).decode("ascii")}}
+
+
+class GeminiService:
     async def parse(self, text: str) -> ParseResult | None:
         if not settings.GEMINI_API_KEY:
             return None
-
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post(
-                    f"{GEMINI_URL}?key={settings.GEMINI_API_KEY}",
-                    json={
-                        "contents": [{"parts": [{"text": f"{SYSTEM_PROMPT}\n\nText: {text}"}]}],
-                        "generationConfig": {
-                            "temperature": 0.1,
-                            "maxOutputTokens": 800,
-                        },
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
-
-            text_content = (
-                data.get("candidates", [{}])[0]
-                .get("content", {})
-                .get("parts", [{}])[0]
-                .get("text", "")
+            raw = await call_gemini(
+                [{"text": f"{SYSTEM_PROMPT}\n\nText: {text}"}],
+                temperature=0.1,
+                max_tokens=800,
+                timeout=15,
             )
-
-            result = json.loads(_strip_json_fences(text_content))
-
+            result = json.loads(_strip_json_fences(raw))
             return ParseResult(
                 amount=result.get("amount"),
                 description=result.get("description", text),
                 transaction_type=result.get("type", "expense"),
                 category=result.get("category"),
-                date=None,
                 merchant=result.get("merchant"),
                 confidence=result.get("confidence", 0.5),
                 raw_text=text,
             )
-
         except Exception as e:
             log.warning("Gemini parse failed: %s", e)
             return None
@@ -118,39 +136,14 @@ class GeminiService(BaseAIService):
     async def extract_receipt(self, image_bytes: bytes, mime_type: str) -> dict | None:
         if not settings.GEMINI_API_KEY:
             return None
-
         try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                resp = await client.post(
-                    f"{GEMINI_URL}?key={settings.GEMINI_API_KEY}",
-                    json={
-                        "contents": [
-                            {
-                                "parts": [
-                                    {"text": RECEIPT_PROMPT},
-                                    {
-                                        "inline_data": {
-                                            "mime_type": mime_type,
-                                            "data": base64.b64encode(image_bytes).decode("ascii"),
-                                        }
-                                    },
-                                ]
-                            }
-                        ],
-                        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 800},
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
-
-            text_content = (
-                data.get("candidates", [{}])[0]
-                .get("content", {})
-                .get("parts", [{}])[0]
-                .get("text", "")
+            raw = await call_gemini(
+                [{"text": RECEIPT_PROMPT}, _inline_image(image_bytes, mime_type)],
+                temperature=0.1,
+                max_tokens=800,
+                timeout=20,
             )
-            return json.loads(_strip_json_fences(text_content))
-
+            return json.loads(_strip_json_fences(raw))
         except Exception as e:
             log.warning("Gemini receipt extraction failed: %s", e)
             return None
@@ -158,41 +151,16 @@ class GeminiService(BaseAIService):
     async def extract_statement(self, file_bytes: bytes, mime_type: str) -> dict | None:
         if not settings.GEMINI_API_KEY:
             return None
-
         try:
-            async with httpx.AsyncClient(timeout=40) as client:
-                resp = await client.post(
-                    f"{GEMINI_URL}?key={settings.GEMINI_API_KEY}",
-                    json={
-                        "contents": [
-                            {
-                                "parts": [
-                                    {"text": STATEMENT_PROMPT},
-                                    {
-                                        "inline_data": {
-                                            "mime_type": mime_type,
-                                            "data": base64.b64encode(file_bytes).decode("ascii"),
-                                        }
-                                    },
-                                ]
-                            }
-                        ],
-                        # Statements can be long — allow far more output tokens than a
-                        # single receipt so a full transaction list isn't truncated.
-                        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192},
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
-
-            text_content = (
-                data.get("candidates", [{}])[0]
-                .get("content", {})
-                .get("parts", [{}])[0]
-                .get("text", "")
+            # Statements can be long — allow far more output tokens than a single
+            # receipt so a full transaction list isn't truncated.
+            raw = await call_gemini(
+                [{"text": STATEMENT_PROMPT}, _inline_image(file_bytes, mime_type)],
+                temperature=0.1,
+                max_tokens=8192,
+                timeout=40,
             )
-            return json.loads(_strip_json_fences(text_content))
-
+            return json.loads(_strip_json_fences(raw))
         except Exception as e:
             log.warning("Gemini statement extraction failed: %s", e)
             return None

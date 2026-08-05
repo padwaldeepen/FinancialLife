@@ -129,17 +129,6 @@ class Bill:
 
 
 @dataclass
-class TransactionBillLink:
-    id: int
-    transaction_id: int
-    bill_id: int
-    period_start: datetime
-    period_end: datetime
-    is_auto_linked: bool
-    created_at: datetime
-
-
-@dataclass
 class Goal:
     id: int
     profile_id: int

@@ -1805,6 +1805,105 @@ deleted after. **This completes Phase A.**
 
 ---
 
+## Phase R — Review Remediation & Polish (from the 2026-07-30 backend + frontend audit)
+
+Two parallel agent audits (backend architecture/quality, frontend code/UI) ran against the
+whole codebase before the owner starts daily use. Verdict: **architecture is genuinely strong**
+(strict per-profile isolation, `Decimal`/`Numeric(12,2)` money, clean Zustand slice discipline,
+no ORM leakage/SQL-injection/swallowed errors, clean admin surface). Findings below are the
+real, actionable issues. **Sequencing:** R1–R3 are the *ship-ready* block — do them (then the
+fresh-start DB wipe) before daily use; R4–R6 are invisible code-health and can follow while the
+app is in use. Every ticket keeps the project's verify bar (Playwright both viewports for UI,
+curl+fixture for logic, `ruff`/`tsc`/`eslint` clean, no throwaway data left behind).
+
+> **Operational step (not a code ticket):** after R1–R3 land, **wipe the DB for a clean start**
+> (owner's call — delete all users/data so the fresh DB runs the fixed code) before the owner
+> begins entering real data. No backups configured yet (owner deferred — the single Docker
+> volume is the only copy; revisit before data becomes precious).
+
+### [ ] R1 — Correctness fixes (three real defects)
+**Build:**
+1. **ChatBot** (`desktop/components/ChatBot/ChatBot.tsx`) posts every transaction to a
+   hardcoded `account_id: 1` and renders a hardcoded `$` — wrong account/profile and wrong
+   currency symbol on IN/CA. Route chat saves through the same path quick-add uses (server
+   resolves the active profile's default account) and format amounts via
+   `formatCurrency(amount, currency)` from `useActiveCurrency()`.
+2. **`category_spending` look-back window** (`routers/categories.py`): `cutoff.replace(day=…)`
+   only mutates day-of-month, so any `days` request collapses to "the 1st of this month". Fix to
+   the correct pattern in `reports.py`: `datetime.combine(date.today(), min.time()) -
+   timedelta(days=days)`.
+3. **Account ownership on writes** — transaction create/update/import and document
+   review/statement-import force `profile_id` but insert `account_id` (and `bill_id`/`goal_id`/
+   `merchant_id`) unchecked, unlike `bills.py`. Add an ownership guard so a caller can't
+   reference another profile's account (isolation on writes; matters once family shares the app).
+**Accept:** IN-profile chat save lands in that profile's account with ₹ formatting; category
+breakdown honours a 90-day range (crosses months); posting a foreign `account_id` → 4xx, not an
+orphan row. Verify via curl + Playwright.
+**Depends:** —
+
+### [ ] R2 — Palette & polish sweep (design-system §1 compliance — the "looks intentional" fix)
+**Build:** one sweep removing every off-spec hue and restoring slate ink + the single orange
+accent (design-system §1): purple/blue/amber badges (`InsightCards.tsx`, `AdminTab.tsx`,
+`TransactionDetailDialog.tsx`, mobile `Activity.tsx`, the amber "pending" fills in
+`DocumentReview.module.css` / mobile `Activity.module.css`) → `gray` soft badges + icon; money
+green/red bled onto icons/account tiles (`Home.tsx` `accountColors`, `Insights` income/expense
+icons) → slate glyphs, colour only the number; DB category colours rendered as swatches
+(`AddTransactionModal.module.css` left-border) → drop/neutralise per §1 rule 2. Also:
+`InsightCards.tsx` returns a blank while loading → render Skeleton card(s) (§4).
+**Accept:** grep shows no `color="purple|blue|amber"` outside money semantics; Playwright
+screenshots (desktop + mobile, light + dark) show slate/orange only, no layout jump on Home.
+**Depends:** —
+
+### [ ] R3 — Capture UX: gallery + direct camera on every device
+**Build:** the mobile Scan input forces `capture="environment"` (camera-only intent). Let the OS
+offer **both** "Take Photo" and "Choose from Library/Files" (drop the forced `capture`, or two
+explicit affordances). Document in-UI the honest constraint: direct camera needs a secure context
+— works on the PC (localhost) and on the phone **only over HTTPS**; over plain LAN HTTP the phone
+shows gallery only (browser rule). (HTTPS via Tailscale/Caddy stays a later, optional step.)
+**Accept:** on iOS/Android over HTTPS the picker offers camera + library; over HTTP, gallery
+works and nothing appears broken; desktop file-picker unchanged. Verify on mobile viewport.
+**Depends:** S6.
+
+### [ ] R4 — Backend DRY & consolidation (invisible; code health)
+**Build:** extract the repeated logic the audit flagged into single homes in `services/`:
+(a) `account_belongs_to_profile()` + `category_belongs_to_user()` helpers (the category check is
+hand-rolled in ~6 routers; `category_service.get_category()` already does it); (b) one
+`account_service.balances()` returning `Decimal` (the income−expense formula lives in 3 places,
+two in float); (c) shared "spent this period" (dup'd in `budgets.py` + `insights.py`, the latter
+an N+1); (d) one `ai_cloud_enabled` fetch helper (copied 4×); (e) route **all** Gemini traffic
+through `GeminiService` (`rephrase.py` + `chat.py` re-declare `GEMINI_URL` and hand-roll httpx);
+(f) parameterize `_fee_leakage`'s SQL (`insights.py`) with `ILIKE ANY($n::text[])` — a hardcoded
+constant today, but it violates "never f-string into SQL"; (g) share the Jaccard `_similarity`
+(byte-identical in `dedup.py` + `merchant_service.py`).
+**Accept:** no behavioural change (existing verifications still pass); each dup'd block now has one
+source; `ruff` clean.
+**Depends:** — (do not overlap R1's account-ownership helper — R1 introduces it, R4 reuses it)
+
+### [ ] R5 — Frontend DRY & state (invisible; rules/dry.md + rules/zustand.md)
+**Build:** move the byte-identical quick-add behaviour (`handleParse`/`handleSave`/`handleFileScan`
++ the post-save force-refresh triple, ~50 lines duplicated across desktop & mobile
+`AddTransactionModal.tsx`) into `quickAddModalSlice.ts` as actions (`parseQuickAdd`/`saveQuickAdd`/
+`scanReceipt`) — the slice holds the state but none of the behaviour today, and the rule bans API
+calls in components; both trees then call the actions and keep only layout. Decide ChatBot's fate:
+either move its API calls into a `chatSlice` (min) or retire the floating NL-entry FAB given
+Quick-Add already covers §3's NL path (the audit flags it as a redundant, least-governed surface).
+**Accept:** both modals import from the slice; no `api.` calls left in either modal or ChatBot;
+`tsc`/`eslint` clean; quick-add + scan still verified on both viewports.
+**Depends:** R1 (ChatBot currency/account fix lands first, then its logic moves).
+
+### [ ] R6 — Over-engineering & dead code
+**Build:** drop `services/ai/base.py`'s `BaseAIService` ABC (one implementation, two call sites
+already bypass it) — keep `GeminiService` + the `AIService` gating wrapper; remove
+`bill_service._row_to_bill_dict` no-op wrapper; delete unused `category_service.get_leaf_categories`
+and the always-`None` `ParseResult.date`; change money request-model/dataclass fields from `float`
+to `Decimal` (`transactions.py`/`bills.py`/`goals.py`/`documents.py` schemas + `database/models.py`
+annotations that currently mis-type asyncpg `Decimal` as `float`).
+**Accept:** grep confirms the deletions have no callers; money paths still verified; `ruff`/`tsc`
+clean.
+**Depends:** R4 (both touch the AI service layer — sequence to avoid churn).
+
+---
+
 ## Discovered (parking lot — do not act without a ticket)
 
 - README structure/feature sections still describe the pre-rebuild app (finish in T4).

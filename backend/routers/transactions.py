@@ -10,7 +10,7 @@ from database.models import Profile
 from database.session import get_db
 from routers.auth import get_current_profile
 from services.ai.ai_service import AIService
-from services.bill_service import auto_link_transaction, suggest_bill_match
+from services.bill_service import suggest_bill_match
 from services.ingest.dedup import DedupCandidate, compute_import_hash, find_duplicates
 from services.merchant_service import (
     extract_merchant_from_description,
@@ -188,7 +188,6 @@ async def create_transaction(
             conn,
         )
         if matched_bill:
-            await auto_link_transaction(tx_id, matched_bill["id"], conn, is_auto=True)
             await conn.execute(
                 "UPDATE transactions SET bill_id = $1 WHERE id = $2", matched_bill["id"], tx_id
             )
@@ -567,7 +566,6 @@ async def quick_add_transaction(
         profile.id, parsed_description, parsed_amount, parsed_date, merchant_id, conn
     )
     if matched_bill:
-        await auto_link_transaction(tx_id, matched_bill["id"], conn, is_auto=True)
         await conn.execute(
             "UPDATE transactions SET bill_id = $1 WHERE id = $2", matched_bill["id"], tx_id
         )

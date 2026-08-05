@@ -29,15 +29,13 @@
   text-align: center;
   padding: var(--space-6) var(--space-5);
   border-radius: var(--radius-section);
-  background: var(--accent-9);
-  color: var(--accent-contrast);
   position: relative;
   overflow: hidden;
 }
 
 .balanceLabel {
   font-size: var(--font-size-2);
-  opacity: 0.85;
+  color: var(--gray-11);
   font-weight: 500;
   letter-spacing: 0.02em;
 }
@@ -48,12 +46,12 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.1;
-  color: var(--accent-contrast);
+  color: var(--gray-12);
 }
 
 .balanceAccounts {
   font-size: var(--font-size-1);
-  opacity: 0.7;
+  color: var(--gray-10);
 }
 
 /* ---- Section Headers ---- */
@@ -71,14 +69,14 @@
 
 .seeAll {
   font-size: var(--font-size-2);
-  color: var(--accent-9);
+  color: var(--gray-10);
   cursor: pointer;
   font-weight: 500;
   transition: color var(--duration-fast) var(--ease-out);
 }
 
 .seeAll:hover {
-  color: var(--accent-10);
+  color: var(--gray-12);
 }
 
 /* ---- Cash on hand / Credit owed stat cards ---- */
@@ -122,8 +120,6 @@
 }
 
 .accountIcon {
-  --account-bg: var(--gray-9);
-  --account-color: var(--gray-9);
   width: 44px;
   height: 44px;
   display: flex;
@@ -131,8 +127,10 @@
   justify-content: center;
   border-radius: var(--radius-3);
   flex-shrink: 0;
-  background: var(--account-bg);
-  color: var(--account-color);
+  /* Account type is distinguished by icon shape, never color (design-system.md
+     §1 rule 2) — a soft slate well, same treatment for every account type. */
+  background: var(--gray-3);
+  color: var(--gray-11);
 }
 
 .accountInfo {

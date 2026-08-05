@@ -17,9 +17,9 @@ Then evaluate the diff across the eight dimensions below and report the review m
 | 2 | **Isolation & security** | Every financial query filters a validated `profile_id` (profile must belong to the JWT user); profiles never merged in any query/report/export; every endpoint has `Depends(get_current_user)` unless explicitly public; no admin path can read anyone's financial data; no secrets in code/logs; no outbound calls except Gemini behind the per-user opt-in toggle |
 | 3 | **Data & migrations** | Model change → Alembic revision (with downgrade) in `backend/database/alembic/versions/`; enum-ish strings validated via `Literal`; new query patterns indexed; import paths compute `import_hash` and run the fuzzy-dedup check |
 | 4 | **Error handling** | Failure paths return proper HTTP codes, not 500s; frontend surfaces errors (no silently swallowed promises); `await` on every `db.execute()` — the "bills always paid" bug class |
-| 5 | **Performance** | No N+1 queries (use `selectinload`); no unbounded fetches (pagination/limits on new list endpoints); no per-render recomputation of derived data in React |
+| 5 | **Performance** | No N+1 queries — this project has no ORM, so the fix is a single `JOIN`/batched query, not an eager-load option; no unbounded fetches (pagination/limits on new list endpoints); no per-render recomputation of derived data in React |
 | 6 | **UI / design system** | Colors only from theme tokens (slate/orange; green/red on amount text only); Radix components per `rules/frontend.md`; spacing tokens + grid per `docs/design-system.md`; skeleton/empty/error states present |
-| 7 | **Tests** | Changed money math (parsing, aggregation, conversion, detection, forecast) has pytest coverage asserting real numbers; missing test on money math is always at least 🟡 |
+| 7 | **Money math verification** | No pytest files in this project — changed money math (parsing, aggregation, conversion, detection, forecast) verified via curl + a hand-computed fixture script against the running app, showing real numbers; missing verification on money math is always at least 🟡 |
 | 8 | **Code quality** | Clear naming; functions do one thing; no business logic in routers; no dead code; no desktop/mobile copy-paste (shared logic in `shared/`/`store/`) |
 
 ## Output format
@@ -39,7 +39,7 @@ Then evaluate the diff across the eight dimensions below and report the review m
 | Error handling | … | … |
 | Performance | … | … |
 | UI / design system | … | … |
-| Tests | … | … |
+| Money math verification | … | … |
 | Code quality | … | … |
 
 Status = worst finding in that dimension; ✅ = checked, clean; — = diff doesn't touch it.

@@ -12,7 +12,7 @@ import {
   Select,
   IconButton,
 } from '@radix-ui/themes'
-import { Trash2, Check, X } from 'lucide-react'
+import { Trash2, Check, X, Shield } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import toast from '../../../shared/utils/toast.ts'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -168,7 +168,13 @@ export const AdminTab = (): JSX.Element => {
                 <Table.Cell>{u.email}</Table.Cell>
                 <Table.Cell>{u.username}</Table.Cell>
                 <Table.Cell>
-                  {u.is_admin ? <Badge color="purple">Admin</Badge> : <Text size="1">User</Text>}
+                  {u.is_admin ? (
+                    <Badge color="gray" variant="soft">
+                      <Shield size={11} /> Admin
+                    </Badge>
+                  ) : (
+                    <Text size="1">User</Text>
+                  )}
                 </Table.Cell>
                 <Table.Cell>{u.profile_count}</Table.Cell>
                 <Table.Cell>

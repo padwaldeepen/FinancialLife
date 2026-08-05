@@ -106,7 +106,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
             </Text>
           </Box>
           <Flex align="center" gap="2">
-            {bill.is_variable && <Badge color="orange">Variable</Badge>}
+            {bill.is_variable && <Badge>Variable</Badge>}
             <Text size="5" weight="bold">
               {formatCurrency(bill.amount, currency)}
               {bill.is_variable && bill.amount_estimated && (

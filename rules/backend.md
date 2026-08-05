@@ -16,7 +16,8 @@ backend/
 ├── main.py            FastAPI app setup
 ├── .env               Environment variables
 ├── requirements.txt   Pinned dependencies
-├── pyproject.toml     Ruff + pytest config
+├── pyproject.toml     Ruff config (a `[tool.pytest.ini_options]` section exists but
+│                      is unused — no test files anywhere; verify via curl/Playwright)
 └── Dockerfile
 ```
 
@@ -36,9 +37,17 @@ backend/
   and `docs/architecture-and-goals.md`)
 
 ## AI / NL Parsing
-- No paid API calls (no OpenAI, no external services)
-- NL parsing uses rule-based regex + keyword matching in `services/transaction_service.py`
-- Free and local-only — user data never leaves the server
+- NL parsing (quick-add, receipt/statement extraction, chat, advice rephrasing) is
+  rules-first: regex + keyword matching in `services/transaction_service.py`, plus
+  local-only tier C extraction (pdfplumber/Tesseract, zero network) for documents —
+  this always runs, free, no data leaving the machine.
+- **Gemini is the one cloud exception** (`services/ai/gemini.py`'s shared `call_gemini()`
+  helper) — free-tier, no paid API calls, but it IS an external service and user text
+  DOES leave the server when it's used. Strictly opt-in: every call site checks the
+  user's `ai_cloud_enabled` toggle first and is OFF by default. Never call Gemini (or
+  any other external AI) without that check.
+- No OpenAI, no other third-party AI providers, no Ollama (considered, dropped — see
+  `services/ingest/document_extract.py`'s header comment).
 
 ## Logging
 - Use `core/logging.py` for all logging

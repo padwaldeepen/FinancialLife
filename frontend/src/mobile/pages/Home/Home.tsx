@@ -83,6 +83,9 @@ export const Home = (): JSX.Element => {
     comparison && comparison.previous_expense > 0
       ? Math.min((comparison.current_expense / comparison.previous_expense) * 100, 150)
       : 0
+  // comparison is a truthy object even when both months are $0 — gate on real data.
+  const hasComparisonData =
+    comparison !== null && (comparison.current_expense > 0 || comparison.previous_expense > 0)
 
   if (loading) {
     return (
@@ -221,43 +224,49 @@ export const Home = (): JSX.Element => {
         </Card>
 
         {/* Next 3 Bills */}
-        <Heading size="3">Upcoming Bills</Heading>
-        {upcomingBills.length === 0 ? (
-          <Text color="gray" size="2">
-            No upcoming bills
-          </Text>
-        ) : (
-          <Flex direction="column" gap="2">
-            {upcomingBills.slice(0, 3).map((bill) => (
-              <Flex key={bill.id} align="center" justify="between" className={styles.billRow}>
-                <Flex direction="column" gap="1" className={styles.flex1}>
-                  <Text size="2" weight="medium">
-                    {bill.name}
-                  </Text>
-                  <Text size="1" color="gray">
-                    {bill.has_paid
-                      ? 'Paid'
-                      : bill.days_until === 0
-                        ? 'Due today'
-                        : `${bill.days_until}d`}
-                    {bill.is_variable && ' (est.)'}
-                  </Text>
-                </Flex>
-                <Text size="2" weight="bold" color={bill.has_paid ? 'green' : undefined}>
-                  {bill.has_paid ? '✓ ' : ''}
-                  {formatCurrency(bill.amount, currency)}
-                </Text>
+        <Box>
+          <Heading size="3" mb="2">
+            Upcoming Bills
+          </Heading>
+          <Card className={styles.contentCard}>
+            {upcomingBills.length === 0 ? (
+              <Text color="gray" size="2">
+                No upcoming bills
+              </Text>
+            ) : (
+              <Flex direction="column">
+                {upcomingBills.slice(0, 3).map((bill) => (
+                  <Flex key={bill.id} align="center" justify="between" className={styles.billRow}>
+                    <Flex direction="column" gap="1" className={styles.flex1}>
+                      <Text size="2" weight="medium">
+                        {bill.name}
+                      </Text>
+                      <Text size="1" color="gray">
+                        {bill.has_paid
+                          ? 'Paid'
+                          : bill.days_until === 0
+                            ? 'Due today'
+                            : `${bill.days_until}d`}
+                        {bill.is_variable && ' (est.)'}
+                      </Text>
+                    </Flex>
+                    <Text size="2" weight="bold" color={bill.has_paid ? 'green' : undefined}>
+                      {bill.has_paid ? '✓ ' : ''}
+                      {formatCurrency(bill.amount, currency)}
+                    </Text>
+                  </Flex>
+                ))}
               </Flex>
-            ))}
-          </Flex>
-        )}
+            )}
+          </Card>
+        </Box>
 
         {/* This month vs last */}
         <Card className={styles.contentCard}>
           <Text size="1" color="gray">
             This month vs last
           </Text>
-          {comparison ? (
+          {hasComparisonData && comparison ? (
             <>
               <Flex justify="between" align="baseline" mt="1">
                 <Text size="5" weight="bold">
@@ -281,7 +290,7 @@ export const Home = (): JSX.Element => {
               </Text>
             </>
           ) : (
-            <Text size="2" color="gray">
+            <Text as="div" size="2" color="gray" mt="1">
               No data yet
             </Text>
           )}

@@ -138,8 +138,11 @@ ipconfig   # find IPv4, e.g. 192.168.1.20
 Open `http://192.168.1.20:3000` on the phone.
 
 **Camera scanning limitation**: browsers only expose the camera on HTTPS (or localhost).
-Over plain LAN HTTP, "scan" falls back to file upload from the photo gallery — take a
-photo, then upload. Proper fix when Phase S lands: local HTTPS via Caddy or Tailscale.
+On HTTPS/localhost, "Scan" opens the OS picker with both "Take Photo" and "Photo
+Library" (R3 — no `capture` attribute forcing the camera). Over plain LAN HTTP, the
+camera option isn't available and the same picker falls back to gallery-only — take a
+photo with the phone's own camera app first, then pick it. Proper fix for camera over
+LAN: local HTTPS via Caddy or Tailscale (still optional, not required for daily use).
 
 ---
 

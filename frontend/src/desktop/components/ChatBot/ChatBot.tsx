@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, type JSX } from 'react'
 import { Box, Flex, Text, Button, IconButton, TextField } from '@radix-ui/themes'
 import { MessageCircle, X, Send, Bot, User, Check } from 'lucide-react'
 import api from '../../../shared/api/client.ts'
+import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
+import { formatCurrency } from '../../../shared/utils/format.ts'
 import styles from './ChatBot.module.css'
 
 interface ChatMsg {
@@ -13,10 +15,16 @@ interface ChatMsg {
     type: string
     category: string
     merchant?: string
+    // The original user text this preview was parsed from — Save resends this
+    // through /transactions/quick-add so the server (not the client) resolves the
+    // profile's default account and re-parses category/merchant, the same path the
+    // Quick Add modal uses. Never construct a raw insert here.
+    sourceText: string
   }
 }
 
 export const ChatBot = (): JSX.Element => {
+  const currency = useActiveCurrency()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMsg[]>([
     {
@@ -58,7 +66,9 @@ export const ChatBot = (): JSX.Element => {
         {
           role: 'assistant',
           text: data.reply,
-          transactionData: data.transaction_data || undefined,
+          transactionData: data.transaction_data
+            ? { ...data.transaction_data, sourceText: text }
+            : undefined,
         },
       ])
     } catch {
@@ -73,20 +83,16 @@ export const ChatBot = (): JSX.Element => {
 
   const handleSaveTransaction = async (txData: NonNullable<ChatMsg['transactionData']>) => {
     try {
-      await api.post('/api/transactions/', {
-        amount: txData.amount,
-        description: txData.description,
-        transaction_type: txData.type,
-        category: txData.category,
-        merchant: txData.merchant || txData.description,
-        date: new Date().toISOString(),
-        account_id: 1,
-      })
+      // Same path the Quick Add modal uses — the server re-parses `sourceText` and
+      // picks the active profile's default account; this component never chooses an
+      // account or currency itself (that was the R1 bug: a hardcoded account_id=1
+      // and a hardcoded "$" broke IN/CA profiles).
+      await api.post('/api/transactions/quick-add', { text: txData.sourceText })
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          text: `Saved! $${txData.amount.toFixed(2)} ${txData.description} logged.`,
+          text: `Saved! ${formatCurrency(txData.amount, currency)} ${txData.description} logged.`,
         },
       ])
     } catch {
@@ -149,8 +155,8 @@ export const ChatBot = (): JSX.Element => {
                             Transaction detected
                           </Text>
                           <Text size="2" weight="medium">
-                            {msg.transactionData.description} — $
-                            {msg.transactionData.amount.toFixed(2)}
+                            {msg.transactionData.description} —{' '}
+                            {formatCurrency(msg.transactionData.amount, currency)}
                           </Text>
                           <Text size="1" color="gray">
                             {msg.transactionData.type} · {msg.transactionData.category}

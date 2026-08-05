@@ -34,7 +34,7 @@ Use `namespaceSlice` helper from `store/namespaceSlice.ts`. It auto-namespaces s
 ```ts
 // store/slices/authSlice.ts
 import { namespaceSlice } from '../namespaceSlice.ts'
-import api from '../../auth/api.ts'
+import api from '../../shared/api/client.ts'
 
 export type AuthSlice = {
   auth: AuthState
@@ -122,6 +122,7 @@ useBoundStore.setState((s) => ({ auth: { ...s.auth, token: newToken } }))
 ## What Not To Do
 
 - Do NOT use TanStack Query / React Query — Zustand handles all data fetching
-- Do NOT use React Context for global state (AuthContext is the one exception and it wraps Zustand)
+- Do NOT use React Context for global state — auth state lives in Zustand's `auth`
+  slice like everything else, no separate Context wrapper
 - Do NOT import slices directly from components — always go through `useBoundStore`
 - Do NOT put API calls in components — all data fetching goes in slice actions

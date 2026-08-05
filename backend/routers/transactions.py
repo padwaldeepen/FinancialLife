@@ -16,9 +16,14 @@ from services.merchant_service import (
     extract_merchant_from_description,
     find_matching_merchant,
     find_or_create_merchant,
+    get_merchant,
     normalize_name,
 )
-from services.transaction_service import parse_transaction
+from services.transaction_service import (
+    check_category_owned,
+    check_related_ids_owned,
+    parse_transaction,
+)
 
 router = APIRouter()
 
@@ -141,14 +146,15 @@ async def create_transaction(
     profile: Profile = Depends(get_current_profile),
     conn: asyncpg.Connection = Depends(get_db),
 ):
-    if transaction_data.category_id is not None:
-        cat = await conn.fetchrow(
-            "SELECT id FROM categories WHERE id = $1 AND (user_id = $2 OR is_system = TRUE)",
-            transaction_data.category_id,
-            profile.user_id,
-        )
-        if not cat:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    await check_category_owned(transaction_data.category_id, profile, conn)
+    await check_related_ids_owned(
+        account_id=transaction_data.account_id,
+        bill_id=transaction_data.bill_id,
+        goal_id=transaction_data.goal_id,
+        merchant_id=transaction_data.merchant_id,
+        profile=profile,
+        conn=conn,
+    )
 
     merchant_id = transaction_data.merchant_id
     if merchant_id is None:
@@ -274,14 +280,15 @@ async def update_transaction(
     if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
 
-    if transaction_data.category_id is not None:
-        cat = await conn.fetchrow(
-            "SELECT id FROM categories WHERE id = $1 AND (user_id = $2 OR is_system = TRUE)",
-            transaction_data.category_id,
-            profile.user_id,
-        )
-        if not cat:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    await check_category_owned(transaction_data.category_id, profile, conn)
+    await check_related_ids_owned(
+        account_id=transaction_data.account_id,
+        bill_id=transaction_data.bill_id,
+        goal_id=transaction_data.goal_id,
+        merchant_id=transaction_data.merchant_id,
+        profile=profile,
+        conn=conn,
+    )
 
     update_data = transaction_data.model_dump(exclude_unset=True)
     if update_data:
@@ -625,15 +632,35 @@ async def import_transactions(
     pending_review: list[PendingReviewRow] = []
     errors: list[str] = []
 
+    # Batch-fetched once (not per-row) so a caller can't post a foreign profile's
+    # account/category id into this profile's transactions — matches the ownership
+    # guard on the single-transaction create/update endpoints.
+    valid_account_ids = {
+        r["id"] for r in await conn.fetch("SELECT id FROM accounts WHERE profile_id = $1", profile.id)
+    }
+    valid_category_ids = {
+        r["id"]
+        for r in await conn.fetch(
+            "SELECT id FROM categories WHERE user_id = $1 OR is_system = TRUE", profile.user_id
+        )
+    }
+
     async with conn.transaction():
         for i, tx in enumerate(request.transactions):
             try:
+                if tx.account_id not in valid_account_ids:
+                    raise ValueError(f"account {tx.account_id} not found")
+                if tx.category_id is not None and tx.category_id not in valid_category_ids:
+                    raise ValueError(f"category {tx.category_id} not found")
+
                 # The frontend sends `date.toISOString()` (tz-aware, UTC) but the
                 # `transactions.date` column is `timestamp without time zone` — asyncpg
                 # can't insert a tz-aware value into a naive column ("can't subtract
                 # offset-naive and offset-aware datetimes"). Normalize once, up front.
                 tx_date = tx.date.replace(tzinfo=None) if tx.date.tzinfo else tx.date
                 merchant_id = tx.merchant_id
+                if merchant_id is not None and await get_merchant(merchant_id, profile.id, conn) is None:
+                    raise ValueError(f"merchant {merchant_id} not found")
                 merchant_name = None
                 if merchant_id is None:
                     merchant_name = extract_merchant_from_description(tx.description)

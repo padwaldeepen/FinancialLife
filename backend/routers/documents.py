@@ -30,6 +30,7 @@ from services.merchant_service import (
     find_or_create_merchant,
     normalize_name,
 )
+from services.transaction_service import check_category_owned, check_related_ids_owned
 
 log = get_logger(__name__)
 
@@ -385,6 +386,11 @@ async def review_document(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document not found or already reviewed"
         )
 
+    await check_category_owned(payload.category_id, profile, conn)
+    await check_related_ids_owned(
+        account_id=payload.account_id, merchant_id=payload.merchant_id, profile=profile, conn=conn
+    )
+
     merchant_name: str | None = None
     if payload.merchant_id is not None:
         merchant_row = await conn.fetchrow(
@@ -522,6 +528,7 @@ async def get_statement_rows(
     profile's existing transactions for the chosen account — so the review table can
     pre-uncheck exact duplicates and flag fuzzy ones. Dedup is account-scoped, so it's
     recomputed whenever the user changes the target account."""
+    await check_related_ids_owned(account_id=account_id, profile=profile, conn=conn)
     extracted = await _load_statement_document(document_id, profile, conn)
 
     rows: list[StatementRowStatus] = []
@@ -569,12 +576,25 @@ async def import_statement(
     convenience, not the safety boundary). All rows get source='document_scan' and the
     document_id paperclip; the document is marked reviewed once done."""
     await _load_statement_document(document_id, profile, conn)
+    await check_related_ids_owned(account_id=payload.account_id, profile=profile, conn=conn)
+
+    # Batch-fetched once (not per-row) so a caller can't post a foreign profile's
+    # category id into this profile's transactions.
+    valid_category_ids = {
+        r["id"]
+        for r in await conn.fetch(
+            "SELECT id FROM categories WHERE user_id = $1 OR is_system = TRUE", profile.user_id
+        )
+    }
 
     imported = 0
     skipped = 0
     async with conn.transaction():
         for r in payload.rows:
             tx_date = r.date.replace(tzinfo=None) if r.date.tzinfo else r.date
+            # A foreign/stale category id is neutralized rather than aborting the
+            # whole batch — same soft-fallback style as merchant resolution below.
+            row_category_id = r.category_id if r.category_id in valid_category_ids else None
 
             merchant_name = extract_merchant_from_description(r.description)
             merchant_id: int | None = None
@@ -618,7 +638,7 @@ async def import_statement(
                 r.description,
                 r.transaction_type,
                 payload.account_id,
-                r.category_id,
+                row_category_id,
                 merchant_id,
                 profile.id,
                 tx_date,

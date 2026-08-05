@@ -295,7 +295,6 @@ export const AddTransactionModal = (): JSX.Element => {
                               style={
                                 {
                                   '--cat-depth': cat.depth + 1,
-                                  '--cat-color': cat.color,
                                   '--cat-selected':
                                     selectedCategoryId === cat.id
                                       ? 'var(--accent-3)'

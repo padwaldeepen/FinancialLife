@@ -32,15 +32,18 @@
 
 ## Performance
 
-- [ ] No N+1 queries — relationships loaded via `selectinload`
+- [ ] No N+1 queries — this project has no ORM (`rules/database.md`), so the fix is a
+      single `JOIN`/batched query (e.g. `WHERE id = ANY($1)`) instead of one query per
+      row in a loop, not an ORM eager-load option
 - [ ] New list endpoints are paginated/limited; no unbounded fetches
 - [ ] No expensive recomputation per React render (memoize derived data)
 
-## Tests
+## Money Math Verification
 
-- [ ] New/changed money math (parsing, aggregation, conversion, detection, forecast) has
-      pytest coverage — UI polish doesn't need tests; arithmetic does
-- [ ] Tests assert real numbers, not just "no exception"
+- [ ] **No pytest files in this project** — new/changed money math (parsing,
+      aggregation, conversion, detection, forecast) is verified via curl + a
+      hand-computed fixture script against the running app, not an automated test file.
+      Show the real numbers, not just "no exception"
 
 ## Frontend
 
@@ -59,10 +62,11 @@
 - [ ] No secrets, keys, or personal financial data in code, logs, or committed files
 - [ ] No new outbound network calls except Gemini behind the per-user opt-in toggle —
       **the app has zero other external calls by design**
-- [ ] **Cloud AI only through the provider layer, gated by the per-user opt-in toggle**
-      (allocation table in `docs/architecture-and-goals.md`): no code path calls a cloud
-      API directly; toggle off (default) = zero outbound AI calls; Ollama missing + toggle
-      off = degrade to rules/Tesseract, never silently to cloud; **free tiers only** — no
+- [ ] **Cloud AI only through the provider layer** (`services/ai/gemini.py`'s shared
+      `call_gemini()`), **gated by the per-user opt-in toggle** (allocation table in
+      `docs/architecture-and-goals.md`): no code path calls a cloud API directly; toggle
+      off (default) = zero outbound AI calls, degrade to local rules/Tesseract, never
+      silently fall back to cloud; **free tiers only** — no
       paid API usage anywhere
 
 ## Verification

@@ -336,13 +336,9 @@ export const TransactionDetailDialog = ({
             </Flex>
 
             <Flex gap="2">
-              {transaction.is_pending && (
-                <Badge color="orange" variant="soft">
-                  Pending
-                </Badge>
-              )}
+              {transaction.is_pending && <Badge variant="soft">Pending</Badge>}
               {transaction.is_recurring && (
-                <Badge color="blue" variant="soft">
+                <Badge color="gray" variant="soft">
                   Recurring
                 </Badge>
               )}

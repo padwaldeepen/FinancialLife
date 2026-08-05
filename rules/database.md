@@ -59,9 +59,14 @@ async def get_accounts(profile_id: int, conn: asyncpg.Connection) -> list[Accoun
   always uses the prepared-statement protocol; asyncpg allows exactly one command per
   prepared statement and raises "cannot insert multiple commands in a prepared
   statement" otherwise. Keep migrations as a list of individual SQL strings executed
-  in a loop (see `0001_initial_schema.py` for the pattern), not one big triple-quoted
-  block.
-- Every schema change ships as a new revision. Never edit an applied migration.
+  in a loop (see any file in `backend/database/alembic/versions/` for the pattern),
+  not one big triple-quoted block.
+- Every schema change ships as a new revision. Never edit an applied migration. (One
+  documented exception happened 2026-08-05: the whole `0001`–`0005` chain was
+  reorganized from a single squashed file into five logical ones, owner-approved,
+  because there was no real user data yet — a one-time reorg, not a pattern to repeat.
+  See `docs/backlog.md` R1's Result for the full reasoning. Once real data exists this
+  rule has no more exceptions.)
 - Generate a new empty revision to fill in by hand: `alembic revision -m "description"`
   (note: **no** `--autogenerate` — there's no ORM metadata to diff against).
 

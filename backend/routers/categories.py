@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -77,8 +77,7 @@ async def category_spending(
     profile: Profile = Depends(get_current_profile),
     conn: asyncpg.Connection = Depends(get_db),
 ):
-    cutoff = datetime.combine(date.today(), datetime.min.time())
-    cutoff = cutoff.replace(day=max(1, cutoff.day - days))
+    cutoff = datetime.combine(date.today(), datetime.min.time()) - timedelta(days=days)
 
     rows = await conn.fetch(
         """SELECT t.category_id, c.name, c.color,

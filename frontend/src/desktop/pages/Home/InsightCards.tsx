@@ -1,5 +1,5 @@
 import { useEffect, type JSX } from 'react'
-import { Box, Flex, Text, Card, Badge, IconButton } from '@radix-ui/themes'
+import { Box, Flex, Text, Card, Badge, IconButton, Skeleton } from '@radix-ui/themes'
 import { Sparkles, X, Bot } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -58,7 +58,26 @@ export const InsightCards = (): JSX.Element => {
     fetchAdvice()
   }, [fetchAdvice])
 
-  if (loading) return <></>
+  if (loading) {
+    return (
+      <Flex direction="column" gap="2">
+        {[0, 1].map((i) => (
+          <Card key={i} className={styles.contentCard}>
+            <Flex direction="column" gap="2">
+              <Skeleton>
+                <Text weight="medium" size="2">
+                  Placeholder insight message of typical length
+                </Text>
+              </Skeleton>
+              <Skeleton>
+                <Text size="1">Placeholder evidence line</Text>
+              </Skeleton>
+            </Flex>
+          </Card>
+        ))}
+      </Flex>
+    )
+  }
 
   if (cards.length === 0) {
     return (
@@ -85,7 +104,7 @@ export const InsightCards = (): JSX.Element => {
                 </Text>
                 {card.ai_generated && (
                   <Badge
-                    color="purple"
+                    color="gray"
                     variant="soft"
                     title="Reworded by AI — numbers come from the rule engine"
                   >

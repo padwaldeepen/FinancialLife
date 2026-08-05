@@ -1821,7 +1821,7 @@ curl+fixture for logic, `ruff`/`tsc`/`eslint` clean, no throwaway data left behi
 > begins entering real data. No backups configured yet (owner deferred — the single Docker
 > volume is the only copy; revisit before data becomes precious).
 
-### [ ] R1 — Correctness fixes (three real defects)
+### [x] R1 — Correctness fixes (three real defects)
 **Build:**
 1. **ChatBot** (`desktop/components/ChatBot/ChatBot.tsx`) posts every transaction to a
    hardcoded `account_id: 1` and renders a hardcoded `$` — wrong account/profile and wrong
@@ -1841,7 +1841,51 @@ breakdown honours a 90-day range (crosses months); posting a foreign `account_id
 orphan row. Verify via curl + Playwright.
 **Depends:** —
 
-### [ ] R2 — Palette & polish sweep (design-system §1 compliance — the "looks intentional" fix)
+**Result (2026-08-05):**
+1. **ChatBot** (`desktop/components/ChatBot/ChatBot.tsx`): `handleSaveTransaction` now posts
+   `{ text: sourceText }` to `POST /transactions/quick-add` — the exact same server path the
+   Quick Add modal uses — instead of building a raw insert with `account_id: 1`. The server
+   re-parses the original message and picks the active profile's default account itself; the
+   component never chooses an account. The preview card and the "Saved!" toast both now render
+   via `formatCurrency(amount, currency)` / `useActiveCurrency()`. **Also found live** (not in
+   the original ticket): the chat *reply text* itself was hardcoded to `$` in the backend
+   (`routers/chat.py`) — the transaction-detected message, the profile summary sent to Gemini,
+   and the deterministic no-Gemini fallback all built `$`-prefixed strings regardless of profile
+   currency. Added a small `_CURRENCY_SYMBOL` map + `_symbol(currency)` helper in `chat.py` and
+   threaded `profile.currency` through `_get_profile_summary`, `_ask_llm`, and
+   `_answer_from_data` (including its regex parser, which now matches the profile's own escaped
+   symbol instead of a literal `$`). Also updated the Gemini system prompt to say "reuse the
+   summary's own symbol, never assume USD."
+2. **`category_spending` window**: replaced the buggy `cutoff.replace(day=...)` with
+   `datetime.combine(date.today(), datetime.min.time()) - timedelta(days=days)`, matching
+   `reports.py`'s pattern.
+3. **Ownership checks**: added `check_category_owned` / `check_related_ids_owned` to
+   `services/transaction_service.py` (reuses the existing `get_account`/`get_bill`/`get_goal`/
+   `get_merchant` profile-scoped getters — no new DB logic) and wired them into
+   `create_transaction`, `update_transaction`, the bulk `import_transactions` loop (batch-fetched
+   valid account/category/merchant id sets once, not per-row, to avoid an N+1), and documents.py's
+   `review_document`, `get_statement_rows`, and `import_statement`. A foreign account/bill/goal/
+   merchant id now 404s instead of silently writing a cross-profile reference.
+
+**Verified live:**
+- `ruff`/`tsc` clean; `python -c "import main"` clean (no circular imports from the new
+  `services/transaction_service.py` → `account_service`/`bill_service`/`goal_service`/
+  `merchant_service` imports).
+- curl: `category_spending?days=35` excludes a 40-day-old transaction, `days=45` correctly
+  includes it (crosses the month boundary) — old code would have shown neither/both incorrectly
+  regardless of `days`.
+- curl: cross-profile `account_id` on create → `404 Account not found`; same account on the
+  owning profile → `201`. Bulk import with a foreign `account_id` → row skipped with
+  `"account N not found"` in `errors`, not silently imported. `update_transaction` retargeting to
+  a foreign account → `404`.
+- Playwright (desktop, fresh throwaway India/₹ account, deleted after): opened ChatBot, sent
+  "spent 500 on groceries" — reply, preview card, and "Saved!" toast all showed **₹500.00** (no
+  `$` anywhere); clicked Save; Activity page showed the real transaction ("-₹500.00", Food &
+  Dining, today) — confirms it landed through quick-add on a real account, not an orphan row.
+  Console clean. (ChatBot is desktop-only — no mobile equivalent exists yet, so no mobile-viewport
+  check applies here; R1.2/R1.3 are backend-only, viewport-agnostic.)
+
+### [x] R2 — Palette & polish sweep (design-system §1 compliance — the "looks intentional" fix)
 **Build:** one sweep removing every off-spec hue and restoring slate ink + the single orange
 accent (design-system §1): purple/blue/amber badges (`InsightCards.tsx`, `AdminTab.tsx`,
 `TransactionDetailDialog.tsx`, mobile `Activity.tsx`, the amber "pending" fills in
@@ -1854,7 +1898,52 @@ icons) → slate glyphs, colour only the number; DB category colours rendered as
 screenshots (desktop + mobile, light + dark) show slate/orange only, no layout jump on Home.
 **Depends:** —
 
-### [ ] R3 — Capture UX: gallery + direct camera on every device
+**Result (2026-08-05):**
+- **Badges → gray/orange, never a third hue:** `InsightCards.tsx`'s AI badge (was `purple`) and
+  `AdminTab.tsx`'s Admin badge (was `purple`, now also carries a `Shield` icon so it still reads
+  distinctly at a glance) → `gray` soft. `TransactionDetailDialog.tsx` and mobile `Activity.tsx`'s
+  "Recurring" badges (`blue`) → `gray`. Mobile `Activity.tsx`'s document "Pending" badge and the
+  `.pendingCard`/`.dupWarn` CSS fills in `Activity.module.css` / `DocumentReview.module.css`
+  (`amber`) → `orange` (accent) — these are "needs a decision" states, the exact meaning accent is
+  reserved for, not a decorative hue. **Also found live** (not in the original ticket, same bug
+  class): `StatementReviewDialog.tsx`'s "Possible dup" badge was also `amber` → `orange`.
+- **Money color off icons/tiles:** `Home.tsx` — deleted `accountColors` (a `green`/`red`/`purple`/
+  `orange` map keyed by account type) entirely; every account icon now uses one uniform slate
+  well (`Home.module.css` `.accountIcon`: `background: var(--gray-3); color: var(--gray-11)`,
+  replacing a solid `gray-9` fill that wasn't even a proper "soft" treatment before). `Insights`'s
+  `.incomeIcon`/`.expenseIcon` (were `var(--money-positive/negative)`) → `var(--gray-9)`; the
+  adjacent `.statValuePositive`/`.statValueNegative` **numbers** correctly keep their green/red —
+  only the decorative trend icons were the violation.
+- **DB category colors as swatches:** removed the `--cat-color: cat.color` inline style and the
+  `border-left: 3px solid var(--cat-color)` CSS rule from **both** `AddTransactionModal.module.css`
+  files (desktop + mobile trees) — categories are now distinguished by name + indent only, per §1
+  rule 2. (Left `Categories.tsx`'s own swatches alone — that page is the color *picker* for setting
+  a category's stored color, a different, intentional use case, not a data-viz rendering of it.)
+- **`InsightCards.tsx` loading state:** was `if (loading) return <></>` (blank flash). Now renders
+  two `Skeleton`-wrapped placeholder cards shaped like the real content, per design-system §4.
+
+**Full-repo verification:** grepped every `.tsx` for `color="(purple|blue|amber|teal|yellow|...)"`
+and every `.css` for `--(purple|blue|amber|...)-` — zero remaining hits anywhere in `frontend/src`.
+`tsc --noEmit` clean; `eslint` on every changed file shows only pre-existing unrelated `any`
+warnings, no new errors.
+
+**Verified live (Playwright, throwaway accounts deleted after):**
+- Desktop, fresh US account: Home screenshot confirms all three account icons (Checking/Savings/
+  Credit Card) render as one uniform slate well — previously orange/green/red. Insights screenshot
+  confirms the income/expense trend icons are now slate while the `$0.00` numbers correctly stay
+  green/red. Opened Quick Add, parsed "spent 20 on coffee" — the category badge ("Food & Dining")
+  renders as plain gray, no color swatch.
+  - **Caught mid-verification**: the first screenshot after editing `Home.tsx` still showed the old
+    colored icons — traced to Vite's file-watcher not receiving events through the Windows→Docker
+    bind mount (`docker compose logs frontend` showed zero HMR update messages despite the file
+    changes on disk being correct). `docker compose restart frontend` fixed it. Noting this for any
+    future frontend edit in this environment: **if a change doesn't show up live, restart the
+    frontend container before assuming the fix is wrong.**
+- Mobile viewport (390×844), fresh account: Activity tab renders cleanly (empty state, no pending
+  documents to exercise the orange `.pendingCard`/badge in this pass, but the code path is the same
+  one verified via lint/typecheck). Console clean on both viewports.
+
+### [x] R3 — Capture UX: gallery + direct camera on every device
 **Build:** the mobile Scan input forces `capture="environment"` (camera-only intent). Let the OS
 offer **both** "Take Photo" and "Choose from Library/Files" (drop the forced `capture`, or two
 explicit affordances). Document in-UI the honest constraint: direct camera needs a secure context
@@ -1864,17 +1953,44 @@ shows gallery only (browser rule). (HTTPS via Tailscale/Caddy stays a later, opt
 works and nothing appears broken; desktop file-picker unchanged. Verify on mobile viewport.
 **Depends:** S6.
 
+**Result (2026-08-05):** Dropped the `capture="environment"` attribute from both mobile file
+inputs — `mobile/components/CaptureSheet/CaptureSheet.tsx` (the Scan card in the capture sheet)
+and `mobile/components/AddTransactionModal/AddTransactionModal.tsx` (the receipt-OCR camera icon
+in the Type flow). Without `capture`, iOS/Android's native file picker offers **both** "Take
+Photo" and "Photo Library"/"Choose File" from one tap — the OS handles the choice, no custom two-
+button UI needed. Desktop's file input never had `capture`, so it's unaffected. Updated
+`docs/DEVELOPMENT.md` §5 to describe the new behavior (camera+library over HTTPS, gallery-only
+fallback over plain LAN HTTP — same honest constraint, more precisely worded).
+
+**Verified live:** `tsc`/`eslint` clean (only pre-existing unrelated `any` warnings). Mobile
+viewport (390×844), fresh throwaway account: opened the Capture sheet, confirmed via
+`document.querySelectorAll('input[type="file"]')` that the live DOM input has no `capture`
+attribute (`capture: null`). Then drove the full pipeline end-to-end with a fixture PNG — file
+chooser → upload → extraction → "Review receipt" dialog with editable fields (description,
+amount, type, account, category, date) — confirming the drop of `capture` didn't break the
+existing S1–S3 scan pipeline. Discarded the fixture transaction; console clean; throwaway account
+and uploaded file deleted after.
+
 ### [ ] R4 — Backend DRY & consolidation (invisible; code health)
 **Build:** extract the repeated logic the audit flagged into single homes in `services/`:
-(a) `account_belongs_to_profile()` + `category_belongs_to_user()` helpers (the category check is
-hand-rolled in ~6 routers; `category_service.get_category()` already does it); (b) one
+~~(a) `account_belongs_to_profile()` + `category_belongs_to_user()` helpers (the category check is
+hand-rolled in ~6 routers; `category_service.get_category()` already does it)~~ **done 2026-08-05**
+— landed early as part of R1's write-path fix: `check_category_owned()` +
+`check_related_ids_owned()` in `services/transaction_service.py`, reusing the existing profile-
+scoped `get_account`/`get_bill`/`get_goal`/`get_merchant` getters; wired into
+`transactions.py`'s create/update/import and `documents.py`'s review/statement-import. Category
+ownership is still hand-rolled in the ~6 routers not touched by R1 (categories.py itself,
+budgets.py, goals.py, bills.py, merchants.py) — folding those into the shared helper is still
+open; (b) one
 `account_service.balances()` returning `Decimal` (the income−expense formula lives in 3 places,
 two in float); (c) shared "spent this period" (dup'd in `budgets.py` + `insights.py`, the latter
-an N+1); (d) one `ai_cloud_enabled` fetch helper (copied 4×); (e) route **all** Gemini traffic
-through `GeminiService` (`rephrase.py` + `chat.py` re-declare `GEMINI_URL` and hand-roll httpx);
-(f) parameterize `_fee_leakage`'s SQL (`insights.py`) with `ILIKE ANY($n::text[])` — a hardcoded
-constant today, but it violates "never f-string into SQL"; (g) share the Jaccard `_similarity`
-(byte-identical in `dedup.py` + `merchant_service.py`).
+an N+1); (d) one `ai_cloud_enabled` fetch helper (copied 4×); ~~(e) route **all** Gemini traffic
+through `GeminiService` (`rephrase.py` + `chat.py` re-declare `GEMINI_URL` and hand-roll httpx)~~
+**done 2026-08-05** (backend cleanup pass): added shared `call_gemini()` in `services/ai/gemini.py`,
+`rephrase.py`/`chat.py` now call it instead of hand-rolling httpx; (f) parameterize `_fee_leakage`'s
+SQL (`insights.py`) with `ILIKE ANY($n::text[])` — a hardcoded constant today, but it violates
+"never f-string into SQL"; (g) share the Jaccard `_similarity` (byte-identical in `dedup.py` +
+`merchant_service.py`).
 **Accept:** no behavioural change (existing verifications still pass); each dup'd block now has one
 source; `ruff` clean.
 **Depends:** — (do not overlap R1's account-ownership helper — R1 introduces it, R4 reuses it)
@@ -1892,12 +2008,17 @@ Quick-Add already covers §3's NL path (the audit flags it as a redundant, least
 **Depends:** R1 (ChatBot currency/account fix lands first, then its logic moves).
 
 ### [ ] R6 — Over-engineering & dead code
-**Build:** drop `services/ai/base.py`'s `BaseAIService` ABC (one implementation, two call sites
+**Build:** ~~drop `services/ai/base.py`'s `BaseAIService` ABC (one implementation, two call sites
 already bypass it) — keep `GeminiService` + the `AIService` gating wrapper; remove
 `bill_service._row_to_bill_dict` no-op wrapper; delete unused `category_service.get_leaf_categories`
-and the always-`None` `ParseResult.date`; change money request-model/dataclass fields from `float`
-to `Decimal` (`transactions.py`/`bills.py`/`goals.py`/`documents.py` schemas + `database/models.py`
-annotations that currently mis-type asyncpg `Decimal` as `float`).
+and the always-`None` `ParseResult.date`~~ **done 2026-08-05** (backend cleanup pass, verified via
+multi-agent code review + live smoke test — also caught and fixed a real bug surfaced by that same
+cleanup: `bill_service.compute_upcoming_async`'s "already paid" check was missing an upper date
+bound, so paying one month's bill could falsely mark next month's occurrence as paid too; added the
+bound back plus a missing `ix_transactions_bill_id` index). Remaining: change money
+request-model/dataclass fields from `float` to `Decimal` (`transactions.py`/`bills.py`/`goals.py`/
+`documents.py` schemas + `database/models.py` annotations that currently mis-type asyncpg `Decimal`
+as `float`).
 **Accept:** grep confirms the deletions have no callers; money paths still verified; `ruff`/`tsc`
 clean.
 **Depends:** R4 (both touch the AI service layer — sequence to avoid churn).

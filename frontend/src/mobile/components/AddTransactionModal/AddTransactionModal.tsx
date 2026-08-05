@@ -205,11 +205,13 @@ export const AddTransactionModal = (): JSX.Element => {
                   </IconButton>
                 </TextField.Slot>
               </TextField.Root>
+              {/* No `capture` attribute (R3) — the OS-native picker offers both "Take
+                  Photo" and "Photo Library" from one tap; forcing capture hides the
+                  library option. */}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 className={styles.hiddenInput}
                 onChange={handleFileScan}
               />
@@ -286,7 +288,6 @@ export const AddTransactionModal = (): JSX.Element => {
                                 style={
                                   {
                                     '--cat-depth': cat.depth + 1,
-                                    '--cat-color': cat.color,
                                     '--cat-selected':
                                       selectedCategoryId === cat.id
                                         ? 'var(--accent-3)'

@@ -1,7 +1,55 @@
 import { useCallback, useState } from 'react'
 import Papa from 'papaparse'
+import ExcelJS from 'exceljs'
 import toast from '../utils/toast.ts'
 import api from '../../shared/api/client.ts'
+
+const XLSX_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+])
+// `application/vnd.ms-excel` is ambiguous — some browsers/OS file associations report
+// it for a plain .csv too, not just legacy .xls. The extension is unambiguous where
+// present, so a `.csv` name always wins over a same-looking MIME type.
+export const isXlsxFile = (file: File): boolean =>
+  !/\.csv$/i.test(file.name) && (XLSX_TYPES.has(file.type) || /\.xlsx?$/i.test(file.name))
+
+// W6: parses the first worksheet into the same shape PapaParse gives CSV
+// (header row + string-keyed row objects) so everything downstream — column mapping,
+// preview, review — is one shared path regardless of which file type came in.
+const parseXlsxFile = async (
+  file: File,
+): Promise<{ headers: string[]; rows: Record<string, string>[] }> => {
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(await file.arrayBuffer())
+  const sheet = workbook.worksheets[0]
+  if (!sheet) return { headers: [], rows: [] }
+
+  const headerRow = sheet.getRow(1)
+  const headers: string[] = []
+  headerRow.eachCell({ includeEmpty: false }, (cell) => {
+    headers.push(String(cell.value ?? '').trim())
+  })
+
+  const rows: Record<string, string>[] = []
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return
+    const record: Record<string, string> = {}
+    headers.forEach((header, i) => {
+      const cell = row.getCell(i + 1)
+      const value = cell.value
+      record[header] =
+        value === null || value === undefined
+          ? ''
+          : typeof value === 'object' && 'text' in value
+            ? String((value as { text: unknown }).text)
+            : String(value)
+    })
+    rows.push(record)
+  })
+
+  return { headers, rows }
+}
 
 export type ImportStep = 'upload' | 'map' | 'preview' | 'review'
 
@@ -103,6 +151,22 @@ export const useCsvImport = (defaultAccountId: number | undefined, onImported: (
 
   const handleImportFile = useCallback(
     (file: File) => {
+      if (isXlsxFile(file)) {
+        parseXlsxFile(file)
+          .then(({ headers, rows }) => {
+            if (rows.length === 0) {
+              toast.error('Spreadsheet is empty')
+              return
+            }
+            setImportCsvHeaders(headers)
+            setImportCsvRows(rows)
+            setImportMapping(autoDetectMapping(headers))
+            setImportStep('map')
+          })
+          .catch(() => toast.error('Could not read spreadsheet — is it a valid .xlsx file?'))
+        return
+      }
+
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,

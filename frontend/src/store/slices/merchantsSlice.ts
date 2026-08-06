@@ -1,4 +1,4 @@
-import { namespaceSlice, isFresh } from '../namespaceSlice.ts'
+import { namespaceSlice, isFresh, getErrorDetail, refetchCollection } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
 import toast from '../../shared/utils/toast.ts'
 
@@ -47,14 +47,14 @@ export type MerchantsSlice = {
     detail: DetailData | null
     similarPairs: SimilarPair[]
     lastFetchedAt: number | null
+    fetchMerchants: (opts?: { force?: boolean }) => Promise<void>
+    fetchMerchantDetail: (id: number) => Promise<void>
+    toggleHidden: (id: number, current: boolean) => Promise<void>
+    updateMerchant: (id: number, data: { name?: string; is_hidden?: boolean }) => Promise<void>
+    deleteMerchant: (id: number) => Promise<void>
+    fetchSimilar: () => Promise<void>
+    doMerge: (targetId: number, sourceId: number) => Promise<void>
   }
-  fetchMerchants: (opts?: { force?: boolean }) => Promise<void>
-  fetchMerchantDetail: (id: number) => Promise<void>
-  toggleHidden: (id: number, current: boolean) => Promise<void>
-  updateMerchant: (id: number, data: { name?: string; is_hidden?: boolean }) => Promise<void>
-  deleteMerchant: (id: number) => Promise<void>
-  fetchSimilar: () => Promise<void>
-  doMerge: (targetId: number, sourceId: number) => Promise<void>
 }
 
 export const createMerchantsSlice = namespaceSlice('merchants', (set, get) => ({
@@ -85,31 +85,123 @@ export const createMerchantsSlice = namespaceSlice('merchants', (set, get) => ({
   },
 
   toggleHidden: async (id: number, current: boolean) => {
-    await api.put(`/api/merchants/${id}`, { is_hidden: !current })
-    const res = await api.get('/api/merchants/')
-    set({ items: res.data })
+    try {
+      await api.put(`/api/merchants/${id}`, { is_hidden: !current })
+      await refetchCollection<Merchant[]>(set, '/api/merchants/', 'items')
+      toast.success(current ? 'Merchant unhidden' : 'Merchant hidden')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to update merchant'))
+      throw error
+    }
   },
 
   updateMerchant: async (id: number, data: { name?: string; is_hidden?: boolean }) => {
-    await api.put(`/api/merchants/${id}`, data)
-    const res = await api.get('/api/merchants/')
-    set({ items: res.data })
+    try {
+      await api.put(`/api/merchants/${id}`, data)
+      await refetchCollection<Merchant[]>(set, '/api/merchants/', 'items')
+      toast.success('Merchant renamed')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to rename merchant'))
+      throw error
+    }
   },
 
   deleteMerchant: async (id: number) => {
-    await api.delete(`/api/merchants/${id}`)
-    const res = await api.get('/api/merchants/')
-    set({ items: res.data })
+    try {
+      await api.delete(`/api/merchants/${id}`)
+      await refetchCollection<Merchant[]>(set, '/api/merchants/', 'items')
+      toast.success('Merchant deleted')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to delete merchant'))
+      throw error
+    }
   },
 
   fetchSimilar: async () => {
-    const res = await api.get('/api/merchants/similar/')
-    set({ similarPairs: res.data })
+    try {
+      const res = await api.get('/api/merchants/similar/')
+      set({ similarPairs: res.data })
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to find similar merchants'))
+      throw error
+    }
   },
 
   doMerge: async (targetId: number, sourceId: number) => {
-    await api.post('/api/merchants/merge', { target_id: targetId, source_ids: [sourceId] })
-    const res = await api.get('/api/merchants/')
-    set({ items: res.data, similarPairs: [] })
+    try {
+      await api.post('/api/merchants/merge', { target_id: targetId, source_ids: [sourceId] })
+      await refetchCollection<Merchant[]>(set, '/api/merchants/', 'items', (data) => ({
+        items: data,
+        similarPairs: [],
+      }))
+      toast.success('Merchants merged')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to merge merchants'))
+      throw error
+    }
   },
+}))
+
+// --- Merchants page state (merged from merchantsPageSlice.ts) ---
+
+export type MerchantSortBy = 'spent' | 'count' | 'name'
+
+export interface MerchantsPageState {
+  search: string
+  selected: number | null
+  sortBy: MerchantSortBy
+  mergeDialogOpen: boolean
+  renameOpen: boolean
+  renameName: string
+  renaming: boolean
+  deleteConfirmId: number | null
+  deleting: boolean
+}
+
+export interface MerchantsPageActions {
+  setMerchantSearch: (search: string) => void
+  openMerchantDetail: (id: number) => void
+  closeMerchantDetail: () => void
+  setMerchantSortBy: (sortBy: MerchantSortBy) => void
+  setMerchantMergeDialogOpen: (open: boolean) => void
+  openMerchantRename: (name: string) => void
+  setMerchantRenameOpen: (open: boolean) => void
+  setMerchantRenameName: (name: string) => void
+  setMerchantRenaming: (renaming: boolean) => void
+  startMerchantDelete: (id: number) => void
+  cancelMerchantDelete: () => void
+  setMerchantDeleting: (deleting: boolean) => void
+}
+
+export type MerchantsPageSlice = {
+  merchantsPage: MerchantsPageState & MerchantsPageActions
+}
+
+const merchantsPageInitialState: MerchantsPageState = {
+  search: '',
+  selected: null,
+  sortBy: 'spent',
+  mergeDialogOpen: false,
+  renameOpen: false,
+  renameName: '',
+  renaming: false,
+  deleteConfirmId: null,
+  deleting: false,
+}
+
+export const createMerchantsPageSlice = namespaceSlice('merchantsPage', (set) => ({
+  ...merchantsPageInitialState,
+
+  setMerchantSearch: (search: string) => set({ search }),
+  openMerchantDetail: (id: number) => set({ selected: id }),
+  closeMerchantDetail: () => set({ selected: null }),
+  setMerchantSortBy: (sortBy: MerchantSortBy) => set({ sortBy }),
+  setMerchantMergeDialogOpen: (open: boolean) => set({ mergeDialogOpen: open }),
+  openMerchantRename: (name: string) => set({ renameName: name, renameOpen: true }),
+  setMerchantRenameOpen: (open: boolean) => set({ renameOpen: open }),
+  setMerchantRenameName: (name: string) => set({ renameName: name }),
+  setMerchantRenaming: (renaming: boolean) => set({ renaming }),
+  startMerchantDelete: (id: number) => set({ deleteConfirmId: id }),
+  cancelMerchantDelete: () => set({ deleteConfirmId: null }),
+  setMerchantDeleting: (deleting: boolean) => set({ deleting }),
 }))

@@ -1,3 +1,6 @@
+/* eslint-disable react-refresh/only-export-components -- AppRouter is small and specific
+   to this entry point; splitting it into its own file for Fast Refresh's sake isn't worth
+   it here (only affects dev-time hot reload, not correctness). */
 import { StrictMode, type JSX } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'

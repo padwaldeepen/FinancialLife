@@ -1,7 +1,7 @@
-import { useState, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Box, Flex, Text, Card, Button, TextField } from '@radix-ui/themes'
-import { User, Mail, LogOut, Plus } from 'lucide-react'
+import { Box, Flex, Text, Card, Button, TextField, Switch } from '@radix-ui/themes'
+import { User, Mail, LogOut, Plus, Sparkles } from 'lucide-react'
 import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -10,21 +10,54 @@ import { COUNTRY_FLAG, COUNTRY_NAME } from '../../../shared/utils/countries.ts'
 import styles from './Manage.module.css'
 
 export const AccountTab = (): JSX.Element => {
-  const { user, logout, changePassword } = useBoundStore(
-    useShallow((s) => ({ user: s.auth.user, logout: s.logout, changePassword: s.changePassword })),
+  const {
+    user,
+    logout,
+    changePassword,
+    currentPassword,
+    newPassword,
+    confirmPassword,
+    changingPassword,
+    setChangePasswordField,
+    setChangingPassword,
+    resetChangePasswordForm,
+    fetchCurrentUser,
+    updateAiCloudEnabled,
+  } = useBoundStore(
+    useShallow((s) => ({
+      user: s.auth.user,
+      logout: s.auth.logout,
+      changePassword: s.auth.changePassword,
+      currentPassword: s.auth.currentPassword,
+      newPassword: s.auth.newPassword,
+      confirmPassword: s.auth.confirmPassword,
+      changingPassword: s.auth.changingPassword,
+      setChangePasswordField: s.auth.setChangePasswordField,
+      setChangingPassword: s.auth.setChangingPassword,
+      resetChangePasswordForm: s.auth.resetChangePasswordForm,
+      fetchCurrentUser: s.auth.fetchCurrentUser,
+      updateAiCloudEnabled: s.auth.updateAiCloudEnabled,
+    })),
   )
   const { profiles, activeProfileId, addableCountries, switchProfile, addProfile } =
     useProfileSwitch()
   const navigate = useNavigate()
 
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [changingPassword, setChangingPassword] = useState(false)
+  useEffect(() => {
+    if (user && user.ai_cloud_enabled === undefined) fetchCurrentUser()
+  }, [user, fetchCurrentUser])
 
   const handleLogout = async () => {
     await logout()
     navigate('/login')
+  }
+
+  const handleAiToggle = async (enabled: boolean) => {
+    try {
+      await updateAiCloudEnabled(enabled)
+    } catch {
+      // toast handled in store
+    }
   }
 
   const handleChangePassword = async () => {
@@ -39,16 +72,9 @@ export const AccountTab = (): JSX.Element => {
     setChangingPassword(true)
     try {
       await changePassword(currentPassword, newPassword)
-      toast.success('Password updated')
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-    } catch (error: unknown) {
-      const detail =
-        error && typeof error === 'object' && 'response' in error
-          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined
-      toast.error(detail || 'Failed to change password')
+      resetChangePasswordForm()
+    } catch {
+      // toast handled in store
     } finally {
       setChangingPassword(false)
     }
@@ -138,19 +164,19 @@ export const AccountTab = (): JSX.Element => {
             type="password"
             placeholder="Current password"
             value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
+            onChange={(e) => setChangePasswordField('currentPassword', e.target.value)}
           />
           <TextField.Root
             type="password"
             placeholder="New password"
             value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
+            onChange={(e) => setChangePasswordField('newPassword', e.target.value)}
           />
           <TextField.Root
             type="password"
             placeholder="Confirm new password"
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={(e) => setChangePasswordField('confirmPassword', e.target.value)}
           />
           <Button
             onClick={handleChangePassword}
@@ -161,6 +187,28 @@ export const AccountTab = (): JSX.Element => {
             Update Password
           </Button>
         </Flex>
+      </Card>
+
+      <Text as="div" className={styles.sectionTitle} mb="3">
+        AI &amp; Privacy
+      </Text>
+      <Card className={styles.card} mb="5">
+        <Box className={styles.row}>
+          <Flex className={styles.labelGroup}>
+            <Sparkles size={18} />
+            <Box className={styles.labelText}>
+              <Text size="2" weight="medium">
+                Cloud AI (Gemini)
+              </Text>
+              <Text size="2" color="gray">
+                When on, your financial text and scanned documents are sent to Google&apos;s AI
+                service; the free tier may use them to train models. When off, nothing ever leaves
+                this machine.
+              </Text>
+            </Box>
+          </Flex>
+          <Switch checked={Boolean(user?.ai_cloud_enabled)} onCheckedChange={handleAiToggle} />
+        </Box>
       </Card>
 
       <Text as="div" className={styles.sectionTitle} mb="3">

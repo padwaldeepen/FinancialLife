@@ -1,3 +1,7 @@
+/* eslint-disable react-refresh/only-export-components -- ThemeProvider, useAppTheme, and
+   ThemeContext are small and tightly coupled; splitting into 3 files for Fast Refresh's
+   sake isn't worth the navigation cost here (only affects dev-time hot reload, not
+   correctness). */
 import { createContext, useContext, useState, useEffect, type ReactNode, type JSX } from 'react'
 import { Theme } from '@radix-ui/themes'
 

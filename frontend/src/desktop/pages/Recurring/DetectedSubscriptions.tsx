@@ -19,8 +19,8 @@ export const DetectedSubscriptions = (): JSX.Element | null => {
     useShallow((s) => ({
       items: s.recurringInsights.items,
       loading: s.recurringInsights.loading,
-      fetchRecurringInsights: s.fetchRecurringInsights,
-      dismissRecurringGroup: s.dismissRecurringGroup,
+      fetchRecurringInsights: s.recurringInsights.fetchRecurringInsights,
+      dismissRecurringGroup: s.recurringInsights.dismissRecurringGroup,
     })),
   )
 

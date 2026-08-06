@@ -1,4 +1,4 @@
-import { namespaceSlice } from '../namespaceSlice.ts'
+import { namespaceSlice, getErrorDetail, refetchCollection } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
 import toast from '../../shared/utils/toast.ts'
 
@@ -43,16 +43,16 @@ export type AdminSlice = {
     systemCategories: SystemCategory[]
     status: AdminStatus | null
     loading: boolean
+    fetchAdminUsers: () => Promise<void>
+    createAdminUser: (payload: AdminUserCreate) => Promise<void>
+    setUserActive: (userId: number, isActive: boolean) => Promise<void>
+    fetchSystemCategories: () => Promise<void>
+    createSystemCategory: (name: string, color: string) => Promise<void>
+    updateSystemCategory: (id: number, data: { name?: string; color?: string }) => Promise<void>
+    deleteSystemCategory: (id: number) => Promise<void>
+    fetchAdminStatus: () => Promise<void>
+    triggerBackup: () => Promise<void>
   }
-  fetchAdminUsers: () => Promise<void>
-  createAdminUser: (payload: AdminUserCreate) => Promise<void>
-  setUserActive: (userId: number, isActive: boolean) => Promise<void>
-  fetchSystemCategories: () => Promise<void>
-  createSystemCategory: (name: string, color: string) => Promise<void>
-  updateSystemCategory: (id: number, data: { name?: string; color?: string }) => Promise<void>
-  deleteSystemCategory: (id: number) => Promise<void>
-  fetchAdminStatus: () => Promise<void>
-  triggerBackup: () => Promise<void>
 }
 
 // A1's admin API surfaced here (A2). Every route is server-gated by `require_admin`; the
@@ -75,21 +75,29 @@ export const createAdminSlice = namespaceSlice('admin', (set, get) => ({
   },
 
   createAdminUser: async (payload: AdminUserCreate) => {
-    await api.post('/api/admin/users', payload)
-    // Refetch inline — sibling actions aren't reachable via this slice's `get()`
-    // (namespaceSlice hoists actions to the store root; `get()` returns only state).
-    const res = await api.get('/api/admin/users')
-    set({ users: res.data })
+    try {
+      await api.post('/api/admin/users', payload)
+      // Refetch inline — sibling actions aren't reachable via this slice's `get()`
+      // (namespaceSlice hoists actions to the store root; `get()` returns only state).
+      await refetchCollection<AdminUser[]>(set, '/api/admin/users', 'users')
+      toast.success('User created — they can log in now')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Could not create user'))
+      throw error
+    }
   },
 
+  // Not thrown on failure: AdminTab's activate/deactivate button fires this
+  // without awaiting or catching, so a throw here would only surface as an
+  // unhandled rejection. The toast is the only feedback channel that reaches the UI.
   setUserActive: async (userId: number, isActive: boolean) => {
     try {
       const res = await api.patch(`/api/admin/users/${userId}/active`, { is_active: isActive })
       const updated = res.data as AdminUser
       const current: AdminUser[] = get().users
       set({ users: current.map((u) => (u.id === userId ? updated : u)) })
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Could not update user')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Could not update user'))
     }
   },
 
@@ -99,15 +107,33 @@ export const createAdminSlice = namespaceSlice('admin', (set, get) => ({
   },
 
   createSystemCategory: async (name: string, color: string) => {
-    await api.post('/api/admin/system-categories', { name, color })
-    const res = await api.get('/api/admin/system-categories')
-    set({ systemCategories: res.data })
+    try {
+      await api.post('/api/admin/system-categories', { name, color })
+      await refetchCollection<SystemCategory[]>(
+        set,
+        '/api/admin/system-categories',
+        'systemCategories',
+      )
+      toast.success('Category added')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Could not add category'))
+      throw error
+    }
   },
 
+  // Not thrown on failure — SystemCategoryRow's rename/recolor call this without
+  // awaiting or catching (same reasoning as setUserActive above).
   updateSystemCategory: async (id: number, data: { name?: string; color?: string }) => {
-    await api.patch(`/api/admin/system-categories/${id}`, data)
-    const res = await api.get('/api/admin/system-categories')
-    set({ systemCategories: res.data })
+    try {
+      await api.patch(`/api/admin/system-categories/${id}`, data)
+      await refetchCollection<SystemCategory[]>(
+        set,
+        '/api/admin/system-categories',
+        'systemCategories',
+      )
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Could not update category'))
+    }
   },
 
   deleteSystemCategory: async (id: number) => {
@@ -132,4 +158,79 @@ export const createAdminSlice = namespaceSlice('admin', (set, get) => ({
     if (status === 'started') toast.success(message)
     else toast.error(message)
   },
+}))
+
+// --- Admin form/dialog state (merged from adminFormSlice.ts) ---
+
+export interface AdminFormState {
+  userDialogOpen: boolean
+  userForm: AdminUserCreate
+  savingUser: boolean
+  newCatName: string
+  newCatColor: string
+  editingSystemCategoryId: number | null
+  systemCategoryDraft: string
+}
+
+export interface AdminFormActions {
+  setUserDialogOpen: (open: boolean) => void
+  setUserFormField: (field: keyof AdminUserCreate, value: string) => void
+  setSavingUser: (saving: boolean) => void
+  resetUserForm: () => void
+  setNewCatName: (name: string) => void
+  setNewCatColor: (color: string) => void
+  resetNewCategoryForm: () => void
+  startSystemCategoryEdit: (id: number, name: string) => void
+  cancelSystemCategoryEdit: () => void
+  setSystemCategoryDraft: (draft: string) => void
+}
+
+export type AdminFormSlice = {
+  adminForm: AdminFormState & AdminFormActions
+}
+
+const emptyUser = (): AdminUserCreate => ({
+  email: '',
+  username: '',
+  password: '',
+  full_name: '',
+  country: 'US',
+})
+
+const adminFormInitialState: AdminFormState = {
+  userDialogOpen: false,
+  userForm: emptyUser(),
+  savingUser: false,
+  newCatName: '',
+  newCatColor: '#6B7280',
+  editingSystemCategoryId: null,
+  systemCategoryDraft: '',
+}
+
+export const createAdminFormSlice = namespaceSlice('adminForm', (set, get) => ({
+  ...adminFormInitialState,
+
+  setUserDialogOpen: (open: boolean) => set({ userDialogOpen: open }),
+
+  setUserFormField: (field: keyof AdminUserCreate, value: string) => {
+    set({ userForm: { ...get().userForm, [field]: value } })
+  },
+
+  setSavingUser: (saving: boolean) => set({ savingUser: saving }),
+
+  resetUserForm: () => set({ userForm: emptyUser() }),
+
+  setNewCatName: (name: string) => set({ newCatName: name }),
+  setNewCatColor: (color: string) => set({ newCatColor: color }),
+  resetNewCategoryForm: () => set({ newCatName: '', newCatColor: '#6B7280' }),
+
+  startSystemCategoryEdit: (id: number, name: string) => {
+    set({ editingSystemCategoryId: id, systemCategoryDraft: name })
+  },
+
+  cancelSystemCategoryEdit: () => {
+    set({ editingSystemCategoryId: null, systemCategoryDraft: '' })
+  },
+
+  setSystemCategoryDraft: (draft: string) => set({ systemCategoryDraft: draft }),
 }))

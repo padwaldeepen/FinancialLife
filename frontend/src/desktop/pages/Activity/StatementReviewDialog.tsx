@@ -1,5 +1,16 @@
-import { useEffect, useState, type JSX } from 'react'
-import { Box, Flex, Text, Dialog, Button, Table, Checkbox, Badge, Select } from '@radix-ui/themes'
+import { useEffect, type JSX } from 'react'
+import {
+  Box,
+  Flex,
+  Text,
+  Dialog,
+  Button,
+  Table,
+  Checkbox,
+  Badge,
+  Select,
+  Skeleton,
+} from '@radix-ui/themes'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import toast from '../../../shared/utils/toast.ts'
@@ -7,10 +18,14 @@ import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import type { PendingDocument, StatementRow } from '../../../store/slices/documentsSlice.ts'
 import styles from './Activity.module.css'
+import shared from '../../styles/shared.module.css'
 
 interface Props {
   document: PendingDocument
   onClose: () => void
+  // W6: auto-detect occasionally guesses wrong — lets the caller (PendingReceipts)
+  // swap which review dialog is mounted once this document's kind is corrected.
+  onReclassified: (doc: PendingDocument) => void
 }
 
 const dedupBadge: Record<StatementRow['dedup_status'], { label: string; color?: 'gray' | 'red' }> =
@@ -24,44 +39,83 @@ const dedupBadge: Record<StatementRow['dedup_status'], { label: string; color?: 
 // an include checkbox and a dedup verdict. Exact duplicates start UNCHECKED (re-importing
 // overlapping months must not double-count); new rows start checked. The account is
 // chosen once for the whole statement, and changing it re-runs dedup (it's account-scoped).
-export const StatementReviewDialog = ({ document: doc, onClose }: Props): JSX.Element => {
+export const StatementReviewDialog = ({
+  document: doc,
+  onClose,
+  onReclassified,
+}: Props): JSX.Element => {
   const currency = useActiveCurrency()
-  const { accounts, categories, fetchStatementRows, importStatement, fetchTransactions } =
-    useBoundStore(
-      useShallow((s) => ({
-        accounts: s.accounts.items,
-        categories: s.categories.flat,
-        fetchStatementRows: s.fetchStatementRows,
-        importStatement: s.importStatement,
-        fetchTransactions: s.fetchTransactions,
-      })),
-    )
+  const {
+    accounts,
+    categories,
+    fetchStatementRows,
+    importStatement,
+    reclassifyDocument,
+    fetchTransactions,
+    fetchAccounts,
+    fetchReports,
+  } = useBoundStore(
+    useShallow((s) => ({
+      accounts: s.accounts.items,
+      categories: s.categories.flat,
+      fetchStatementRows: s.documents.fetchStatementRows,
+      importStatement: s.documents.importStatement,
+      reclassifyDocument: s.documents.reclassifyDocument,
+      fetchTransactions: s.transactions.fetchTransactions,
+      fetchAccounts: s.accounts.fetchAccounts,
+      fetchReports: s.reports.fetchReports,
+    })),
+  )
 
-  const [accountId, setAccountId] = useState<string>(accounts[0] ? String(accounts[0].id) : '')
-  const [rows, setRows] = useState<StatementRow[]>([])
-  const [checked, setChecked] = useState<Record<number, boolean>>({})
-  const [tier, setTier] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const handleSwitchToReceipt = async () => {
+    try {
+      const updated = await reclassifyDocument(doc.id, 'receipt')
+      onReclassified(updated)
+    } catch {
+      // toast handled in store
+    }
+  }
+
+  const {
+    accountId,
+    rows,
+    checked,
+    tier,
+    loading,
+    saving,
+    initStatementReview,
+    setStatementRows,
+    toggleStatementRow,
+    setStatementChecked,
+    setStatementTier,
+    setStatementLoading,
+    setStatementSaving,
+    setStatementAccountId,
+  } = useBoundStore(useShallow((s) => s.statementReview))
+
+  useEffect(() => {
+    initStatementReview(accounts[0] ? String(accounts[0].id) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!accountId) return
     let cancelled = false
     const load = async () => {
-      setLoading(true)
+      setStatementLoading(true)
       try {
         const res = await fetchStatementRows(doc.id, Number(accountId))
         if (cancelled) return
-        setRows(res.rows)
-        setTier(res.tier)
+        setStatementRows(res.rows)
+        setStatementTier(res.tier)
         // Default: import everything that isn't an exact duplicate.
-        setChecked(
+        setStatementChecked(
           Object.fromEntries(res.rows.map((r) => [r.row_index, r.dedup_status !== 'exact'])),
         )
       } catch {
-        if (!cancelled) toast.error('Could not read the statement')
+        // toast handled in store
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setStatementLoading(false)
       }
     }
     load()
@@ -69,7 +123,15 @@ export const StatementReviewDialog = ({ document: doc, onClose }: Props): JSX.El
     return () => {
       cancelled = true
     }
-  }, [doc.id, accountId, fetchStatementRows])
+  }, [
+    doc.id,
+    accountId,
+    fetchStatementRows,
+    setStatementLoading,
+    setStatementRows,
+    setStatementTier,
+    setStatementChecked,
+  ])
 
   const selectedCount = rows.filter((r) => checked[r.row_index]).length
 
@@ -79,9 +141,9 @@ export const StatementReviewDialog = ({ document: doc, onClose }: Props): JSX.El
       toast.error('Select at least one transaction to import')
       return
     }
-    setSaving(true)
+    setStatementSaving(true)
     try {
-      const result = await importStatement(
+      await importStatement(
         doc.id,
         Number(accountId),
         toImport.map((r) => ({
@@ -94,16 +156,14 @@ export const StatementReviewDialog = ({ document: doc, onClose }: Props): JSX.El
           skip_dedup: r.dedup_status === 'fuzzy',
         })),
       )
-      toast.success(
-        `Imported ${result.imported} transaction${result.imported === 1 ? '' : 's'}` +
-          (result.skipped ? `, skipped ${result.skipped} duplicate(s)` : ''),
-      )
       fetchTransactions({ reset: true, force: true })
+      fetchAccounts({ force: true })
+      fetchReports()
       onClose()
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to import statement')
+    } catch {
+      // toast handled in store
     } finally {
-      setSaving(false)
+      setStatementSaving(false)
     }
   }
 
@@ -114,12 +174,15 @@ export const StatementReviewDialog = ({ document: doc, onClose }: Props): JSX.El
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
       <Dialog.Content maxWidth="820px">
         <Dialog.Title>Review Statement</Dialog.Title>
+        <Dialog.Description size="2" color="gray">
+          Choose which extracted transactions to import
+        </Dialog.Description>
 
         <Flex align="center" gap="3" mt="2" mb="3">
           <Text size="2" color="gray">
             Import into
           </Text>
-          <Select.Root value={accountId} onValueChange={setAccountId}>
+          <Select.Root value={accountId} onValueChange={setStatementAccountId}>
             <Select.Trigger placeholder="Choose an account" />
             <Select.Content>
               {accounts.map((a) => (
@@ -137,9 +200,11 @@ export const StatementReviewDialog = ({ document: doc, onClose }: Props): JSX.El
         </Flex>
 
         {loading ? (
-          <Box className="skeleton" style={{ height: 200, borderRadius: 'var(--radius-3)' }} />
+          <Skeleton>
+            <Box style={{ height: 200 }} />
+          </Skeleton>
         ) : rows.length === 0 ? (
-          <Box className={styles.emptyState}>
+          <Box className={shared.emptyState}>
             <Text color="gray" size="2">
               No transactions could be read from this statement. Try enabling cloud AI in Settings
               for tougher layouts, or add them manually.
@@ -166,7 +231,7 @@ export const StatementReviewDialog = ({ document: doc, onClose }: Props): JSX.El
                       <Table.Cell>
                         <Checkbox
                           checked={!!checked[r.row_index]}
-                          onCheckedChange={(v) => setChecked((c) => ({ ...c, [r.row_index]: !!v }))}
+                          onCheckedChange={(v) => toggleStatementRow(r.row_index, !!v)}
                         />
                       </Table.Cell>
                       <Table.Cell>{r.date ?? '—'}</Table.Cell>
@@ -194,9 +259,14 @@ export const StatementReviewDialog = ({ document: doc, onClose }: Props): JSX.El
         )}
 
         <Flex justify="between" align="center" mt="4">
+          <Button variant="ghost" size="1" color="gray" onClick={handleSwitchToReceipt}>
+            Looks like a single receipt, not a statement? Switch
+          </Button>
           <Text size="2" color="gray">
             {selectedCount} of {rows.length} selected
           </Text>
+        </Flex>
+        <Flex justify="end" align="center" mt="2">
           <Flex gap="2">
             <Button variant="soft" color="gray" onClick={onClose}>
               Cancel

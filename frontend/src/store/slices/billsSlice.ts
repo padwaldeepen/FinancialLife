@@ -1,6 +1,7 @@
-import { namespaceSlice, isFresh } from '../namespaceSlice.ts'
+import { namespaceSlice, isFresh, getErrorDetail, refetchCollection } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
 import toast from '../../shared/utils/toast.ts'
+import type { Transaction } from './transactionsSlice.ts'
 
 export interface UpcomingBill {
   id: number
@@ -45,52 +46,59 @@ export type BillsSlice = {
     lastFetchedAt: number | null
     upcomingLastFetchedAt: number | null
     billHistory: {
-      transactions: any[]
-      monthly_spending: any[]
+      transactions: Transaction[]
+      monthly_spending: { month: string; amount: number }[]
       loading: boolean
     }
-  }
-  fetchBills: (opts?: { force?: boolean }) => Promise<void>
-  fetchUpcomingBills: (days?: number, opts?: { force?: boolean }) => Promise<void>
-  fetchBillHistory: (billId: number) => Promise<void>
-  createBill: (data: {
-    name: string
-    amount: number
-    frequency: string
-    due_day: number
-    account_id: number
-    category_id?: number | null
-    is_variable?: boolean
-    notes?: string | null
-  }) => Promise<void>
-  updateBill: (
-    id: number,
-    data: {
-      name?: string
-      amount?: number
-      frequency?: string
-      due_day?: number
-      account_id?: number
+    // BillDetail's "Link Transaction" dialog — open flag + search text (merged from
+    // useState so the dialog's transient state follows rules/zustand.md's "2+ fields
+    // = Zustand" rule).
+    linkOpen: boolean
+    linkSearch: string
+    setBillLinkOpen: (open: boolean) => void
+    setBillLinkSearch: (search: string) => void
+    fetchBills: (opts?: { force?: boolean }) => Promise<void>
+    fetchUpcomingBills: (days?: number, opts?: { force?: boolean }) => Promise<void>
+    fetchBillHistory: (billId: number) => Promise<void>
+    createBill: (data: {
+      name: string
+      amount: number
+      frequency: string
+      due_day: number
+      account_id: number
       category_id?: number | null
       is_variable?: boolean
-      is_active?: boolean
       notes?: string | null
-    },
-  ) => Promise<void>
-  deleteBill: (id: number) => Promise<void>
-  suggestBillLink: (data: {
-    description: string
-    amount: number
-    date: string
-    merchant_id: number | null
-  }) => Promise<{
-    bill_id: number
-    bill_name: string
-    bill_amount: number
-    confidence: string
-  } | null>
-  linkTransactionToBill: (billId: number, transactionId: number) => Promise<void>
-  unlinkTransactionFromBill: (billId: number, transactionId: number) => Promise<void>
+    }) => Promise<void>
+    updateBill: (
+      id: number,
+      data: {
+        name?: string
+        amount?: number
+        frequency?: string
+        due_day?: number
+        account_id?: number
+        category_id?: number | null
+        is_variable?: boolean
+        is_active?: boolean
+        notes?: string | null
+      },
+    ) => Promise<void>
+    deleteBill: (id: number) => Promise<void>
+    suggestBillLink: (data: {
+      description: string
+      amount: number
+      date: string
+      merchant_id: number | null
+    }) => Promise<{
+      bill_id: number
+      bill_name: string
+      bill_amount: number
+      confidence: string
+    } | null>
+    linkTransactionToBill: (billId: number, transactionId: number) => Promise<void>
+    unlinkTransactionFromBill: (billId: number, transactionId: number) => Promise<void>
+  }
 }
 
 export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
@@ -100,6 +108,11 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
   lastFetchedAt: null as number | null,
   upcomingLastFetchedAt: null as number | null,
   billHistory: { transactions: [], monthly_spending: [], loading: false },
+  linkOpen: false,
+  linkSearch: '',
+
+  setBillLinkOpen: (open: boolean) => set({ linkOpen: open }),
+  setBillLinkSearch: (search: string) => set({ linkSearch: search }),
 
   fetchBills: async (opts?: { force?: boolean }) => {
     if (!opts?.force && isFresh(get().lastFetchedAt)) return
@@ -149,9 +162,14 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
     is_variable?: boolean
     notes?: string | null
   }) => {
-    await api.post('/api/bills/', data)
-    const res = await api.get('/api/bills/')
-    set({ items: res.data })
+    try {
+      await api.post('/api/bills/', data)
+      await refetchCollection<Bill[]>(set, '/api/bills/', 'items')
+      toast.success('Bill created')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to save bill'))
+      throw error
+    }
   },
 
   updateBill: async (
@@ -168,15 +186,26 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
       notes?: string | null
     },
   ) => {
-    await api.put(`/api/bills/${id}`, data)
-    const res = await api.get('/api/bills/')
-    set({ items: res.data })
+    try {
+      await api.put(`/api/bills/${id}`, data)
+      await refetchCollection<Bill[]>(set, '/api/bills/', 'items')
+      toast.success('Bill updated')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to save bill'))
+      throw error
+    }
   },
 
   deleteBill: async (id: number) => {
-    await api.delete(`/api/bills/${id}`)
-    const state = get()
-    set({ items: state.items.filter((b: Bill) => b.id !== id) })
+    try {
+      await api.delete(`/api/bills/${id}`)
+      const state = get()
+      set({ items: state.items.filter((b: Bill) => b.id !== id) })
+      toast.success('Bill deleted')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to delete bill'))
+      throw error
+    }
   },
 
   suggestBillLink: async (data: {
@@ -199,10 +228,22 @@ export const createBillsSlice = namespaceSlice('bills', (set, get) => ({
   },
 
   linkTransactionToBill: async (billId: number, transactionId: number) => {
-    await api.post(`/api/bills/${billId}/link/${transactionId}`)
+    try {
+      await api.post(`/api/bills/${billId}/link/${transactionId}`)
+      toast.success('Transaction linked to bill')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to link transaction'))
+      throw error
+    }
   },
 
   unlinkTransactionFromBill: async (billId: number, transactionId: number) => {
-    await api.delete(`/api/bills/${billId}/link/${transactionId}`)
+    try {
+      await api.delete(`/api/bills/${billId}/link/${transactionId}`)
+      toast.success('Transaction unlinked')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to unlink transaction'))
+      throw error
+    }
   },
 }))

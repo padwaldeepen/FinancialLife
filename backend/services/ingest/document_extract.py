@@ -258,9 +258,11 @@ def parse_receipt_text(
     )
 
 
-def extract_local(
-    file_path: Path, mime_type: str, country: str | None = None
-) -> ExtractedDocument:
+def extract_raw_text(file_path: Path, mime_type: str) -> tuple[str, Tier]:
+    """Shared local text extraction — pdfplumber for a PDF's text layer, Tesseract OCR
+    for a photo/scan. Both `extract_local` and `extract_statement_local` need exactly
+    this (previously duplicated in each); also the one text source W6's kind
+    auto-detection classifies against, so it only runs once per upload."""
     if mime_type == "application/pdf":
         text_parts: list[str] = []
         with pdfplumber.open(file_path) as pdf:
@@ -268,26 +270,46 @@ def extract_local(
                 page_text = page.extract_text()
                 if page_text:
                     text_parts.append(page_text)
-        raw_text = "\n".join(text_parts)
-
-        if not raw_text.strip():
-            # A scanned PDF (image-only, no text layer) — pdfplumber correctly finds
-            # nothing to extract. Honest empty result, not a guess; page-rasterization
-            # + Tesseract for this case is a further improvement, not built here.
-            return ExtractedDocument(
-                tier="pdf_text",
-                confidence="low",
-                merchant=None,
-                date=None,
-                total=None,
-                line_items=None,
-                category_hint=None,
-            )
-        return parse_receipt_text(raw_text, tier="pdf_text", country=country)
+        return "\n".join(text_parts), "pdf_text"
 
     image = Image.open(file_path)
-    raw_text = pytesseract.image_to_string(image)
-    return parse_receipt_text(raw_text, tier="tesseract", country=country)
+    return pytesseract.image_to_string(image), "tesseract"
+
+
+def guess_document_kind(raw_text: str) -> Literal["receipt", "statement"]:
+    """W6: local-tier, zero-cost kind classification from already-extracted text — 3+
+    lines matching the statement row shape (date-led, followed by an amount) means a
+    statement; otherwise a receipt. Runs on the same text `extract_local`/
+    `extract_statement_local` already produce, so classifying costs nothing extra."""
+    row_matches = 0
+    for line in raw_text.splitlines():
+        date_match = _STMT_ROW_DATE.match(line)
+        if date_match and _STMT_ROW_AMOUNT.search(date_match.group(4)):
+            row_matches += 1
+            if row_matches >= 3:
+                return "statement"
+    return "receipt"
+
+
+def extract_local(
+    file_path: Path, mime_type: str, country: str | None = None
+) -> ExtractedDocument:
+    raw_text, tier = extract_raw_text(file_path, mime_type)
+
+    if not raw_text.strip():
+        # A scanned PDF (image-only, no text layer) — pdfplumber correctly finds
+        # nothing to extract. Honest empty result, not a guess; page-rasterization
+        # + Tesseract for this case is a further improvement, not built here.
+        return ExtractedDocument(
+            tier=tier,
+            confidence="low",
+            merchant=None,
+            date=None,
+            total=None,
+            line_items=None,
+            category_hint=None,
+        )
+    return parse_receipt_text(raw_text, tier=tier, country=country)
 
 
 _VALID_CONFIDENCE = {"high", "medium", "low"}
@@ -482,21 +504,8 @@ def _statement_from_gemini(result: dict) -> ExtractedStatement | None:
 def extract_statement_local(
     file_path: Path, mime_type: str, country: str | None = None
 ) -> ExtractedStatement:
-    if mime_type != "application/pdf":
-        # Statements are effectively always PDFs; an image "statement" would need OCR
-        # first — out of scope for tier C here, so return nothing to import rather than
-        # a bad guess. (A user can still upload it as a single receipt.)
-        image = Image.open(file_path)
-        raw_text = pytesseract.image_to_string(image)
-        return parse_statement_text(raw_text, tier="tesseract", country=country)
-
-    text_parts: list[str] = []
-    with pdfplumber.open(file_path) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text_parts.append(page_text)
-    return parse_statement_text("\n".join(text_parts), tier="pdf_text", country=country)
+    raw_text, tier = extract_raw_text(file_path, mime_type)
+    return parse_statement_text(raw_text, tier=tier, country=country)
 
 
 async def extract_statement(

@@ -26,8 +26,8 @@ export interface LoginFormActions {
 }
 
 export type LoginFormSlice = {
-  loginForm: LoginFormState
-} & LoginFormActions
+  loginForm: LoginFormState & LoginFormActions
+}
 
 const initialState: LoginFormState = {
   email: '',

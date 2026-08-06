@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type JSX } from 'react'
+import { useEffect, useRef, type JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -10,6 +10,7 @@ import {
   IconButton,
   Popover,
   Separator,
+  Skeleton,
 } from '@radix-ui/themes'
 import { RefreshCw, Plus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
@@ -32,12 +33,21 @@ export const Home = (): JSX.Element => {
   const { profiles, activeProfileId, addableCountries, switchProfile, addProfile } =
     useProfileSwitch()
   const { comparison, fetchReports } = useBoundStore(
-    useShallow((s) => ({ comparison: s.reports.comparison, fetchReports: s.fetchReports })),
+    useShallow((s) => ({
+      comparison: s.reports.comparison,
+      fetchReports: s.reports.fetchReports,
+    })),
   )
   const safeToSpend = useSafeToSpend(currency)
-  const fetchSafeToSpend = useBoundStore((s) => s.fetchSafeToSpend)
-  const [refreshing, setRefreshing] = useState(false)
-  const [pullDistance, setPullDistance] = useState(0)
+  const fetchSafeToSpend = useBoundStore((s) => s.safeToSpend.fetchSafeToSpend)
+  const { refreshing, pullDistance, setRefreshing, setPullDistance } = useBoundStore(
+    useShallow((s) => ({
+      refreshing: s.homeRefresh.refreshing,
+      pullDistance: s.homeRefresh.pullDistance,
+      setRefreshing: s.homeRefresh.setHomeRefreshing,
+      setPullDistance: s.homeRefresh.setHomePullDistance,
+    })),
+  )
   const touchStartY = useRef(0)
   const isPulling = useRef(false)
 
@@ -90,22 +100,24 @@ export const Home = (): JSX.Element => {
   if (loading) {
     return (
       <Flex direction="column" gap="3" p="3">
-        <Box
-          className="skeleton"
-          style={{ height: 20, width: '60%', borderRadius: 'var(--radius-2)' }}
-        />
-        <Box
-          className="skeleton"
-          style={{ height: 80, width: '100%', borderRadius: 'var(--radius-2)' }}
-        />
-        <Box
-          className="skeleton"
-          style={{ height: 16, width: '100%', borderRadius: 'var(--radius-2)' }}
-        />
-        <Box
-          className="skeleton"
-          style={{ height: 16, width: '70%', borderRadius: 'var(--radius-2)' }}
-        />
+        <Skeleton>
+          <Heading size="4" style={{ width: '60%' }}>
+            Placeholder greeting
+          </Heading>
+        </Skeleton>
+        <Skeleton>
+          <Box style={{ height: 80 }} />
+        </Skeleton>
+        <Skeleton>
+          <Text as="div" size="2">
+            Placeholder summary line
+          </Text>
+        </Skeleton>
+        <Skeleton>
+          <Text as="div" size="2" style={{ width: '70%' }}>
+            Placeholder summary line
+          </Text>
+        </Skeleton>
       </Flex>
     )
   }

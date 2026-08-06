@@ -18,7 +18,7 @@ export const PendingReceipts = (): JSX.Element | null => {
   const { pending, fetchPendingDocuments } = useBoundStore(
     useShallow((s) => ({
       pending: s.documents.pending,
-      fetchPendingDocuments: s.fetchPendingDocuments,
+      fetchPendingDocuments: s.documents.fetchPendingDocuments,
     })),
   )
   const [reviewing, setReviewing] = useState<PendingDocument | null>(null)
@@ -102,9 +102,17 @@ export const PendingReceipts = (): JSX.Element | null => {
 
       {reviewing &&
         (reviewing.kind === 'statement' ? (
-          <StatementReviewDialog document={reviewing} onClose={() => setReviewing(null)} />
+          <StatementReviewDialog
+            document={reviewing}
+            onClose={() => setReviewing(null)}
+            onReclassified={setReviewing}
+          />
         ) : (
-          <DocumentReviewDialog document={reviewing} onClose={() => setReviewing(null)} />
+          <DocumentReviewDialog
+            document={reviewing}
+            onClose={() => setReviewing(null)}
+            onReclassified={setReviewing}
+          />
         ))}
     </Box>
   )

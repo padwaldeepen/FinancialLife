@@ -21,6 +21,7 @@ import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import api from '../../../shared/api/client.ts'
 import { extractTextFromImage, cleanOcrText } from '../../../shared/utils/ocr.ts'
 import { useDocumentUpload } from '../../../shared/hooks/useDocumentUpload.ts'
+import { getErrorDetail } from '../../../store/namespaceSlice.ts'
 import styles from './AddTransactionModal.module.css'
 
 export const AddTransactionModal = (): JSX.Element => {
@@ -49,12 +50,13 @@ export const AddTransactionModal = (): JSX.Element => {
     fetchTransactions,
     fetchUpcomingBills,
     fetchPendingDocuments,
+    fetchReports,
   } = useBoundStore(
     useShallow((s) => ({
       addModalOpen: s.ui.addModalOpen,
-      closeAddModal: s.closeAddModal,
+      closeAddModal: s.ui.closeAddModal,
       categories: s.categories.flat,
-      fetchCategories: s.fetchCategories,
+      fetchCategories: s.categories.fetchCategories,
       input: s.quickAddModal.input,
       loading: s.quickAddModal.loading,
       parsed: s.quickAddModal.parsed,
@@ -62,18 +64,19 @@ export const AddTransactionModal = (): JSX.Element => {
       scanning: s.quickAddModal.scanning,
       selectedCategoryId: s.quickAddModal.selectedCategoryId,
       manualAmount: s.quickAddModal.manualAmount,
-      setInput: s.setQuickAddInput,
-      setLoading: s.setQuickAddLoading,
-      setParsed: s.setQuickAddParsed,
-      setSaving: s.setQuickAddSaving,
-      setScanning: s.setQuickAddScanning,
-      setSelectedCategoryId: s.setQuickAddSelectedCategoryId,
-      setManualAmount: s.setQuickAddManualAmount,
-      resetQuickAdd: s.resetQuickAddModal,
-      fetchAccounts: s.fetchAccounts,
-      fetchTransactions: s.fetchTransactions,
-      fetchUpcomingBills: s.fetchUpcomingBills,
-      fetchPendingDocuments: s.fetchPendingDocuments,
+      setInput: s.quickAddModal.setQuickAddInput,
+      setLoading: s.quickAddModal.setQuickAddLoading,
+      setParsed: s.quickAddModal.setQuickAddParsed,
+      setSaving: s.quickAddModal.setQuickAddSaving,
+      setScanning: s.quickAddModal.setQuickAddScanning,
+      setSelectedCategoryId: s.quickAddModal.setQuickAddSelectedCategoryId,
+      setManualAmount: s.quickAddModal.setQuickAddManualAmount,
+      resetQuickAdd: s.quickAddModal.resetQuickAddModal,
+      fetchAccounts: s.accounts.fetchAccounts,
+      fetchTransactions: s.transactions.fetchTransactions,
+      fetchUpcomingBills: s.bills.fetchUpcomingBills,
+      fetchPendingDocuments: s.documents.fetchPendingDocuments,
+      fetchReports: s.reports.fetchReports,
     })),
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -92,8 +95,8 @@ export const AddTransactionModal = (): JSX.Element => {
     try {
       const response = await api.post('/api/transactions/parse', { text: input })
       setParsed(response.data)
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Could not parse that text')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Could not parse that text'))
     } finally {
       setLoading(false)
     }
@@ -118,8 +121,9 @@ export const AddTransactionModal = (): JSX.Element => {
       fetchAccounts({ force: true })
       fetchTransactions({ reset: true, force: true })
       fetchUpcomingBills(30, { force: true })
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to save transaction')
+      fetchReports()
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to save transaction'))
     } finally {
       setSaving(false)
     }
@@ -256,7 +260,7 @@ export const AddTransactionModal = (): JSX.Element => {
             </Text>
           </Flex>
 
-          <Flex gap="3">
+          <Flex gap="3" justify="end">
             <Button onClick={handleParse} loading={loading} size="3">
               {parsed ? 'Re-parse' : 'Parse'}
             </Button>

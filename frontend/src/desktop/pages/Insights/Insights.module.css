@@ -1,8 +1,4 @@
-
-
 .statCard {
-  border-radius: var(--radius-card) !important;
-  border: 1px solid var(--gray-4);
   padding: var(--space-4);
 }
 
@@ -35,8 +31,6 @@
 }
 
 .chartCard {
-  border-radius: var(--radius-card) !important;
-  border: 1px solid var(--gray-4);
   padding: var(--space-5);
   margin-bottom: var(--space-5);
 }
@@ -50,8 +44,6 @@
 
 /* ---- Comparison cards ---- */
 .comparisonCard {
-  border-radius: var(--radius-card) !important;
-  border: 1px solid var(--gray-4);
   padding: var(--space-4);
 }
 

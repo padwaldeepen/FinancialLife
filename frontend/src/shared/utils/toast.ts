@@ -6,8 +6,8 @@ import { useBoundStore } from '../../store/useBoundStore.ts'
 // (catch blocks, store actions), same pattern shared/api/interceptors.ts uses to
 // reach the store from outside React.
 const toast = {
-  success: (message: string) => useBoundStore.getState().pushToast(message, 'success'),
-  error: (message: string) => useBoundStore.getState().pushToast(message, 'error'),
+  success: (message: string) => useBoundStore.getState().toasts.pushToast(message, 'success'),
+  error: (message: string) => useBoundStore.getState().toasts.pushToast(message, 'error'),
 }
 
 export default toast

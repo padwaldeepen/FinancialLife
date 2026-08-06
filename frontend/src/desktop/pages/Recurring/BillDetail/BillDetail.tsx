@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useRef, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -10,10 +10,10 @@ import {
   Button,
   Dialog,
   TextField,
+  Skeleton,
 } from '@radix-ui/themes'
 import { Link2, Unlink } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
-import toast from '../../../../shared/utils/toast.ts'
 import { useBoundStore } from '../../../../store/useBoundStore.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { formatCurrency } from '../../../../shared/utils/format.ts'
@@ -35,20 +35,26 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
     unlinkTransactionFromBill,
     fetchTransactions,
     transactions,
+    linkOpen,
+    linkSearch,
+    setLinkOpen,
+    setLinkSearch,
   } = useBoundStore(
     useShallow((s) => ({
       billHistory: s.bills.billHistory,
-      fetchBillHistory: s.fetchBillHistory,
-      linkTransactionToBill: s.linkTransactionToBill,
-      unlinkTransactionFromBill: s.unlinkTransactionFromBill,
-      fetchTransactions: s.fetchTransactions,
+      fetchBillHistory: s.bills.fetchBillHistory,
+      linkTransactionToBill: s.bills.linkTransactionToBill,
+      unlinkTransactionFromBill: s.bills.unlinkTransactionFromBill,
+      fetchTransactions: s.transactions.fetchTransactions,
       transactions: s.transactions.items,
+      linkOpen: s.bills.linkOpen,
+      linkSearch: s.bills.linkSearch,
+      setLinkOpen: s.bills.setBillLinkOpen,
+      setLinkSearch: s.bills.setBillLinkSearch,
     })),
   )
   const fetched = useRef(false)
   const txFetchedForLink = useRef(false)
-  const [linkOpen, setLinkOpen] = useState(false)
-  const [linkSearch, setLinkSearch] = useState('')
 
   useEffect(() => {
     if (!fetched.current) {
@@ -70,21 +76,19 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
   const handleLink = async (transactionId: number) => {
     try {
       await linkTransactionToBill(bill.id, transactionId)
-      toast.success('Transaction linked to bill')
       setLinkOpen(false)
       fetchBillHistory(bill.id)
     } catch {
-      toast.error('Failed to link transaction')
+      // toast handled in store
     }
   }
 
   const handleUnlink = async (transactionId: number) => {
     try {
       await unlinkTransactionFromBill(bill.id, transactionId)
-      toast.success('Transaction unlinked')
       fetchBillHistory(bill.id)
     } catch {
-      toast.error('Failed to unlink transaction')
+      // toast handled in store
     }
   }
 
@@ -197,18 +201,13 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
           <Tabs.Content value="history" className={styles.sectionPadding}>
             {billHistory.loading ? (
               <Flex direction="column" gap="2" p="3">
-                <Box
-                  className="skeleton"
-                  style={{ height: 16, width: '90%', borderRadius: 'var(--radius-2)' }}
-                />
-                <Box
-                  className="skeleton"
-                  style={{ height: 16, width: '65%', borderRadius: 'var(--radius-2)' }}
-                />
-                <Box
-                  className="skeleton"
-                  style={{ height: 16, width: '80%', borderRadius: 'var(--radius-2)' }}
-                />
+                {['90%', '65%', '80%'].map((w) => (
+                  <Skeleton key={w}>
+                    <Text as="div" size="2" style={{ width: w }}>
+                      Placeholder payment history line
+                    </Text>
+                  </Skeleton>
+                ))}
               </Flex>
             ) : billHistory.transactions.length > 0 ? (
               <Flex direction="column" gap="1">

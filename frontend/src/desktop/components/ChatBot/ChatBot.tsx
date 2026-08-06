@@ -1,106 +1,46 @@
-import { useState, useRef, useEffect, type JSX } from 'react'
+import { useRef, useEffect, type JSX } from 'react'
 import { Box, Flex, Text, Button, IconButton, TextField } from '@radix-ui/themes'
 import { MessageCircle, X, Send, Bot, User, Check } from 'lucide-react'
-import api from '../../../shared/api/client.ts'
+import { useShallow } from 'zustand/react/shallow'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
+import type { ChatMsg } from '../../../store/slices/chatSlice.ts'
 import styles from './ChatBot.module.css'
-
-interface ChatMsg {
-  role: 'user' | 'assistant'
-  text: string
-  transactionData?: {
-    amount: number
-    description: string
-    type: string
-    category: string
-    merchant?: string
-    // The original user text this preview was parsed from — Save resends this
-    // through /transactions/quick-add so the server (not the client) resolves the
-    // profile's default account and re-parses category/merchant, the same path the
-    // Quick Add modal uses. Never construct a raw insert here.
-    sourceText: string
-  }
-}
 
 export const ChatBot = (): JSX.Element => {
   const currency = useActiveCurrency()
-  const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState<ChatMsg[]>([
-    {
-      role: 'assistant',
-      text: "Hi! I'm your financial assistant. You can:\n- Log transactions: 'spent 15 on coffee'\n- Ask questions: 'how much did I spend on food this month?'",
-    },
-  ])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
+  const {
+    open,
+    messages,
+    input,
+    loading,
+    setChatOpen,
+    toggleChatOpen,
+    setChatInput,
+    sendChatMessage,
+    saveChatTransaction,
+  } = useBoundStore(
+    useShallow((s) => ({
+      open: s.chat.open,
+      messages: s.chat.messages,
+      input: s.chat.input,
+      loading: s.chat.loading,
+      setChatOpen: s.chat.setChatOpen,
+      toggleChatOpen: s.chat.toggleChatOpen,
+      setChatInput: s.chat.setChatInput,
+      sendChatMessage: s.chat.sendChatMessage,
+      saveChatTransaction: s.chat.saveChatTransaction,
+    })),
+  )
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
-  const sendMessage = async () => {
-    const text = input.trim()
-    if (!text || loading) return
-
-    setInput('')
-    setMessages((prev) => [...prev, { role: 'user', text }])
-    setLoading(true)
-
-    try {
-      const res = await api.post('/api/chat/', { message: text })
-      const data = res.data as {
-        reply: string
-        transaction_created: boolean
-        transaction_data: {
-          amount: number
-          description: string
-          type: string
-          category: string
-          merchant?: string
-        } | null
-      }
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          text: data.reply,
-          transactionData: data.transaction_data
-            ? { ...data.transaction_data, sourceText: text }
-            : undefined,
-        },
-      ])
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', text: 'Sorry, something went wrong. Please try again.' },
-      ])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleSaveTransaction = async (txData: NonNullable<ChatMsg['transactionData']>) => {
-    try {
-      // Same path the Quick Add modal uses — the server re-parses `sourceText` and
-      // picks the active profile's default account; this component never chooses an
-      // account or currency itself (that was the R1 bug: a hardcoded account_id=1
-      // and a hardcoded "$" broke IN/CA profiles).
-      await api.post('/api/transactions/quick-add', { text: txData.sourceText })
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          text: `Saved! ${formatCurrency(txData.amount, currency)} ${txData.description} logged.`,
-        },
-      ])
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', text: 'Failed to save transaction. Please try again.' },
-      ])
-    }
+  const handleSaveTransaction = (txData: NonNullable<ChatMsg['transactionData']>) => {
+    saveChatTransaction(txData, currency)
   }
 
   return (
@@ -121,7 +61,7 @@ export const ChatBot = (): JSX.Element => {
             <IconButton
               size="1"
               variant="ghost"
-              onClick={() => setOpen(false)}
+              onClick={() => setChatOpen(false)}
               aria-label="Close chat"
             >
               <X size={16} />
@@ -197,11 +137,11 @@ export const ChatBot = (): JSX.Element => {
             <TextField.Root
               placeholder="Ask anything or log a transaction..."
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
-                  sendMessage()
+                  sendChatMessage()
                 }
               }}
               className={styles.input}
@@ -210,7 +150,7 @@ export const ChatBot = (): JSX.Element => {
                 <IconButton
                   size="1"
                   variant="ghost"
-                  onClick={sendMessage}
+                  onClick={sendChatMessage}
                   disabled={loading || !input.trim()}
                   aria-label="Send message"
                 >
@@ -224,7 +164,7 @@ export const ChatBot = (): JSX.Element => {
 
       <IconButton
         className={`${styles.fab} ${open ? styles.fabOpen : ''}`}
-        onClick={() => setOpen(!open)}
+        onClick={toggleChatOpen}
         aria-label={open ? 'Close chat' : 'Open chat assistant'}
         aria-expanded={open}
         size="3"

@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX } from 'react'
+import { useState, type JSX } from 'react'
 import { Box, Flex, Text, Button, Dialog, TextField, Select, Checkbox } from '@radix-ui/themes'
 import type { Bill } from '../../../store/slices/billsSlice.ts'
 import styles from './Recurring.module.css'
@@ -63,10 +63,15 @@ export const BillFormDialog = ({
   onSubmit,
 }: Props): JSX.Element => {
   const [form, setForm] = useState<BillFormValues>(emptyForm)
-
-  useEffect(() => {
+  // Adjusting state on a prop change during render (React-recommended pattern) instead
+  // of a useEffect — resets the form the moment `open` or `bill` changes, with no
+  // cascading extra render.
+  const resetKey = `${open}:${bill?.id ?? 'new'}`
+  const [prevResetKey, setPrevResetKey] = useState(resetKey)
+  if (resetKey !== prevResetKey) {
+    setPrevResetKey(resetKey)
     if (open) setForm(bill ? toFormValues(bill) : emptyForm)
-  }, [open, bill])
+  }
 
   const valid = form.name.trim() && form.amount && form.account_id && form.due_day
 
@@ -174,9 +179,11 @@ export const BillFormDialog = ({
               <Text>Variable amount (estimated)</Text>
             </Flex>
           </Text>
-          <Button onClick={handleSubmit} loading={saving} size="3" mt="2" disabled={!valid}>
-            {bill ? 'Save Changes' : 'Create Bill'}
-          </Button>
+          <Flex justify="end" mt="2">
+            <Button onClick={handleSubmit} loading={saving} size="3" disabled={!valid}>
+              {bill ? 'Save Changes' : 'Create Bill'}
+            </Button>
+          </Flex>
         </Flex>
       </Dialog.Content>
     </Dialog.Root>

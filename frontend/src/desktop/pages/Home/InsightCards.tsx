@@ -49,8 +49,8 @@ export const InsightCards = (): JSX.Element => {
     useShallow((s) => ({
       cards: s.advice.cards,
       loading: s.advice.loading,
-      fetchAdvice: s.fetchAdvice,
-      dismissAdviceType: s.dismissAdviceType,
+      fetchAdvice: s.advice.fetchAdvice,
+      dismissAdviceType: s.advice.dismissAdviceType,
     })),
   )
 

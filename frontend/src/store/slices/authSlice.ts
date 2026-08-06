@@ -1,6 +1,10 @@
-import { namespaceSlice } from '../namespaceSlice.ts'
+import { namespaceSlice, getErrorDetail } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
+import toast from '../../shared/utils/toast.ts'
+import { refreshAccessToken, isDefiniteAuthFailure } from '../../shared/api/authRefresh.ts'
 import type { User, Profile, Country } from '../../shared/types/user.ts'
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 export interface AuthState {
   user: User | null
@@ -12,6 +16,12 @@ export interface AuthState {
   // made an explicit choice before (no prior localStorage pick) — asked once, per
   // U3's "Login with 2+ profiles asks 'Which country?' once."
   needsProfilePick: boolean
+  // AccountTab's change-password form (merged from useState — 2+ related fields
+  // means Zustand per rules/zustand.md).
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+  changingPassword: boolean
 }
 
 export interface AuthActions {
@@ -30,11 +40,17 @@ export interface AuthActions {
   setActiveProfile: (profileId: number) => void
   addProfile: (country: Country) => Promise<void>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
+  setChangePasswordField: (
+    field: 'currentPassword' | 'newPassword' | 'confirmPassword',
+    value: string,
+  ) => void
+  setChangingPassword: (changing: boolean) => void
+  resetChangePasswordForm: () => void
 }
 
 export type AuthSlice = {
-  auth: AuthState
-} & AuthActions
+  auth: AuthState & AuthActions
+}
 
 const ACTIVE_PROFILE_KEY = 'activeProfileId'
 
@@ -88,6 +104,10 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => {
     profiles: [] as Profile[],
     activeProfileId: null as number | null,
     needsProfilePick: false,
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+    changingPassword: false,
 
     // Login/register/refresh responses are the slim Token schema (id/email/is_admin
     // only). hydrateCurrentUser fills in the full profile (full_name, username,
@@ -138,20 +158,34 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => {
 
     verifyToken: async () => {
       set({ loading: true })
-      try {
-        const response = await api.post('/api/auth/refresh')
-        applyAuthResponse(response.data)
-        set({ loading: false })
-        await hydrateCurrentUser()
-      } catch {
-        set({
-          token: null,
-          user: null,
-          profiles: [],
-          activeProfileId: null,
-          needsProfilePick: false,
-          loading: false,
-        })
+      // Up to 3 attempts with backoff for transient failures (429/network/5xx) before
+      // giving up — a single rate-limit response on the very first request of a page
+      // load must not look identical to "the refresh cookie is invalid." Only a 401
+      // ends the loop early, since that's the one response that's actually conclusive.
+      const delaysMs = [1000, 2500]
+      for (let attempt = 0; attempt <= delaysMs.length; attempt++) {
+        try {
+          const data = await refreshAccessToken()
+          applyAuthResponse(data)
+          set({ loading: false })
+          await hydrateCurrentUser()
+          return
+        } catch (err) {
+          if (isDefiniteAuthFailure(err) || attempt === delaysMs.length) {
+            set({
+              token: null,
+              user: null,
+              profiles: [],
+              activeProfileId: null,
+              needsProfilePick: false,
+              loading: false,
+            })
+            return
+          }
+          // attempt < delaysMs.length here — the `attempt === delaysMs.length` case
+          // returns above, so this index is always in bounds.
+          await sleep(delaysMs[attempt]!)
+        }
       }
     },
 
@@ -162,8 +196,10 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => {
       try {
         const response = await api.put('/api/auth/me/ai-settings', { ai_cloud_enabled: enabled })
         set({ user: response.data as User })
+        toast.success(enabled ? 'Cloud AI enabled for your account' : 'Cloud AI disabled')
       } catch (err) {
         set({ user: previous })
+        toast.error(getErrorDetail(err, 'Could not update AI settings'))
         throw err
       }
     },
@@ -185,10 +221,31 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => {
     },
 
     changePassword: async (currentPassword: string, newPassword: string) => {
-      await api.put('/api/auth/me/password', {
-        current_password: currentPassword,
-        new_password: newPassword,
-      })
+      try {
+        await api.put('/api/auth/me/password', {
+          current_password: currentPassword,
+          new_password: newPassword,
+        })
+        toast.success('Password updated')
+      } catch (error) {
+        toast.error(getErrorDetail(error, 'Failed to change password'))
+        throw error
+      }
+    },
+
+    setChangePasswordField: (
+      field: 'currentPassword' | 'newPassword' | 'confirmPassword',
+      value: string,
+    ) => {
+      set({ [field]: value })
+    },
+
+    setChangingPassword: (changing: boolean) => set({ changingPassword: changing }),
+
+    // Called on success so a half-filled password form never leaks into the next
+    // visit (same rule as registerFormSlice/loginFormSlice — rules/dry.md).
+    resetChangePasswordForm: () => {
+      set({ currentPassword: '', newPassword: '', confirmPassword: '' })
     },
   }
 })

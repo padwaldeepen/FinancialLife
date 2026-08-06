@@ -54,7 +54,7 @@ Local dev without Docker, backups, and troubleshooting: `docs/DEVELOPMENT.md`.
 `desktop/` and `mobile/` are separate UI trees sharing one backend and `shared/`/`store/`
 logic · `docs/` — architecture, design system, roadmap · `rules/` — coding conventions.
 
-This project is built with AI coding assistants — `AGENTS.md` and `rules/*.md` are the
+This project is built with AI coding assistants — `CLAUDE.md` and `rules/*.md` are the
 brief they (and any contributor) should read first.
 
 ## Privacy & security

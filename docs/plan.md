@@ -285,6 +285,27 @@ targeted. Detail + acceptance in [`backlog.md`](backlog.md) R1–R6.
 - [x] **R3 — Capture UX:** offer **both** gallery upload and direct camera on every device (drop the
   forced `capture`); document the HTTPS-for-phone-camera constraint honestly. Done 2026-08-05 —
   see backlog.md R3 Result.
+- [x] **R7 — Spontaneous-logout investigation** (folded in from a session-scratch note,
+  2026-08-06): navigating between pages was randomly kicking logged-in users back to
+  `/login` with a valid backend session. Two of three root causes found and fixed,
+  verified under ~150 rapid-navigation cycles with zero repeats: (1) the auth rate
+  limiter's strict 10/60s bucket covered all of `/api/auth/*`, including `/refresh` and
+  `/me` which fire on every page load — tightened to only `/login`/`/register`
+  (`backend/core/middleware.py`); the frontend also stopped treating any refresh error
+  (429/network/5xx) as a definite logout — only a real 401 clears the session now
+  (`isDefiniteAuthFailure()` in `frontend/src/shared/api/authRefresh.ts`, plus
+  retry-with-backoff in `authSlice.ts`'s `verifyToken()` and a single-flight refresh to
+  stop concurrent callers racing each other). (2) a duplicate bundled `immer` copy meant
+  `enableMapSet()` registered on the wrong instance, throwing on every `transactions`
+  slice update touching `selectedIds: Set<number>` — fixed via `resolve.dedupe`/
+  `optimizeDeps.include` in `frontend/vite.config.ts`. **Still open, not blocking**: a
+  third, much rarer client-side-only cause (zero network requests, zero console errors
+  around the event) — unreproduced despite the stress testing above; revisit if it
+  recurs with more frequency. Also noted, not yet investigated: Manage → Categories can
+  show **duplicate categories** (a real "Food & Dining" alongside a same-named
+  user-created one with 0 subcategories) — suspected cause is quick-add's category-name
+  matching creating a new category instead of matching the existing system one; needs a
+  categorizer/matching-logic look.
 - [ ] **Then: fresh-start DB wipe** (owner's call) so the clean DB runs the fixed code.
 
 **Code-health block (can run while in use — invisible to the user):**
@@ -297,6 +318,80 @@ targeted. Detail + acceptance in [`backlog.md`](backlog.md) R1–R6.
 - [ ] **R6 — Over-engineering & dead code:** ~~drop the single-impl `BaseAIService` ABC, the
   `_row_to_bill_dict` no-op, unused `get_leaf_categories` + dead `ParseResult.date`~~ done
   2026-08-05. Remaining: money request-models `float → Decimal`.
+
+### Phase V — State Management Consolidation & Radix/CSS Debt (recovered plan, 2026-08-05)
+
+A plan drafted mid-session got lost before it was ever turned into a ticket or executed;
+recovered and re-verified against live code. Detail + acceptance in
+[`backlog.md`](backlog.md) V0–V5.
+
+- [x] **V0 — Node LTS bump:** `node:22.23.1-slim` → `node:24.19.0-slim`. Done — confirmed
+  live in `frontend/Dockerfile` 2026-08-06.
+- [x] **V1 — Consolidate slice files:** merge each domain's data slice + form/page slice
+  (currently separate files) into one file per domain. Done — confirmed live: no
+  separate `*FormSlice.ts`/`*PageSlice.ts` files remain, `store/slices/` is one file per
+  domain.
+- [x] **V2 — Finish useState → Zustand migration:** the 13 originally-listed call sites
+  (`BillDetail`, `AccountTab` password form, `ChatBot`, mobile `Activity`/`Home`,
+  `AddTransactionModal` both trees) → slice actions — done, confirmed live. **Correction
+  2026-08-06**: the initial "zero occurrences" re-check used a grep pattern
+  (`useState(`) that misses generic-typed calls like `useState<T>(...)`; a proper
+  re-check found 2 the original ticket didn't cover — `PendingReceipts.tsx`'s single
+  `useState<PendingDocument | null>` (one flag, fine per the rule's own exception) and
+  `BillFormDialog.tsx`'s `useState<BillFormValues>` (a multi-field form object — a real
+  gap, not in V2's original scope, noted in `backlog.md`'s Discovered section for a
+  future ticket rather than fixed here).
+- [ ] **V3 — Toast/CRUD into slice actions:** down to 6 files still calling
+  `toast.success`/`toast.error` directly (`StatementReviewDialog`, `DocumentReviewDialog`,
+  `DocumentViewerDialog`, `Activity`, `AdminTab`, `AccountTab`) — the other 8 of the
+  original 14 are already converted. Shared `getErrorDetail`/`refetchCollection` helpers
+  already exist in `store/namespaceSlice.ts`.
+- [x] **V4 (skeletons only) — done**: `grep 'className="skeleton"'` across `desktop/`/
+  `mobile/` returns zero — all converted to Radix `<Skeleton>`. **Still open**: missing
+  `Dialog.Description`/a11y + inconsistent `Dialog.Root` ownership across the 6 dialog
+  components; duplicated `.emptyState`/`.sectionHeader`/`.row` CSS classes; stale doc
+  references in `rules/frontend.md` and `rules/zustand.md`.
+- [ ] **V5 — Lint cleanup:** one real `set-state-in-effect` bug in `BillFormDialog.tsx`,
+  2 `react-refresh` warnings, reduce `no-explicit-any` where reasonable.
+
+### Phase W — Pre-merge polish & upload pipeline upgrade (planned 2026-08-06)
+
+Bug batch + upload rework found before merging `feat/premium-ui-redesign` into `main`.
+Detail + acceptance in [`backlog.md`](backlog.md) W0–W7.
+
+- [x] **W0 — Dialog button alignment:** right-align `AddTransactionModal`, `BillFormDialog`,
+  Goals' Create/Contribution dialogs to match the established `Flex justify="end"` pattern
+  used everywhere else. Done 2026-08-06.
+- [x] **W1 — Activity tab:** relocate the transaction-count text into the filter bar;
+  live-diagnose the reported date-filter/UI issue (nothing structurally broken found
+  statically, or live). Done 2026-08-06 — count relocated; date filters checked live,
+  nothing broken found (see backlog.md W1 Result).
+- [x] **W2 — Add Transaction "bounce" + desktop upload failure:** live-reproduce both
+  before patching (no static bug found in either). Done 2026-08-06 — neither reproduced
+  live; no code change (see backlog.md W2 Result).
+- [x] **W3 — Manage restructure:** fold `AiPrivacyTab` into `AccountTab`, delete the
+  standalone tab. Done 2026-08-06.
+- [x] **W4 — Category suggestion:** pre-highlight a suggested category (via the existing
+  `categorize()`) when editing a transaction in `TransactionDetailDialog`, still fully
+  editable. Done 2026-08-06 — **scope-corrected**: the two keyword tables turned out to
+  be different granularity by design, not duplicated; kept separate rather than merged
+  (see backlog.md W4 Result for why).
+- [x] **W5 — Sidebar identity:** show `full_name || username || email` instead of email.
+  Done 2026-08-06.
+- [x] **W6 — Upload pipeline upgrade:** multi-file upload, auto-detect receipt vs.
+  statement (drop the manual picker, keep a one-click re-classify escape hatch), and
+  `.xlsx` support via the existing CSV-import pipeline rather than a new extraction path.
+  Done 2026-08-06 — used `exceljs` instead of the originally-named `xlsx`/SheetJS
+  (unpatched CVEs, see backlog.md W6 Result). All three pieces verified live end-to-end.
+- [x] **W7 — Testing/tooling:** delete `frontend/e2e/debug.spec.ts`; add e2e coverage for
+  what W0–W6 touch; a whole-codebase unused-CSS-class sweep; document the
+  chrome-devtools MCP Lighthouse/perf workflow (no new dependency). Done 2026-08-06 —
+  also fixed 8 of 14 pre-existing `auth-flow.spec.ts` tests that were silently failing
+  (stale required fields/routes), removed 7 genuinely dead CSS classes, and fixed one
+  real accessibility gap (Activity's date-filter inputs) found via the new Lighthouse
+  baseline — see backlog.md W7 Result.
+
+**Phase W complete** — all of W0–W7 done and verified live 2026-08-06.
 
 ### Later (only after the above is real and used daily)
 

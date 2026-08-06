@@ -1,26 +1,11 @@
 import api from './client.ts'
 import { useBoundStore } from '../../store/useBoundStore.ts'
+import { refreshAccessToken, isDefiniteAuthFailure } from './authRefresh.ts'
 
 // Side-effect module — configures the shared axios instance's request/response
 // interceptors. Imported exactly once, from main.tsx, never from a slice: slices
 // import `api` from client.ts directly, so this can safely depend on the store
 // without creating an import cycle (store slices -> client.ts -> store).
-let isRefreshing = false
-let failedQueue: Array<{
-  resolve: (value: unknown) => void
-  reject: (reason: unknown) => void
-}> = []
-
-const processQueue = (error: unknown, token: string | null = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error)
-    } else {
-      prom.resolve(token)
-    }
-  })
-  failedQueue = []
-}
 
 api.interceptors.request.use(
   (config) => {
@@ -49,31 +34,22 @@ api.interceptors.response.use(
       !originalRequest._retry &&
       !originalRequest.url?.includes('/api/auth/refresh')
     ) {
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject })
-        }).then((newToken) => {
-          originalRequest.headers.Authorization = `Bearer ${newToken}`
-          return api(originalRequest)
-        })
-      }
-
       originalRequest._retry = true
-      isRefreshing = true
 
       try {
-        const response = await api.post('/api/auth/refresh')
-        const { access_token } = response.data
+        const { access_token } = await refreshAccessToken()
         useBoundStore.setState((s) => ({ auth: { ...s.auth, token: access_token } }))
-        processQueue(null, access_token)
         originalRequest.headers.Authorization = `Bearer ${access_token}`
         return api(originalRequest)
       } catch (refreshError) {
-        processQueue(refreshError, null)
-        useBoundStore.getState().logout()
+        // Only a definitive 401 (refresh cookie actually invalid/expired) means the
+        // user is really logged out. A 429/network/5xx here is transient — the
+        // original request still fails, but wiping the session on top of that turned
+        // one rate-limited request into a spurious full logout.
+        if (isDefiniteAuthFailure(refreshError)) {
+          useBoundStore.getState().auth.logout()
+        }
         return Promise.reject(refreshError)
-      } finally {
-        isRefreshing = false
       }
     }
 

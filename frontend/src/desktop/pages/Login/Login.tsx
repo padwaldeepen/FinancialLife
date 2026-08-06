@@ -4,10 +4,11 @@ import { Box, Flex, Heading, Text, Button, Card, TextField, Callout } from '@rad
 import { Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import { getValidationErrorMessage } from '../../../store/namespaceSlice.ts'
 import styles from './Login.module.css'
 
 export const Login = (): JSX.Element => {
-  const login = useBoundStore((s) => s.login)
+  const login = useBoundStore((s) => s.auth.login)
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string })?.from || '/'
@@ -33,13 +34,13 @@ export const Login = (): JSX.Element => {
       submitting: s.loginForm.submitting,
       errors: s.loginForm.errors,
       formError: s.loginForm.formError,
-      setField: s.setLoginField,
-      toggleShowPassword: s.toggleLoginShowPassword,
-      setSubmitting: s.setLoginSubmitting,
-      clearFieldError: s.clearLoginFieldError,
-      setFormError: s.setLoginFormError,
-      validateForm: s.validateLoginForm,
-      resetForm: s.resetLoginForm,
+      setField: s.loginForm.setLoginField,
+      toggleShowPassword: s.loginForm.toggleLoginShowPassword,
+      setSubmitting: s.loginForm.setLoginSubmitting,
+      clearFieldError: s.loginForm.clearLoginFieldError,
+      setFormError: s.loginForm.setLoginFormError,
+      validateForm: s.loginForm.validateLoginForm,
+      resetForm: s.loginForm.resetLoginForm,
     })),
   )
 
@@ -56,12 +57,8 @@ export const Login = (): JSX.Element => {
     try {
       await login(email, password)
       navigate(from)
-    } catch (error: any) {
-      const detail = error.response?.data?.detail
-      const msg = Array.isArray(detail)
-        ? detail.map((e: any) => e.msg).join('; ')
-        : detail || 'Login failed'
-      setFormError(msg)
+    } catch (error) {
+      setFormError(getValidationErrorMessage(error, 'Login failed'))
     } finally {
       setSubmitting(false)
     }

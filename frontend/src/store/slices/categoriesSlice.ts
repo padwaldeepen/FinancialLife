@@ -1,5 +1,6 @@
-import { namespaceSlice, isFresh } from '../namespaceSlice.ts'
+import { namespaceSlice, isFresh, getErrorDetail, refetchCollection } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
+import toast from '../../shared/utils/toast.ts'
 
 interface CategoryNode {
   id: number
@@ -46,19 +47,19 @@ export type CategoriesSlice = {
     spending: CategorySpending[]
     spendingLoading: boolean
     lastFetchedAt: number | null
+    fetchCategories: (opts?: { force?: boolean }) => Promise<void>
+    fetchSpendingByCategory: (days?: number) => Promise<void>
+    createCategory: (data: {
+      name: string
+      color?: string
+      parent_id?: number | null
+    }) => Promise<void>
+    updateCategory: (
+      id: number,
+      data: { name?: string; color?: string; parent_id?: number | null },
+    ) => Promise<void>
+    deleteCategory: (id: number) => Promise<void>
   }
-  fetchCategories: (opts?: { force?: boolean }) => Promise<void>
-  fetchSpendingByCategory: (days?: number) => Promise<void>
-  createCategory: (data: {
-    name: string
-    color?: string
-    parent_id?: number | null
-  }) => Promise<void>
-  updateCategory: (
-    id: number,
-    data: { name?: string; color?: string; parent_id?: number | null },
-  ) => Promise<void>
-  deleteCategory: (id: number) => Promise<void>
 }
 
 export const createCategoriesSlice = namespaceSlice('categories', (set, get) => ({
@@ -92,32 +93,156 @@ export const createCategoriesSlice = namespaceSlice('categories', (set, get) => 
   },
 
   createCategory: async (data: { name: string; color?: string; parent_id?: number | null }) => {
-    await api.post('/api/categories/', data)
-    const refetch = await api.get('/api/categories/')
-    set({
-      tree: refetch.data as CategoryNode[],
-      flat: flattenCategories(refetch.data as CategoryNode[]),
-    })
+    try {
+      await api.post('/api/categories/', data)
+      await refetchCollection<CategoryNode[]>(set, '/api/categories/', 'tree', (tree) => ({
+        tree,
+        flat: flattenCategories(tree),
+      }))
+      toast.success('Category created')
+    } catch (error) {
+      // No throw: Categories.tsx's dialog closes unconditionally on save today (no
+      // catch of its own) — surfacing the error via toast without rethrowing keeps
+      // that behavior while at least telling the user something went wrong.
+      toast.error(getErrorDetail(error, 'Failed to save category'))
+    }
   },
 
   updateCategory: async (
     id: number,
     data: { name?: string; color?: string; parent_id?: number | null },
   ) => {
-    await api.put(`/api/categories/${id}`, data)
-    const refetch = await api.get('/api/categories/')
-    set({
-      tree: refetch.data as CategoryNode[],
-      flat: flattenCategories(refetch.data as CategoryNode[]),
-    })
+    try {
+      await api.put(`/api/categories/${id}`, data)
+      await refetchCollection<CategoryNode[]>(set, '/api/categories/', 'tree', (tree) => ({
+        tree,
+        flat: flattenCategories(tree),
+      }))
+      toast.success('Category updated')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to save category'))
+    }
   },
 
   deleteCategory: async (id: number) => {
-    await api.delete(`/api/categories/${id}`)
-    const refetch = await api.get('/api/categories/')
+    try {
+      await api.delete(`/api/categories/${id}`)
+      await refetchCollection<CategoryNode[]>(set, '/api/categories/', 'tree', (tree) => ({
+        tree,
+        flat: flattenCategories(tree),
+      }))
+      toast.success('Category deleted')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to delete category'))
+    }
+  },
+}))
+
+// --- Category form/dialog state (merged from categoriesFormSlice.ts) ---
+
+export interface CategoryFormFields {
+  name: string
+  color: string
+  parent_id: number | null
+}
+
+export interface CategoriesFormState {
+  expanded: Set<number>
+  dialogOpen: boolean
+  editId: number | null
+  form: CategoryFormFields
+  saving: boolean
+  deleteId: number | null
+  deleting: boolean
+}
+
+export interface CategoriesFormActions {
+  toggleCategoryExpand: (id: number) => void
+  openCategoryCreate: () => void
+  openCategoryEdit: (cat: {
+    id: number
+    name: string
+    color: string
+    parent_id: number | null
+  }) => void
+  setCategoryDialogOpen: (open: boolean) => void
+  setCategoryFormField: (
+    field: keyof CategoryFormFields,
+    value: CategoryFormFields[keyof CategoryFormFields],
+  ) => void
+  setCategorySaving: (saving: boolean) => void
+  startCategoryDelete: (id: number) => void
+  cancelCategoryDelete: () => void
+  setCategoryDeleting: (deleting: boolean) => void
+}
+
+export type CategoriesFormSlice = {
+  categoriesForm: CategoriesFormState & CategoriesFormActions
+}
+
+const emptyForm = (): CategoryFormFields => ({ name: '', color: '#6B7280', parent_id: null })
+
+const categoriesFormInitialState: CategoriesFormState = {
+  expanded: new Set<number>(),
+  dialogOpen: false,
+  editId: null,
+  form: emptyForm(),
+  saving: false,
+  deleteId: null,
+  deleting: false,
+}
+
+export const createCategoriesFormSlice = namespaceSlice('categoriesForm', (set, get) => ({
+  ...categoriesFormInitialState,
+
+  toggleCategoryExpand: (id: number) => {
+    const next = new Set(get().expanded)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    set({ expanded: next })
+  },
+
+  openCategoryCreate: () => {
+    set({ editId: null, form: emptyForm(), dialogOpen: true })
+  },
+
+  openCategoryEdit: (cat: {
+    id: number
+    name: string
+    color: string
+    parent_id: number | null
+  }) => {
     set({
-      tree: refetch.data as CategoryNode[],
-      flat: flattenCategories(refetch.data as CategoryNode[]),
+      editId: cat.id,
+      form: { name: cat.name, color: cat.color, parent_id: cat.parent_id },
+      dialogOpen: true,
     })
+  },
+
+  setCategoryDialogOpen: (open: boolean) => {
+    set({ dialogOpen: open })
+  },
+
+  setCategoryFormField: (
+    field: keyof CategoryFormFields,
+    value: CategoryFormFields[keyof CategoryFormFields],
+  ) => {
+    set({ form: { ...get().form, [field]: value } })
+  },
+
+  setCategorySaving: (saving: boolean) => {
+    set({ saving })
+  },
+
+  startCategoryDelete: (id: number) => {
+    set({ deleteId: id })
+  },
+
+  cancelCategoryDelete: () => {
+    set({ deleteId: null })
+  },
+
+  setCategoryDeleting: (deleting: boolean) => {
+    set({ deleting })
   },
 }))

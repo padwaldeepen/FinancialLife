@@ -1,4 +1,4 @@
-import { useState, useEffect, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -12,13 +12,13 @@ import {
   Select,
 } from '@radix-ui/themes'
 import { Plus, Pencil, Trash2, Wallet, PiggyBank, CreditCard, TrendingUp } from 'lucide-react'
-import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import type { Account } from '../../../store/slices/accountsSlice.ts'
 import styles from './Manage.module.css'
+import shared from '../../styles/shared.module.css'
 
 const accountIcons: Record<string, JSX.Element> = {
   checking: <Wallet size={18} />,
@@ -36,65 +36,55 @@ const accountTypes = [
   { value: 'investment', label: 'Investment' },
 ]
 
-interface AccountForm {
-  name: string
-  type: string
-  currency: string
-}
-
-const defaultForm = (): AccountForm => ({ name: '', type: 'checking', currency: 'USD' })
-
 export const AccountsTab = (): JSX.Element => {
   const currency = useActiveCurrency()
   const { accounts, fetchAccounts, createAccount, updateAccount, deleteAccount } = useBoundStore(
     useShallow((s) => ({
       accounts: s.accounts.items,
-      fetchAccounts: s.fetchAccounts,
-      createAccount: s.createAccount,
-      updateAccount: s.updateAccount,
-      deleteAccount: s.deleteAccount,
+      fetchAccounts: s.accounts.fetchAccounts,
+      createAccount: s.accounts.createAccount,
+      updateAccount: s.accounts.updateAccount,
+      deleteAccount: s.accounts.deleteAccount,
     })),
   )
+  const {
+    dialogOpen,
+    editingId,
+    form,
+    saving,
+    deleteId,
+    deleteName,
+    openAccountCreate,
+    openAccountEdit,
+    setAccountDialogOpen,
+    setAccountFormField,
+    setAccountSaving,
+    startAccountDelete,
+    cancelAccountDelete,
+  } = useBoundStore(useShallow((s) => s.accountForm))
 
   useEffect(() => {
     fetchAccounts()
   }, [fetchAccounts])
 
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [form, setForm] = useState<AccountForm>(defaultForm())
-  const [saving, setSaving] = useState(false)
-  const [deleteId, setDeleteId] = useState<number | null>(null)
-  const [deleteName, setDeleteName] = useState('')
+  const openCreate = openAccountCreate
 
-  const openCreate = () => {
-    setEditingId(null)
-    setForm(defaultForm())
-    setDialogOpen(true)
-  }
-
-  const openEdit = (account: Account) => {
-    setEditingId(account.id)
-    setForm({ name: account.name, type: account.type, currency: account.currency })
-    setDialogOpen(true)
-  }
+  const openEdit = (account: Account) => openAccountEdit(account)
 
   const handleSave = async () => {
     if (!form.name.trim()) return
-    setSaving(true)
+    setAccountSaving(true)
     try {
       if (editingId !== null) {
         await updateAccount(editingId, form)
-        toast.success('Account updated')
       } else {
         await createAccount(form)
-        toast.success('Account created')
       }
-      setDialogOpen(false)
+      setAccountDialogOpen(false)
     } catch {
-      toast.error('Failed to save account')
+      // toast handled in store
     } finally {
-      setSaving(false)
+      setAccountSaving(false)
     }
   }
 
@@ -102,22 +92,20 @@ export const AccountsTab = (): JSX.Element => {
     if (deleteId === null) return
     try {
       await deleteAccount(deleteId)
-      toast.success('Account deleted')
     } catch {
-      toast.error('Failed to delete account')
+      // toast handled in store
     } finally {
-      setDeleteId(null)
-      setDeleteName('')
+      cancelAccountDelete()
     }
   }
 
   return (
     <Box>
-      <Flex className={styles.sectionHeader}>
+      <Flex className={shared.sectionHeader}>
         <Text as="div" className={styles.sectionTitle}>
           Accounts
         </Text>
-        <Button size="1" variant="soft" onClick={openCreate}>
+        <Button size="1" onClick={openCreate}>
           <Plus size={14} /> Add
         </Button>
       </Flex>
@@ -153,10 +141,7 @@ export const AccountsTab = (): JSX.Element => {
                   variant="ghost"
                   size="1"
                   color="red"
-                  onClick={() => {
-                    setDeleteId(account.id)
-                    setDeleteName(account.name)
-                  }}
+                  onClick={() => startAccountDelete(account.id, account.name)}
                   aria-label="Delete"
                 >
                   <Trash2 size={14} />
@@ -167,16 +152,16 @@ export const AccountsTab = (): JSX.Element => {
         </Card>
       )}
 
-      <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog.Root open={dialogOpen} onOpenChange={setAccountDialogOpen}>
         <Dialog.Content aria-describedby={undefined} maxWidth="400px">
           <Dialog.Title>{editingId !== null ? 'Edit Account' : 'Add Account'}</Dialog.Title>
           <Flex direction="column" gap="3" mt="3">
             <TextField.Root
               placeholder="Account name"
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onChange={(e) => setAccountFormField('name', e.target.value)}
             />
-            <Select.Root value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+            <Select.Root value={form.type} onValueChange={(v) => setAccountFormField('type', v)}>
               <Select.Trigger />
               <Select.Content>
                 {accountTypes.map((t) => (
@@ -189,10 +174,10 @@ export const AccountsTab = (): JSX.Element => {
             <TextField.Root
               placeholder="Currency"
               value={form.currency}
-              onChange={(e) => setForm({ ...form, currency: e.target.value })}
+              onChange={(e) => setAccountFormField('currency', e.target.value)}
             />
             <Flex gap="2" justify="end">
-              <Button variant="soft" onClick={() => setDialogOpen(false)}>
+              <Button variant="soft" onClick={() => setAccountDialogOpen(false)}>
                 Cancel
               </Button>
               <Button onClick={handleSave} loading={saving}>
@@ -206,10 +191,7 @@ export const AccountsTab = (): JSX.Element => {
       <AlertDialog.Root
         open={deleteId !== null}
         onOpenChange={(o) => {
-          if (!o) {
-            setDeleteId(null)
-            setDeleteName('')
-          }
+          if (!o) cancelAccountDelete()
         }}
       >
         <AlertDialog.Content className={styles.maxWidth380}>

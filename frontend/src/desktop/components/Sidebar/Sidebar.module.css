@@ -1,5 +1,5 @@
 .sidebar {
-  width: 250px;
+  width: 240px;
   height: 100dvh;
   position: fixed;
   top: 0;
@@ -114,6 +114,64 @@
 .footer {
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--gray-4);
+}
+
+.profileTrigger {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border-radius: var(--radius-3);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.profileTrigger:hover {
+  background-color: var(--gray-3);
+}
+
+.profileTriggerName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popoverContent {
+  min-width: 220px;
+}
+
+.themeRow {
+  cursor: pointer;
+  border-radius: var(--radius-2);
+  transition: background-color var(--duration-fast) var(--ease-out);
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+}
+
+.themeRow:hover {
+  background-color: var(--gray-3);
+}
+
+.logoutButton {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.profileRow {
+  cursor: pointer;
+  border-radius: var(--radius-2);
+  padding: var(--space-1) var(--space-2);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.profileRow:hover {
+  background-color: var(--gray-3);
+}
+
+.profileRow[data-active='true'] {
+  background-color: var(--accent-3);
 }
 
 @media (max-width: 1024px) {

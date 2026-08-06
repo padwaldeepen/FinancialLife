@@ -81,7 +81,17 @@ test files.
 
 Then review the diff against `rules/code-review.md`.
 
-### Dependency health (Phase T audit, then quarterly)
+### Dependency health
+A scheduled cloud routine ("FinanceFlareAI Weekly Dependency Update", Sundays 3:07am ET)
+runs the `dependency-updater` agent (`.claude/agents/dependency-updater.md`) automatically:
+surveys `npm outdated`/`pip list --outdated`, applies safe bumps (backend major bumps are
+only proposed, not applied), verifies (typecheck/lint/build, ruff, a live curl check
+against the app, the `e2e/auth-flow.spec.ts` regression test), and opens a PR against
+`feat/premium-ui-redesign` — it never pushes to `main` or merges anything itself. Manage
+the routine at https://claude.ai/code/routines.
+
+For an on-demand check between scheduled runs, either invoke the same agent locally or
+run the underlying commands yourself:
 ```powershell
 cd frontend; npm outdated; npx depcheck
 cd backend; pip list --outdated
@@ -91,20 +101,45 @@ cd backend; pip list --outdated
 
 ## 4. AI-assisted development setup
 
-The project is coded with AI tools (opencode, Claude Code, other IDEs). Config layout:
+The project is coded with Claude Code. Config layout:
 
 | File | Consumed by |
 |---|---|
-| `AGENTS.md` | opencode, Claude Code, most agent tools (shared project brief) |
-| `rules/*.md` | wired into `opencode.json` `instructions`; readable by any tool |
-| `opencode.json` | opencode — instruction file wiring |
+| `CLAUDE.md` | Claude Code (auto-loaded every session — shared project brief) |
+| `rules/*.md` | referenced from `CLAUDE.md`; readable by any tool |
 | `.mcp.json` | MCP servers (playwright, chrome-devtools) for Claude Code and other MCP-aware tools |
-| `rules/code-review.md` | the review checklist any tool (or human) applies before commit |
-| `.claude/skills/finance-review/SKILL.md` | Claude Code `/finance-review` — runs that checklist against the current diff with finance-specific checks (float money math, user-isolation leaks, dedup bypass, missing migrations, off-palette colors) |
+| `.claude/skills/code-review/SKILL.md` | Claude Code `/code-review` — the review checklist run against the current diff before commit |
 
 MCP servers run via `npx`, so any IDE that supports MCP just needs the config file it
 reads to point at the same commands. If an IDE still doesn't see MCP: check it supports
 project-level MCP config, and that `npx` is on PATH for that IDE's environment.
+
+### Lighthouse / performance audits (chrome-devtools MCP, no extra dependency)
+
+The `chrome-devtools` MCP server (already in `.mcp.json`) exposes Lighthouse and
+performance-trace tools directly — no `lighthouse`/`@lhci/cli` npm package needed.
+
+- **`mcp__chrome-devtools__lighthouse_audit`** — accessibility, best-practices, SEO,
+  and "agentic browsing" scores. `mode: "snapshot"` audits the page as currently
+  loaded (use this for an authenticated page — log in first, then audit); `mode:
+  "navigation"` reloads and audits fresh. Low SEO/agentic-browsing scores are expected
+  and not worth chasing here — this is a private, localhost-only, self-hosted app with
+  no public web presence (no meta description/robots.txt/llms.txt needed). Real
+  accessibility findings (missing labels, unnamed buttons) are worth fixing — see the
+  known gap below.
+- **`mcp__chrome-devtools__performance_start_trace`** /
+  **`performance_stop_trace`** — Core Web Vitals (LCP, CLS) and a call-tree/network
+  breakdown for diagnosing slow loads.
+
+Baseline run 2026-08-06 (dev-mode Vite server, not the production build — real numbers
+would be better): Home — Accessibility 100, Best Practices 100, LCP ~1.1s, CLS 0.00.
+Activity — Accessibility 94 (was 88; fixed the Activity date-range inputs' missing
+`aria-label` while here), Best Practices 100. **Known, not fixed**: Radix
+`Select.Trigger` with an empty `placeholder` has no accessible name until a value is
+picked (its label is CSS-generated `content`, invisible to the accessibility tree) —
+affects every unset filter Select app-wide, not just Activity's. Fixing it properly
+means auditing every `Select.Trigger` for an explicit `aria-label`, which is a bigger
+pass than this one page — noted here rather than fixed piecemeal.
 
 ### Optional: Postgres MCP (recommended once Phase D starts)
 

@@ -1,11 +1,8 @@
 .card {
   cursor: default;
-  border-radius: var(--radius-card) !important;
-  border: 1px solid var(--gray-4);
   padding: var(--space-3) var(--space-4);
   transition: transform var(--duration-normal) var(--ease-out);
 }
-
 
 .parentRow {
   cursor: pointer;

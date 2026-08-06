@@ -1,0 +1,32 @@
+/* Shared CSS classes reused across multiple desktop pages.
+   Desktop and mobile never share CSS (see rules/frontend.md) — this file is
+   desktop-only. Import the specific classes you need via CSS Modules, e.g.
+   `import shared from '../../styles/shared.module.css'`. */
+
+/* ---- Empty state (Activity, Goals, Recurring, Merchants) ---- */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-4);
+}
+
+.emptyTitle {
+  font-size: var(--font-size-4);
+  font-weight: 600;
+  color: var(--gray-12);
+}
+
+.emptyHint {
+  font-size: var(--font-size-2);
+  color: var(--gray-11);
+}
+
+/* ---- Section header (Home, Manage) ---- */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}

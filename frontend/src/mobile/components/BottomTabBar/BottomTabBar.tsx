@@ -9,7 +9,7 @@ import styles from './BottomTabBar.module.css'
 // More led to) are retired, so the tab bar drops to these two plus the center
 // Capture button.
 export const BottomTabBar = (): JSX.Element => {
-  const openCaptureSheet = useBoundStore((s) => s.openCaptureSheet)
+  const openCaptureSheet = useBoundStore((s) => s.ui.openCaptureSheet)
 
   return (
     <nav className={styles.bar}>

@@ -22,10 +22,10 @@ export const useTransactionList = (filters: TransactionFilters) => {
       loading: s.transactions.loading,
       loadingMore: s.transactions.loadingMore,
       hasMore: s.transactions.hasMore,
-      fetchTransactions: s.fetchTransactions,
-      deleteTransaction: s.deleteTransaction,
-      updateNotes: s.updateNotes,
-      updateTransaction: s.updateTransaction,
+      fetchTransactions: s.transactions.fetchTransactions,
+      deleteTransaction: s.transactions.deleteTransaction,
+      updateNotes: s.transactions.updateNotes,
+      updateTransaction: s.transactions.updateTransaction,
     })),
   )
   const sentinelRef = useRef<HTMLDivElement>(null)

@@ -5,6 +5,7 @@ import { Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import type { Country } from '../../../shared/types/user.ts'
+import { getValidationErrorMessage } from '../../../store/namespaceSlice.ts'
 import styles from './Register.module.css'
 
 const COUNTRIES: { value: Country; label: string }[] = [
@@ -36,7 +37,7 @@ export const Register = (): JSX.Element => {
     resetForm,
   } = useBoundStore(
     useShallow((s) => ({
-      register: s.register,
+      register: s.auth.register,
       fullName: s.registerForm.fullName,
       username: s.registerForm.username,
       email: s.registerForm.email,
@@ -47,13 +48,13 @@ export const Register = (): JSX.Element => {
       submitting: s.registerForm.submitting,
       errors: s.registerForm.errors,
       formError: s.registerForm.formError,
-      setField: s.setRegisterField,
-      toggleShowPassword: s.toggleRegisterShowPassword,
-      setSubmitting: s.setRegisterSubmitting,
-      clearFieldError: s.clearRegisterFieldError,
-      setFormError: s.setRegisterFormError,
-      validateForm: s.validateRegisterForm,
-      resetForm: s.resetRegisterForm,
+      setField: s.registerForm.setRegisterField,
+      toggleShowPassword: s.registerForm.toggleRegisterShowPassword,
+      setSubmitting: s.registerForm.setRegisterSubmitting,
+      clearFieldError: s.registerForm.clearRegisterFieldError,
+      setFormError: s.registerForm.setRegisterFormError,
+      validateForm: s.registerForm.validateRegisterForm,
+      resetForm: s.registerForm.resetRegisterForm,
     })),
   )
 
@@ -71,12 +72,8 @@ export const Register = (): JSX.Element => {
       await register(email, password, country, fullName, username)
       resetForm()
       navigate('/')
-    } catch (error: any) {
-      const detail = error.response?.data?.detail
-      const msg = Array.isArray(detail)
-        ? detail.map((e: any) => e.msg).join('; ')
-        : detail || 'Registration failed'
-      setFormError(msg)
+    } catch (error) {
+      setFormError(getValidationErrorMessage(error, 'Registration failed'))
     } finally {
       setSubmitting(false)
     }

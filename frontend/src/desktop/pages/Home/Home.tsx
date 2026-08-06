@@ -1,6 +1,6 @@
 import { useEffect, type JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Box, Flex, Text, Heading, Card } from '@radix-ui/themes'
+import { Box, Flex, Text, Heading, Card, Skeleton } from '@radix-ui/themes'
 import { Wallet, PiggyBank, CreditCard, TrendingUp } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -10,6 +10,7 @@ import { useHomeData } from '../../../shared/hooks/useHomeData.ts'
 import { useSafeToSpend } from '../../../shared/hooks/useSafeToSpend.ts'
 import { InsightCards } from './InsightCards.tsx'
 import styles from './Home.module.css'
+import shared from '../../styles/shared.module.css'
 
 const accountIcons: Record<string, JSX.Element> = {
   checking: <Wallet size={22} />,
@@ -25,7 +26,7 @@ export const Home = (): JSX.Element => {
   const { accounts, cashOnHand, creditOwed, recentTransactions, upcomingBills, loading } =
     useHomeData()
   const { summary, fetchReports } = useBoundStore(
-    useShallow((s) => ({ summary: s.reports.summary, fetchReports: s.fetchReports })),
+    useShallow((s) => ({ summary: s.reports.summary, fetchReports: s.reports.fetchReports })),
   )
   const safeToSpend = useSafeToSpend(currency)
 
@@ -36,9 +37,15 @@ export const Home = (): JSX.Element => {
   if (loading) {
     return (
       <Flex direction="column" gap="4">
-        <Box className={`${styles.balanceCard} ${styles.skeleton} ${styles.chartArea}`} />
-        <Box className={`skeleton ${styles.miniChart}`} />
-        <Box className={`skeleton ${styles.miniChart}`} />
+        <Skeleton>
+          <Box className={`${styles.balanceCard} ${styles.chartArea}`} />
+        </Skeleton>
+        <Skeleton>
+          <Box className={styles.miniChart} />
+        </Skeleton>
+        <Skeleton>
+          <Box className={styles.miniChart} />
+        </Skeleton>
       </Flex>
     )
   }
@@ -87,7 +94,7 @@ export const Home = (): JSX.Element => {
 
           {/* Accounts */}
           <Box>
-            <Flex className={styles.sectionHeader}>
+            <Flex className={shared.sectionHeader}>
               <Text className={styles.sectionTitle}>Accounts</Text>
             </Flex>
             {accounts.length === 0 ? (
@@ -124,7 +131,7 @@ export const Home = (): JSX.Element => {
         <Box className={styles.rightColumn}>
           {/* This Month */}
           <Card className={styles.contentCard}>
-            <Flex className={styles.sectionHeader}>
+            <Flex className={shared.sectionHeader}>
               <Text className={styles.sectionTitle}>This Month</Text>
             </Flex>
             {summary ? (
@@ -172,7 +179,7 @@ export const Home = (): JSX.Element => {
 
           {/* Recent Activity */}
           <Card className={styles.contentCard}>
-            <Flex className={styles.sectionHeader}>
+            <Flex className={shared.sectionHeader}>
               <Text className={styles.sectionTitle}>Recent Activity</Text>
               <Text className={styles.seeAll} onClick={() => navigate('/activity')}>
                 See all
@@ -225,7 +232,7 @@ export const Home = (): JSX.Element => {
 
           {/* Upcoming Bills */}
           <Card className={styles.contentCard}>
-            <Flex className={styles.sectionHeader}>
+            <Flex className={shared.sectionHeader}>
               <Text className={styles.sectionTitle}>Upcoming Bills</Text>
               <Text className={styles.seeAll} onClick={() => navigate('/recurring')}>
                 See all

@@ -1,4 +1,4 @@
-import { useState, useEffect, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -29,7 +29,6 @@ import {
   DollarSign,
   Sparkles,
 } from 'lucide-react'
-import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useAppTheme } from '../../../theme.tsx'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -53,14 +52,6 @@ const accountTypes = [
   { value: 'investment', label: 'Investment' },
 ]
 
-interface AccountForm {
-  name: string
-  type: string
-  currency: string
-}
-
-const defaultForm: AccountForm = { name: '', type: 'checking', currency: 'USD' }
-
 export const Settings = (): JSX.Element => {
   const currency = useActiveCurrency()
   const {
@@ -81,45 +72,66 @@ export const Settings = (): JSX.Element => {
   } = useBoundStore(
     useShallow((s) => ({
       user: s.auth.user,
-      logout: s.logout,
-      fetchCurrentUser: s.fetchCurrentUser,
-      updateAiCloudEnabled: s.updateAiCloudEnabled,
+      logout: s.auth.logout,
+      fetchCurrentUser: s.auth.fetchCurrentUser,
+      updateAiCloudEnabled: s.auth.updateAiCloudEnabled,
       accounts: s.accounts.items,
-      fetchAccounts: s.fetchAccounts,
-      createAccount: s.createAccount,
-      updateAccount: s.updateAccount,
-      deleteAccount: s.deleteAccount,
+      fetchAccounts: s.accounts.fetchAccounts,
+      createAccount: s.accounts.createAccount,
+      updateAccount: s.accounts.updateAccount,
+      deleteAccount: s.accounts.deleteAccount,
       budgets: s.budgets.items,
-      fetchBudgets: s.fetchBudgets,
-      createBudget: s.createBudget,
-      updateBudget: s.updateBudget,
-      deleteBudget: s.deleteBudget,
+      fetchBudgets: s.budgets.fetchBudgets,
+      createBudget: s.budgets.createBudget,
+      updateBudget: s.budgets.updateBudget,
+      deleteBudget: s.budgets.deleteBudget,
     })),
   )
   const { dark, toggle } = useAppTheme()
   const navigate = useNavigate()
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [form, setForm] = useState<AccountForm>(defaultForm)
-  const [saving, setSaving] = useState(false)
 
-  const [budgetDialogOpen, setBudgetDialogOpen] = useState(false)
-  const [budgetId, setBudgetId] = useState<number | null>(null)
-  const [budgetName, setBudgetName] = useState('')
-  const [budgetAmount, setBudgetAmount] = useState('')
-  const [budgetPeriod, setBudgetPeriod] = useState('monthly')
-  const [budgetSaving, setBudgetSaving] = useState(false)
-  const [budgetDeleteId, setBudgetDeleteId] = useState<number | null>(null)
-  const [budgetDeleting, setBudgetDeleting] = useState(false)
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
-  const [deleteConfirmName, setDeleteConfirmName] = useState('')
+  const {
+    dialogOpen,
+    editingId,
+    form,
+    saving,
+    deleteId,
+    deleteName,
+    openAccountCreate,
+    openAccountEdit,
+    setAccountDialogOpen,
+    setAccountFormField,
+    setAccountSaving,
+    startAccountDelete,
+    cancelAccountDelete,
+  } = useBoundStore(useShallow((s) => s.accountForm))
+
+  const {
+    dialogOpen: budgetDialogOpen,
+    budgetId,
+    name: budgetName,
+    amount: budgetAmount,
+    period: budgetPeriod,
+    saving: budgetSaving,
+    deleteId: budgetDeleteId,
+    deleting: budgetDeleting,
+    openBudgetCreate,
+    openBudgetEdit,
+    setBudgetDialogOpen,
+    setBudgetName,
+    setBudgetAmount,
+    setBudgetPeriod,
+    setBudgetSaving,
+    startBudgetDelete,
+    cancelBudgetDelete,
+    setBudgetDeleting,
+  } = useBoundStore(useShallow((s) => s.budgetForm))
 
   const handleAiCloudToggle = async (enabled: boolean) => {
     try {
       await updateAiCloudEnabled(enabled)
-      toast.success(enabled ? 'Cloud AI enabled for your account' : 'Cloud AI disabled')
     } catch {
-      toast.error('Could not update AI settings')
+      // toast handled in store
     }
   }
 
@@ -134,64 +146,38 @@ export const Settings = (): JSX.Element => {
     navigate('/login')
   }
 
-  const openCreate = () => {
-    setEditingId(null)
-    setForm(defaultForm)
-    setDialogOpen(true)
-  }
+  const openCreate = openAccountCreate
 
-  const openEdit = (account: (typeof accounts)[0]) => {
-    setEditingId(account.id)
-    setForm({ name: account.name, type: account.type, currency: account.currency })
-    setDialogOpen(true)
-  }
+  const openEdit = (account: (typeof accounts)[0]) => openAccountEdit(account)
 
   const handleSave = async () => {
     if (!form.name.trim()) return
-    setSaving(true)
+    setAccountSaving(true)
     try {
       if (editingId) {
         await updateAccount(editingId, form)
-        toast.success('Account updated')
       } else {
         await createAccount(form)
-        toast.success('Account created')
       }
-      setDialogOpen(false)
+      setAccountDialogOpen(false)
     } catch {
-      toast.error('Failed to save account')
+      // toast handled in store
     } finally {
-      setSaving(false)
+      setAccountSaving(false)
     }
   }
 
-  const handleDelete = (id: number, name: string) => {
-    setDeleteConfirmId(id)
-    setDeleteConfirmName(name)
-  }
+  const handleDelete = (id: number, name: string) => startAccountDelete(id, name)
 
   const confirmDelete = async () => {
-    if (deleteConfirmId === null) return
-    deleteAccount(deleteConfirmId)
-    toast.success('Account deleted')
-    setDeleteConfirmId(null)
-    setDeleteConfirmName('')
-  }
-
-  const openBudgetCreate = () => {
-    setBudgetId(null)
-    setBudgetName('')
-    setBudgetAmount('')
-    setBudgetPeriod('monthly')
-    setBudgetDialogOpen(true)
-  }
-
-  const openBudgetEdit = (budget: (typeof budgets)[0]) => {
-    setBudgetId(budget.id)
-    setBudgetName(budget.name)
-    setBudgetAmount(String(budget.amount))
-    setBudgetPeriod(budget.period)
-    setBudgetDialogOpen(true)
+    if (deleteId === null) return
+    try {
+      await deleteAccount(deleteId)
+    } catch {
+      // toast handled in store
+    } finally {
+      cancelAccountDelete()
+    }
   }
 
   const handleBudgetSave = async () => {
@@ -204,18 +190,16 @@ export const Settings = (): JSX.Element => {
           amount: parseFloat(budgetAmount),
           period: budgetPeriod,
         })
-        toast.success('Budget updated')
       } else {
         await createBudget({
           name: budgetName.trim(),
           amount: parseFloat(budgetAmount),
           period: budgetPeriod,
         })
-        toast.success('Budget created')
       }
       setBudgetDialogOpen(false)
     } catch {
-      toast.error('Failed to save budget')
+      // toast handled in store
     } finally {
       setBudgetSaving(false)
     }
@@ -226,10 +210,9 @@ export const Settings = (): JSX.Element => {
     setBudgetDeleting(true)
     try {
       await deleteBudget(budgetDeleteId)
-      toast.success('Budget deleted')
-      setBudgetDeleteId(null)
+      cancelBudgetDelete()
     } catch {
-      toast.error('Failed to delete budget')
+      // toast handled in store
     } finally {
       setBudgetDeleting(false)
     }
@@ -370,7 +353,7 @@ export const Settings = (): JSX.Element => {
                       variant="ghost"
                       size="1"
                       color="red"
-                      onClick={() => setBudgetDeleteId(budget.id)}
+                      onClick={() => startBudgetDelete(budget.id)}
                       aria-label="Delete"
                     >
                       <Trash2 size={14} />
@@ -441,16 +424,16 @@ export const Settings = (): JSX.Element => {
         </Card>
       </Box>
 
-      <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog.Root open={dialogOpen} onOpenChange={setAccountDialogOpen}>
         <Dialog.Content aria-describedby={undefined}>
           <Dialog.Title>{editingId ? 'Edit Account' : 'Add Account'}</Dialog.Title>
           <Flex direction="column" gap="3" mt="3">
             <TextField.Root
               placeholder="Account name"
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onChange={(e) => setAccountFormField('name', e.target.value)}
             />
-            <Select.Root value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+            <Select.Root value={form.type} onValueChange={(v) => setAccountFormField('type', v)}>
               <Select.Trigger />
               <Select.Content>
                 {accountTypes.map((t) => (
@@ -463,10 +446,10 @@ export const Settings = (): JSX.Element => {
             <TextField.Root
               placeholder="Currency"
               value={form.currency}
-              onChange={(e) => setForm({ ...form, currency: e.target.value })}
+              onChange={(e) => setAccountFormField('currency', e.target.value)}
             />
             <Flex gap="2" justify="end">
-              <Button variant="soft" onClick={() => setDialogOpen(false)}>
+              <Button variant="soft" onClick={() => setAccountDialogOpen(false)}>
                 Cancel
               </Button>
               <Button onClick={handleSave} loading={saving}>
@@ -519,7 +502,7 @@ export const Settings = (): JSX.Element => {
       <Dialog.Root
         open={budgetDeleteId !== null}
         onOpenChange={(o) => {
-          if (!o) setBudgetDeleteId(null)
+          if (!o) cancelBudgetDelete()
         }}
       >
         <Dialog.Content aria-describedby={undefined} className={styles.maxWidth360}>
@@ -528,7 +511,7 @@ export const Settings = (): JSX.Element => {
             Are you sure you want to delete this budget? This action cannot be undone.
           </Text>
           <Flex gap="3" mt="4" justify="end">
-            <Button variant="soft" color="gray" onClick={() => setBudgetDeleteId(null)}>
+            <Button variant="soft" color="gray" onClick={() => cancelBudgetDelete()}>
               Cancel
             </Button>
             <Button color="red" onClick={handleBudgetDelete} disabled={budgetDeleting}>
@@ -540,28 +523,18 @@ export const Settings = (): JSX.Element => {
 
       {/* Account Delete Confirmation */}
       <Dialog.Root
-        open={deleteConfirmId !== null}
+        open={deleteId !== null}
         onOpenChange={(o) => {
-          if (!o) {
-            setDeleteConfirmId(null)
-            setDeleteConfirmName('')
-          }
+          if (!o) cancelAccountDelete()
         }}
       >
         <Dialog.Content aria-describedby={undefined} className={styles.maxWidth360}>
           <Dialog.Title>Delete Account</Dialog.Title>
           <Text size="2" mt="2">
-            Delete account &quot;{deleteConfirmName}&quot;? This cannot be undone.
+            Delete account &quot;{deleteName}&quot;? This cannot be undone.
           </Text>
           <Flex gap="3" mt="4" justify="end">
-            <Button
-              variant="soft"
-              color="gray"
-              onClick={() => {
-                setDeleteConfirmId(null)
-                setDeleteConfirmName('')
-              }}
-            >
+            <Button variant="soft" color="gray" onClick={() => cancelAccountDelete()}>
               Cancel
             </Button>
             <Button color="red" onClick={confirmDelete}>

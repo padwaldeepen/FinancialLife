@@ -21,6 +21,7 @@
 
 .content > * {
   width: 100%;
+  max-width: 1200px;
   animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
 }
 

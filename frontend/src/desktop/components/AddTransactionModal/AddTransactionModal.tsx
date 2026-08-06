@@ -19,7 +19,6 @@ import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency, getCurrencySymbol } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import api from '../../../shared/api/client.ts'
-import { extractTextFromImage, cleanOcrText } from '../../../shared/utils/ocr.ts'
 import { useDocumentUpload } from '../../../shared/hooks/useDocumentUpload.ts'
 import { getErrorDetail } from '../../../store/namespaceSlice.ts'
 import styles from './AddTransactionModal.module.css'
@@ -129,42 +128,25 @@ export const AddTransactionModal = (): JSX.Element => {
     }
   }
 
+  // Same upload pipeline as Activity's "Upload Receipt" — every file (image, PDF,
+  // receipt, or statement) lands in the pending-documents queue for review there,
+  // rather than a separate client-side OCR-to-form path unique to quick-add.
   const scanFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      if (file.type !== 'application/pdf') {
-        toast.error('Drop an image or PDF — try a receipt, bill, or statement')
-        return
-      }
-      setScanning(true)
-      try {
-        const docId = await uploadDocument(file, 'receipt')
-        if (docId) {
-          fetchPendingDocuments({ force: true })
-          toast.success('Document uploaded! Review it in Activity.')
-          resetQuickAdd()
-          closeAddModal()
-        } else {
-          toast.error('Failed to upload document')
-        }
-      } finally {
-        setScanning(false)
-        if (fileInputRef.current) fileInputRef.current.value = ''
-      }
+    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+      toast.error('Drop an image or PDF — try a receipt, bill, or statement')
       return
     }
     setScanning(true)
     try {
-      const raw = await extractTextFromImage(file)
-      const cleaned = cleanOcrText(raw)
-      if (cleaned) {
-        setInput(cleaned)
-        setParsed(null)
-        toast.success('Receipt scanned! Review and parse the text.')
+      const docId = await uploadDocument(file, 'receipt')
+      if (docId) {
+        fetchPendingDocuments({ force: true })
+        toast.success('Document uploaded! Review it in Activity.')
+        resetQuickAdd()
+        closeAddModal()
       } else {
-        toast.error('Could not read any text from the image')
+        toast.error('Failed to upload document')
       }
-    } catch {
-      toast.error('Failed to scan receipt')
     } finally {
       setScanning(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -235,17 +217,6 @@ export const AddTransactionModal = (): JSX.Element => {
               <TextField.Slot side="left">
                 <Sparkles size={16} />
               </TextField.Slot>
-              <TextField.Slot side="right">
-                <IconButton
-                  variant="ghost"
-                  size="2"
-                  onClick={() => fileInputRef.current?.click()}
-                  loading={scanning}
-                  aria-label="Upload receipt"
-                >
-                  <Upload size={16} />
-                </IconButton>
-              </TextField.Slot>
             </TextField.Root>
             <input
               ref={fileInputRef}
@@ -261,6 +232,15 @@ export const AddTransactionModal = (): JSX.Element => {
           </Flex>
 
           <Flex gap="3" justify="end">
+            <Button
+              variant="soft"
+              color="gray"
+              onClick={() => fileInputRef.current?.click()}
+              loading={scanning}
+              size="3"
+            >
+              <Upload size={16} /> {scanning ? 'Uploading…' : 'Upload receipt'}
+            </Button>
             <Button onClick={handleParse} loading={loading} size="3">
               {parsed ? 'Re-parse' : 'Parse'}
             </Button>

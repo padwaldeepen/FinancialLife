@@ -25,8 +25,8 @@ export const useProfileSwitch = (): UseProfileSwitchResult => {
     useShallow((s) => ({
       profiles: s.auth.profiles,
       activeProfileId: s.auth.activeProfileId,
-      setActiveProfile: s.setActiveProfile,
-      addProfile: s.addProfile,
+      setActiveProfile: s.auth.setActiveProfile,
+      addProfile: s.auth.addProfile,
     })),
   )
 

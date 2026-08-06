@@ -9,7 +9,7 @@ export const useAuthBootstrap = (): void => {
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true
-      useBoundStore.getState().verifyToken()
+      useBoundStore.getState().auth.verifyToken()
     }
   }, [])
 }

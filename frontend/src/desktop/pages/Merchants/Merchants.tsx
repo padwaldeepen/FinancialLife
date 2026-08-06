@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type JSX } from 'react'
+import { useEffect, useMemo, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -12,16 +12,18 @@ import {
   Tabs,
   Button,
   Select,
+  Skeleton,
 } from '@radix-ui/themes'
 import { Store, Search, X, Merge, BarChart3, Pencil, Trash2 } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
 import { ResponsivePie } from '@nivo/pie'
-import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
+import type { MerchantSortBy } from '../../../store/slices/merchantsSlice.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Merchants.module.css'
+import shared from '../../styles/shared.module.css'
 import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 
 export const Merchants = (): JSX.Element => {
@@ -44,24 +46,38 @@ export const Merchants = (): JSX.Element => {
       loading: s.merchants.loading,
       detail: s.merchants.detail,
       similarPairs: s.merchants.similarPairs,
-      fetchMerchants: s.fetchMerchants,
-      fetchMerchantDetail: s.fetchMerchantDetail,
-      toggleHidden: s.toggleHidden,
-      updateMerchant: s.updateMerchant,
-      deleteMerchant: s.deleteMerchant,
-      fetchSimilar: s.fetchSimilar,
-      doMerge: s.doMerge,
+      fetchMerchants: s.merchants.fetchMerchants,
+      fetchMerchantDetail: s.merchants.fetchMerchantDetail,
+      toggleHidden: s.merchants.toggleHidden,
+      updateMerchant: s.merchants.updateMerchant,
+      deleteMerchant: s.merchants.deleteMerchant,
+      fetchSimilar: s.merchants.fetchSimilar,
+      doMerge: s.merchants.doMerge,
     })),
   )
-  const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<number | null>(null)
-  const [sortBy, setSortBy] = useState<'spent' | 'count' | 'name'>('spent')
-  const [mergeDialogOpen, setMergeDialogOpen] = useState(false)
-  const [renameOpen, setRenameOpen] = useState(false)
-  const [renameName, setRenameName] = useState('')
-  const [renaming, setRenaming] = useState(false)
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
-  const [deleting, setDeleting] = useState(false)
+  const {
+    search,
+    selected,
+    sortBy,
+    mergeDialogOpen,
+    renameOpen,
+    renameName,
+    renaming,
+    deleteConfirmId,
+    deleting,
+    setMerchantSearch,
+    openMerchantDetail,
+    closeMerchantDetail,
+    setMerchantSortBy,
+    setMerchantMergeDialogOpen,
+    openMerchantRename,
+    setMerchantRenameOpen,
+    setMerchantRenameName,
+    setMerchantRenaming,
+    startMerchantDelete,
+    cancelMerchantDelete,
+    setMerchantDeleting,
+  } = useBoundStore(useShallow((s) => s.merchantsPage))
 
   useEffect(() => {
     fetchMerchants()
@@ -73,72 +89,63 @@ export const Merchants = (): JSX.Element => {
     }
   }, [selected, fetchMerchantDetail])
 
-  const openDetail = (id: number) => {
-    setSelected(id)
-  }
+  const openDetail = openMerchantDetail
 
   const handleToggleHidden = async (id: number, current: boolean) => {
     try {
       await toggleHidden(id, current)
-      toast.success(current ? 'Merchant unhidden' : 'Merchant hidden')
     } catch {
-      toast.error('Failed to update merchant')
+      // toast handled in store
     }
   }
 
   const openRename = () => {
-    if (detail) {
-      setRenameName(detail.name)
-      setRenameOpen(true)
-    }
+    if (detail) openMerchantRename(detail.name)
   }
 
   const handleRename = async () => {
     if (!detail || !renameName.trim()) return
-    setRenaming(true)
+    setMerchantRenaming(true)
     try {
       await updateMerchant(detail.id, { name: renameName.trim() })
-      toast.success('Merchant renamed')
-      setRenameOpen(false)
+      setMerchantRenameOpen(false)
       fetchMerchantDetail(detail.id)
     } catch {
-      toast.error('Failed to rename merchant')
+      // toast handled in store
     } finally {
-      setRenaming(false)
+      setMerchantRenaming(false)
     }
   }
 
   const handleDelete = async () => {
     if (deleteConfirmId === null) return
-    setDeleting(true)
+    setMerchantDeleting(true)
     try {
       await deleteMerchant(deleteConfirmId)
-      toast.success('Merchant deleted')
-      setDeleteConfirmId(null)
-      setSelected(null)
+      cancelMerchantDelete()
+      closeMerchantDetail()
     } catch {
-      toast.error('Failed to delete merchant')
+      // toast handled in store
     } finally {
-      setDeleting(false)
+      setMerchantDeleting(false)
     }
   }
 
   const handleFetchSimilar = async () => {
     try {
       await fetchSimilar()
-      setMergeDialogOpen(true)
+      setMerchantMergeDialogOpen(true)
     } catch {
-      toast.error('Failed to find similar merchants')
+      // toast handled in store
     }
   }
 
   const handleMerge = async (targetId: number, sourceId: number) => {
     try {
       await doMerge(targetId, sourceId)
-      toast.success('Merchants merged')
-      setMergeDialogOpen(false)
+      setMerchantMergeDialogOpen(false)
     } catch {
-      toast.error('Failed to merge merchants')
+      // toast handled in store
     }
   }
 
@@ -157,22 +164,13 @@ export const Merchants = (): JSX.Element => {
   if (loading) {
     return (
       <Flex direction="column" gap="3" p="4">
-        <div
-          className="skeleton"
-          style={{ height: 16, width: '100%', borderRadius: 'var(--radius-2)' }}
-        />
-        <div
-          className="skeleton"
-          style={{ height: 16, width: '70%', borderRadius: 'var(--radius-2)' }}
-        />
-        <div
-          className="skeleton"
-          style={{ height: 16, width: '85%', borderRadius: 'var(--radius-2)' }}
-        />
-        <div
-          className="skeleton"
-          style={{ height: 16, width: '50%', borderRadius: 'var(--radius-2)' }}
-        />
+        {['100%', '70%', '85%', '50%'].map((w) => (
+          <Skeleton key={w}>
+            <Text as="div" size="2" style={{ width: w }}>
+              Placeholder merchant name
+            </Text>
+          </Skeleton>
+        ))}
       </Flex>
     )
   }
@@ -191,7 +189,7 @@ export const Merchants = (): JSX.Element => {
         <TextField.Root
           placeholder="Search merchants..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => setMerchantSearch(e.target.value)}
           className={styles.search}
         >
           <TextField.Slot side="left">
@@ -199,13 +197,13 @@ export const Merchants = (): JSX.Element => {
           </TextField.Slot>
           {search && (
             <TextField.Slot side="right">
-              <IconButton size="1" variant="ghost" onClick={() => setSearch('')}>
+              <IconButton size="1" variant="ghost" onClick={() => setMerchantSearch('')}>
                 <X size={14} />
               </IconButton>
             </TextField.Slot>
           )}
         </TextField.Root>
-        <Select.Root value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+        <Select.Root value={sortBy} onValueChange={(v) => setMerchantSortBy(v as MerchantSortBy)}>
           <Select.Trigger />
           <Select.Content>
             <Select.Item value="spent">Sort by Spent</Select.Item>
@@ -244,7 +242,7 @@ export const Merchants = (): JSX.Element => {
         ))}
 
         {sorted.length === 0 && (
-          <Flex className={styles.emptyState} direction="column">
+          <Flex className={shared.emptyState} direction="column">
             <Store size={32} />
             <Text color="gray">No merchants found</Text>
           </Flex>
@@ -253,7 +251,7 @@ export const Merchants = (): JSX.Element => {
 
       <Dialog.Root
         open={!!selected && !!detail}
-        onOpenChange={(open) => !open && setSelected(null)}
+        onOpenChange={(open) => !open && closeMerchantDetail()}
       >
         <Dialog.Content className={styles.dialogContent}>
           {selected && detail && (
@@ -428,7 +426,7 @@ export const Merchants = (): JSX.Element => {
                 <Button variant="soft" onClick={openRename}>
                   <Pencil size={14} /> Rename
                 </Button>
-                <Button variant="soft" color="red" onClick={() => setDeleteConfirmId(detail.id)}>
+                <Button variant="soft" color="red" onClick={() => startMerchantDelete(detail.id)}>
                   <Trash2 size={14} /> Delete
                 </Button>
                 <Button
@@ -445,7 +443,7 @@ export const Merchants = (): JSX.Element => {
       </Dialog.Root>
 
       {/* Rename Dialog */}
-      <Dialog.Root open={renameOpen} onOpenChange={setRenameOpen}>
+      <Dialog.Root open={renameOpen} onOpenChange={setMerchantRenameOpen}>
         <Dialog.Content className={styles.renameDialog}>
           <Dialog.Title>Rename Merchant</Dialog.Title>
           <Flex direction="column" gap="3" mt="3">
@@ -455,7 +453,7 @@ export const Merchants = (): JSX.Element => {
             <TextField.Root
               placeholder="Merchant name"
               value={renameName}
-              onChange={(e) => setRenameName(e.target.value)}
+              onChange={(e) => setMerchantRenameName(e.target.value)}
             />
           </Flex>
           <Flex gap="3" mt="4" justify="end">
@@ -475,7 +473,7 @@ export const Merchants = (): JSX.Element => {
       <Dialog.Root
         open={deleteConfirmId !== null}
         onOpenChange={(o) => {
-          if (!o) setDeleteConfirmId(null)
+          if (!o) cancelMerchantDelete()
         }}
       >
         <Dialog.Content className={styles.renameDialog}>
@@ -485,7 +483,7 @@ export const Merchants = (): JSX.Element => {
             Transactions linked to this merchant will be unaffected.
           </Text>
           <Flex gap="3" mt="4" justify="end">
-            <Button variant="soft" color="gray" onClick={() => setDeleteConfirmId(null)}>
+            <Button variant="soft" color="gray" onClick={() => cancelMerchantDelete()}>
               Cancel
             </Button>
             <Button color="red" onClick={handleDelete} disabled={deleting}>
@@ -495,7 +493,7 @@ export const Merchants = (): JSX.Element => {
         </Dialog.Content>
       </Dialog.Root>
 
-      <Dialog.Root open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
+      <Dialog.Root open={mergeDialogOpen} onOpenChange={setMerchantMergeDialogOpen}>
         <Dialog.Content className={styles.mergeDialog}>
           <Dialog.Title>Merge Duplicate Merchants</Dialog.Title>
           {similarPairs.length === 0 ? (

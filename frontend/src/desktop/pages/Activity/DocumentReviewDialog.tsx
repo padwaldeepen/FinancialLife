@@ -1,65 +1,108 @@
-import { useEffect, useState, type JSX } from 'react'
-import { Box, Flex, Text, TextField, Select, Dialog, Button, Card, Badge } from '@radix-ui/themes'
+import { useEffect, type JSX } from 'react'
+import {
+  Box,
+  Flex,
+  Text,
+  TextField,
+  Select,
+  Dialog,
+  Button,
+  Card,
+  Badge,
+  Skeleton,
+} from '@radix-ui/themes'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import api from '../../../shared/api/client.ts'
 import toast from '../../../shared/utils/toast.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
-import type { PendingDocument, FuzzyMatch } from '../../../store/slices/documentsSlice.ts'
+import type { PendingDocument } from '../../../store/slices/documentsSlice.ts'
 import styles from './Activity.module.css'
 
 interface Props {
   document: PendingDocument
   onClose: () => void
+  // W6: auto-detect occasionally guesses wrong — lets the caller (PendingReceipts)
+  // swap which review dialog is mounted once this document's kind is corrected.
+  onReclassified: (doc: PendingDocument) => void
 }
-
-const todayIso = () => new Date().toISOString().slice(0, 10)
 
 // S3: the one place a scanned document turns into an actual transaction — every
 // field starts pre-filled from S2's extraction but is fully editable, and nothing is
 // saved until the user explicitly confirms (design-system.md "nothing auto-commits").
-export const DocumentReviewDialog = ({ document: doc, onClose }: Props): JSX.Element => {
+export const DocumentReviewDialog = ({
+  document: doc,
+  onClose,
+  onReclassified,
+}: Props): JSX.Element => {
   const currency = useActiveCurrency()
   const ex = doc.extracted_json
-  const { accounts, categories, reviewDocument, rejectDocument, fetchTransactions, fetchAccounts } =
-    useBoundStore(
-      useShallow((s) => ({
-        accounts: s.accounts.items,
-        categories: s.categories.flat,
-        reviewDocument: s.reviewDocument,
-        rejectDocument: s.rejectDocument,
-        fetchTransactions: s.fetchTransactions,
-        fetchAccounts: s.fetchAccounts,
-      })),
-    )
-
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [isPdf, setIsPdf] = useState(false)
-  const [amount, setAmount] = useState(ex?.total != null ? String(ex.total) : '')
-  const [description, setDescription] = useState(ex?.merchant || '')
-  const [transactionType, setTransactionType] = useState<'expense' | 'income'>('expense')
-  const [accountId, setAccountId] = useState<string>(accounts[0] ? String(accounts[0].id) : '')
-  const [categoryId, setCategoryId] = useState<string>(
-    ex?.category_id ? String(ex.category_id) : '',
+  const {
+    accounts,
+    categories,
+    reviewDocument,
+    rejectDocument,
+    reclassifyDocument,
+    fetchTransactions,
+    fetchAccounts,
+    fetchReports,
+  } = useBoundStore(
+    useShallow((s) => ({
+      accounts: s.accounts.items,
+      categories: s.categories.flat,
+      reviewDocument: s.documents.reviewDocument,
+      rejectDocument: s.documents.rejectDocument,
+      reclassifyDocument: s.documents.reclassifyDocument,
+      fetchTransactions: s.transactions.fetchTransactions,
+      fetchAccounts: s.accounts.fetchAccounts,
+      fetchReports: s.reports.fetchReports,
+    })),
   )
-  const [date, setDate] = useState(ex?.date || todayIso())
-  const [saving, setSaving] = useState(false)
-  const [fuzzyMatches, setFuzzyMatches] = useState<FuzzyMatch[] | null>(null)
+
+  const {
+    imageUrl,
+    isPdf,
+    amount,
+    description,
+    transactionType,
+    accountId,
+    categoryId,
+    date,
+    saving,
+    fuzzyMatches,
+    initDocumentReviewForm,
+    setDocumentReviewImageUrl,
+    setDocumentReviewIsPdf,
+    setDocumentReviewAmount,
+    setDocumentReviewDescription,
+    setDocumentReviewTransactionType,
+    setDocumentReviewAccountId,
+    setDocumentReviewCategoryId,
+    setDocumentReviewDate,
+    setDocumentReviewSaving,
+    setDocumentReviewFuzzyMatches,
+  } = useBoundStore(useShallow((s) => s.documentReviewForm))
+
+  useEffect(() => {
+    initDocumentReviewForm(ex, accounts[0] ? String(accounts[0].id) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.id])
 
   useEffect(() => {
     let objectUrl: string | null = null
     api
       .get(`/api/documents/${doc.id}`, { responseType: 'blob' })
       .then((res) => {
-        setIsPdf(res.data.type === 'application/pdf')
+        setDocumentReviewIsPdf(res.data.type === 'application/pdf')
         objectUrl = URL.createObjectURL(res.data)
-        setImageUrl(objectUrl)
+        setDocumentReviewImageUrl(objectUrl)
       })
       .catch(() => toast.error('Could not load the document image'))
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.id])
 
   const buildPayload = (skipDedup: boolean) => ({
@@ -78,24 +121,23 @@ export const DocumentReviewDialog = ({ document: doc, onClose }: Props): JSX.Ele
       toast.error('Amount, description, and account are required')
       return
     }
-    setSaving(true)
+    setDocumentReviewSaving(true)
     try {
       const result = await reviewDocument(doc.id, buildPayload(skipDedup))
       if (result.status === 'created') {
-        toast.success('Transaction created')
         fetchTransactions({ reset: true, force: true })
         fetchAccounts({ force: true })
+        fetchReports()
         onClose()
       } else if (result.status === 'exact_duplicate') {
-        toast.success('Already imported — nothing new to add')
         onClose()
       } else {
-        setFuzzyMatches(result.fuzzy_matches)
+        setDocumentReviewFuzzyMatches(result.fuzzy_matches)
       }
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to save transaction')
+    } catch {
+      // toast handled in store
     } finally {
-      setSaving(false)
+      setDocumentReviewSaving(false)
     }
   }
 
@@ -103,20 +145,37 @@ export const DocumentReviewDialog = ({ document: doc, onClose }: Props): JSX.Ele
   // import review queue (useCsvImport.resolveReviewRow): no per-field merge target
   // exists in this schema, so either choice means "the existing transaction stands."
   const handleDiscard = async () => {
-    await rejectDocument(doc.id)
-    toast.success('Receipt discarded')
-    onClose()
+    try {
+      await rejectDocument(doc.id)
+      onClose()
+    } catch {
+      // toast handled in store
+    }
+  }
+
+  const handleSwitchToStatement = async () => {
+    try {
+      const updated = await reclassifyDocument(doc.id, 'statement')
+      onReclassified(updated)
+    } catch {
+      // toast handled in store
+    }
   }
 
   return (
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
       <Dialog.Content maxWidth="720px">
         <Dialog.Title>Review Receipt</Dialog.Title>
+        <Dialog.Description size="2" color="gray">
+          Confirm the extracted details before saving this as a transaction
+        </Dialog.Description>
 
         <Flex gap="4" mt="3">
           <Box className={styles.flex1}>
             {!imageUrl ? (
-              <Box className="skeleton" style={{ height: 300, borderRadius: 'var(--radius-3)' }} />
+              <Skeleton>
+                <Box style={{ height: 300 }} />
+              </Skeleton>
             ) : isPdf ? (
               // Browsers can't render a PDF in an <img> — embed it instead.
               <object
@@ -158,7 +217,7 @@ export const DocumentReviewDialog = ({ document: doc, onClose }: Props): JSX.Ele
               </Text>
               <TextField.Root
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => setDocumentReviewDescription(e.target.value)}
               />
             </Flex>
 
@@ -170,7 +229,7 @@ export const DocumentReviewDialog = ({ document: doc, onClose }: Props): JSX.Ele
                 type="number"
                 step="0.01"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => setDocumentReviewAmount(e.target.value)}
               />
             </Flex>
 
@@ -180,7 +239,7 @@ export const DocumentReviewDialog = ({ document: doc, onClose }: Props): JSX.Ele
               </Text>
               <Select.Root
                 value={transactionType}
-                onValueChange={(v) => setTransactionType(v as 'expense' | 'income')}
+                onValueChange={(v) => setDocumentReviewTransactionType(v as 'expense' | 'income')}
               >
                 <Select.Trigger />
                 <Select.Content>
@@ -194,7 +253,7 @@ export const DocumentReviewDialog = ({ document: doc, onClose }: Props): JSX.Ele
               <Text as="div" className={styles.detailLabel}>
                 Account
               </Text>
-              <Select.Root value={accountId} onValueChange={setAccountId}>
+              <Select.Root value={accountId} onValueChange={setDocumentReviewAccountId}>
                 <Select.Trigger placeholder="Choose an account" />
                 <Select.Content>
                   {accounts.map((a) => (
@@ -210,7 +269,7 @@ export const DocumentReviewDialog = ({ document: doc, onClose }: Props): JSX.Ele
               <Text as="div" className={styles.detailLabel}>
                 Category
               </Text>
-              <Select.Root value={categoryId} onValueChange={setCategoryId}>
+              <Select.Root value={categoryId} onValueChange={setDocumentReviewCategoryId}>
                 <Select.Trigger placeholder="None" />
                 <Select.Content>
                   <Select.Item value="">None</Select.Item>
@@ -227,7 +286,11 @@ export const DocumentReviewDialog = ({ document: doc, onClose }: Props): JSX.Ele
               <Text as="div" className={styles.detailLabel}>
                 Date
               </Text>
-              <TextField.Root type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <TextField.Root
+                type="date"
+                value={date}
+                onChange={(e) => setDocumentReviewDate(e.target.value)}
+              />
             </Flex>
           </Flex>
         </Flex>
@@ -258,13 +321,18 @@ export const DocumentReviewDialog = ({ document: doc, onClose }: Props): JSX.Ele
           </Card>
         )}
 
-        <Flex justify="end" gap="2" mt="4">
-          <Button variant="soft" color="gray" onClick={handleDiscard}>
-            Discard
+        <Flex justify="between" align="center" gap="2" mt="4">
+          <Button variant="ghost" size="1" color="gray" onClick={handleSwitchToStatement}>
+            Looks like a statement, not a receipt? Switch
           </Button>
-          <Button onClick={() => handleSave(false)} disabled={saving}>
-            Save Transaction
-          </Button>
+          <Flex gap="2">
+            <Button variant="soft" color="gray" onClick={handleDiscard}>
+              Discard
+            </Button>
+            <Button onClick={() => handleSave(false)} disabled={saving}>
+              Save Transaction
+            </Button>
+          </Flex>
         </Flex>
       </Dialog.Content>
     </Dialog.Root>

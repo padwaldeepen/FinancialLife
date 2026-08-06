@@ -16,12 +16,12 @@ export const CaptureSheet = (): JSX.Element => {
   const { captureSheetOpen, closeCaptureSheet, openAddModal, openScanReview } = useBoundStore(
     useShallow((s) => ({
       captureSheetOpen: s.ui.captureSheetOpen,
-      closeCaptureSheet: s.closeCaptureSheet,
-      openAddModal: s.openAddModal,
-      openScanReview: s.openScanReview,
+      closeCaptureSheet: s.ui.closeCaptureSheet,
+      openAddModal: s.ui.openAddModal,
+      openScanReview: s.ui.openScanReview,
     })),
   )
-  const fetchPendingDocuments = useBoundStore((s) => s.fetchPendingDocuments)
+  const fetchPendingDocuments = useBoundStore((s) => s.documents.fetchPendingDocuments)
   const { uploading, upload } = useDocumentUpload()
 
   const handleType = () => {

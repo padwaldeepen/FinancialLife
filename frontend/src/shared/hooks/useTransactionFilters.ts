@@ -29,8 +29,8 @@ export const useTransactionFilters = () => {
     useShallow((s) => ({
       categories: s.categories.flat,
       merchants: s.merchants.items,
-      fetchCategories: s.fetchCategories,
-      fetchMerchants: s.fetchMerchants,
+      fetchCategories: s.categories.fetchCategories,
+      fetchMerchants: s.merchants.fetchMerchants,
     })),
   )
 

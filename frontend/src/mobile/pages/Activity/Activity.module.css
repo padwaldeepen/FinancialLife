@@ -4,17 +4,6 @@
   animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
 }
 
-.pageHeader {
-  margin-bottom: var(--space-4);
-}
-
-.pageTitle {
-  font-size: var(--font-size-5);
-  font-weight: 700;
-  color: var(--gray-12);
-  letter-spacing: -0.01em;
-}
-
 .searchInput {
   width: 100%;
   margin-bottom: var(--space-3);
@@ -64,8 +53,6 @@
 }
 
 .pendingCard {
-  border-radius: var(--radius-card) !important;
-  border: 1px solid var(--accent-6);
   background: var(--accent-2);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -137,10 +124,6 @@
 
 .importFieldSelect {
   flex: 1;
-}
-
-.previewRow {
-  border-bottom: 1px solid var(--gray-4);
 }
 
 @keyframes fadeIn {

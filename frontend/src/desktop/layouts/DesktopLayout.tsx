@@ -5,11 +5,10 @@ import { useBoundStore } from '../../store/useBoundStore.ts'
 import { AddTransactionModal } from '../components/AddTransactionModal/AddTransactionModal.tsx'
 import { ChatBot } from '../components/ChatBot/ChatBot.tsx'
 import { Sidebar } from '../components/Sidebar/Sidebar.tsx'
-import { TopBar } from '../components/TopBar/TopBar.tsx'
 import styles from './DesktopLayout.module.css'
 
 export const DesktopLayout = (): JSX.Element => {
-  const openAddModal = useBoundStore((s) => s.openAddModal)
+  const openAddModal = useBoundStore((s) => s.ui.openAddModal)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -26,7 +25,6 @@ export const DesktopLayout = (): JSX.Element => {
     <Box className={styles.layout}>
       <Sidebar />
       <Box className={styles.main}>
-        <TopBar />
         <main className={styles.content}>
           <Outlet />
         </main>

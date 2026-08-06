@@ -1,14 +1,5 @@
-
-
 .tabContent {
   padding-top: var(--space-5);
-}
-
-.sectionHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-3);
 }
 
 .sectionTitle {
@@ -21,8 +12,6 @@
 
 .card {
   padding: var(--space-4);
-  border-radius: var(--radius-card) !important;
-  border: 1px solid var(--gray-4);
 }
 
 .row {

@@ -39,8 +39,8 @@ export interface RecurringPageActions {
 }
 
 export type RecurringPageSlice = {
-  recurringPage: RecurringPageState
-} & RecurringPageActions
+  recurringPage: RecurringPageState & RecurringPageActions
+}
 
 const initialState: RecurringPageState = {
   budgetDialogOpen: false,

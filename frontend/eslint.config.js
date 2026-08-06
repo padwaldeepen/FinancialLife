@@ -78,6 +78,17 @@ export default [
     },
   },
   {
+    // e2e specs run under Node (via Playwright's test runner), not the browser —
+    // needs Node globals (Buffer, process, ...) on top of the browser ones `page`-level
+    // code in the same file also uses.
+    files: ['e2e/**/*.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
     files: ['src/shared/**/*.tsx', 'src/desktop/**/*.tsx', 'src/mobile/**/*.tsx'],
     rules: {
       'no-restricted-exports': [

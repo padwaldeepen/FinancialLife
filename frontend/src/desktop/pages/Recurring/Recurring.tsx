@@ -12,9 +12,9 @@ import {
   Progress,
   TextField,
   Select,
+  Skeleton,
 } from '@radix-ui/themes'
 import { Plus, Trash2, Pencil } from 'lucide-react'
-import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
@@ -31,6 +31,7 @@ import { BillFormDialog } from './BillFormDialog.tsx'
 import { BillDetail } from './BillDetail/BillDetail.tsx'
 import { DetectedSubscriptions } from './DetectedSubscriptions.tsx'
 import styles from './Recurring.module.css'
+import shared from '../../styles/shared.module.css'
 import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 
 const budgetPeriodLabel: Record<string, string> = {
@@ -55,25 +56,25 @@ export const Recurring = (): JSX.Element => {
       bills: s.bills.items,
       upcoming: s.bills.upcoming,
       loading: s.bills.loading,
-      fetchBills: s.fetchBills,
-      fetchUpcomingBills: s.fetchUpcomingBills,
-      createBill: s.createBill,
-      updateBill: s.updateBill,
-      deleteBill: s.deleteBill,
+      fetchBills: s.bills.fetchBills,
+      fetchUpcomingBills: s.bills.fetchUpcomingBills,
+      createBill: s.bills.createBill,
+      updateBill: s.bills.updateBill,
+      deleteBill: s.bills.deleteBill,
     })),
   )
   const { accounts, fetchAccounts } = useBoundStore(
-    useShallow((s) => ({ accounts: s.accounts.items, fetchAccounts: s.fetchAccounts })),
+    useShallow((s) => ({ accounts: s.accounts.items, fetchAccounts: s.accounts.fetchAccounts })),
   )
   const { budgets, budgetsLoading, fetchBudgets, createBudget, updateBudget, deleteBudget } =
     useBoundStore(
       useShallow((s) => ({
         budgets: s.budgets.items,
         budgetsLoading: s.budgets.loading,
-        fetchBudgets: s.fetchBudgets,
-        createBudget: s.createBudget,
-        updateBudget: s.updateBudget,
-        deleteBudget: s.deleteBudget,
+        fetchBudgets: s.budgets.fetchBudgets,
+        createBudget: s.budgets.createBudget,
+        updateBudget: s.budgets.updateBudget,
+        deleteBudget: s.budgets.deleteBudget,
       })),
     )
   const {
@@ -116,19 +117,19 @@ export const Recurring = (): JSX.Element => {
       editingBill: s.recurringPage.editingBill,
       selectedBill: s.recurringPage.selectedBill,
       saving: s.recurringPage.saving,
-      setBudgetDialogOpen: s.setBudgetDialogOpen,
-      setEditingBudget: s.setEditingBudget,
-      setBudgetName: s.setBudgetName,
-      setBudgetAmount: s.setBudgetAmount,
-      setBudgetPeriod: s.setBudgetPeriod,
-      setBudgetSaving: s.setBudgetSaving,
-      setBudgetDeleteId: s.setBudgetDeleteId,
-      setBudgetDeleting: s.setBudgetDeleting,
-      setFormOpen: s.setFormOpen,
-      setEditingBill: s.setEditingBill,
-      setSelectedBill: s.setSelectedBill,
-      setSaving: s.setSaving,
-      resetRecurringPage: s.resetRecurringPage,
+      setBudgetDialogOpen: s.recurringPage.setBudgetDialogOpen,
+      setEditingBudget: s.recurringPage.setEditingBudget,
+      setBudgetName: s.recurringPage.setBudgetName,
+      setBudgetAmount: s.recurringPage.setBudgetAmount,
+      setBudgetPeriod: s.recurringPage.setBudgetPeriod,
+      setBudgetSaving: s.recurringPage.setBudgetSaving,
+      setBudgetDeleteId: s.recurringPage.setBudgetDeleteId,
+      setBudgetDeleting: s.recurringPage.setBudgetDeleting,
+      setFormOpen: s.recurringPage.setFormOpen,
+      setEditingBill: s.recurringPage.setEditingBill,
+      setSelectedBill: s.recurringPage.setSelectedBill,
+      setSaving: s.recurringPage.setSaving,
+      resetRecurringPage: s.recurringPage.resetRecurringPage,
     })),
   )
 
@@ -169,18 +170,16 @@ export const Recurring = (): JSX.Element => {
           amount: parseFloat(budgetAmount),
           period: budgetPeriod,
         })
-        toast.success('Budget updated')
       } else {
         await createBudget({
           name: budgetName.trim(),
           amount: parseFloat(budgetAmount),
           period: budgetPeriod,
         })
-        toast.success('Budget created')
       }
       setBudgetDialogOpen(false)
     } catch {
-      toast.error('Failed to save budget')
+      // toast handled in store
     } finally {
       setBudgetSaving(false)
     }
@@ -191,10 +190,9 @@ export const Recurring = (): JSX.Element => {
     setBudgetDeleting(true)
     try {
       await deleteBudget(budgetDeleteId)
-      toast.success('Budget deleted')
       setBudgetDeleteId(null)
     } catch {
-      toast.error('Failed to delete budget')
+      // toast handled in store
     } finally {
       setBudgetDeleting(false)
     }
@@ -225,19 +223,13 @@ export const Recurring = (): JSX.Element => {
     try {
       if (editingBill) {
         await updateBill(editingBill.id, values)
-        toast.success('Bill updated')
       } else {
         await createBill(values)
-        toast.success('Bill created')
       }
       await fetchUpcomingBills(30, { force: true })
       setFormOpen(false)
-    } catch (error: unknown) {
-      const detail =
-        error && typeof error === 'object' && 'response' in error
-          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined
-      toast.error(detail || 'Failed to save bill')
+    } catch {
+      // toast handled in store
     } finally {
       setSaving(false)
     }
@@ -247,9 +239,8 @@ export const Recurring = (): JSX.Element => {
     try {
       await deleteBill(id)
       await fetchUpcomingBills(30, { force: true })
-      toast.success('Bill deleted')
     } catch {
-      toast.error('Failed to delete bill')
+      // toast handled in store
     }
   }
 
@@ -265,18 +256,13 @@ export const Recurring = (): JSX.Element => {
 
       {loading ? (
         <Flex direction="column" gap="3" p="4">
-          <Box
-            className="skeleton"
-            style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
-          />
-          <Box
-            className="skeleton"
-            style={{ height: 20, width: '80%', borderRadius: 'var(--radius-2)' }}
-          />
-          <Box
-            className="skeleton"
-            style={{ height: 20, width: '60%', borderRadius: 'var(--radius-2)' }}
-          />
+          {['100%', '80%', '60%'].map((w) => (
+            <Skeleton key={w}>
+              <Text as="div" size="3" style={{ width: w }}>
+                Placeholder bill name
+              </Text>
+            </Skeleton>
+          ))}
         </Flex>
       ) : (
         <>
@@ -324,11 +310,11 @@ export const Recurring = (): JSX.Element => {
           </Flex>
 
           {bills.length === 0 ? (
-            <Flex className={styles.emptyState} direction="column">
-              <Text as="div" className={styles.emptyTitle}>
+            <Flex className={shared.emptyState} direction="column">
+              <Text as="div" className={shared.emptyTitle}>
                 No bills yet
               </Text>
-              <Text as="div" className={styles.emptyHint}>
+              <Text as="div" className={shared.emptyHint}>
                 Add your recurring expenses to track them
               </Text>
             </Flex>
@@ -393,15 +379,14 @@ export const Recurring = (): JSX.Element => {
             <Text as="div" className={styles.sectionTitle}>
               Budgets
             </Text>
-            <Button size="1" variant="soft" onClick={openBudgetCreate}>
+            <Button size="1" onClick={openBudgetCreate}>
               <Plus size={14} /> Add
             </Button>
           </Flex>
           {budgetsLoading ? (
-            <Box
-              className="skeleton"
-              style={{ height: 60, width: '100%', borderRadius: 'var(--radius-2)' }}
-            />
+            <Skeleton>
+              <Box style={{ height: 60 }} />
+            </Skeleton>
           ) : budgets.length === 0 ? (
             <Text color="gray" size="2">
               No budgets yet

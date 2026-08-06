@@ -23,9 +23,9 @@ export type RecurringInsightsSlice = {
     items: RecurringCharge[]
     loading: boolean
     lastFetchedAt: number | null
+    fetchRecurringInsights: (opts?: { force?: boolean }) => Promise<void>
+    dismissRecurringGroup: (groupKey: string) => Promise<void>
   }
-  fetchRecurringInsights: (opts?: { force?: boolean }) => Promise<void>
-  dismissRecurringGroup: (groupKey: string) => Promise<void>
 }
 
 export const createRecurringInsightsSlice = namespaceSlice('recurringInsights', (set, get) => ({

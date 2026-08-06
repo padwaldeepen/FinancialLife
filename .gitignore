@@ -189,9 +189,11 @@ backend/uploads/
 # Ruff cache
 .ruff_cache/
 
-# Screenshots & debug snapshots
-/screenshot*.png
+# Screenshots & debug snapshots — any PNG dropped at repo root by manual/MCP
+# Playwright testing, never a real asset (real images live under frontend/src or docs/)
+/*.png
 /*-snapshot*.txt
+/test-statement.pdf
 
 # Playwright test artifacts
 frontend/test-results/
@@ -211,4 +213,3 @@ dump.rdb
 *.crt 
 test-results/
 .playwright-mcp/
-before-redesign-home.png

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import api from '../api/client.ts'
 import toast from '../utils/toast.ts'
+import { getValidationErrorMessage } from '../../store/namespaceSlice.ts'
 
 // Mirrors the backend's ALLOWED_CONTENT_TYPES (routers/documents.py) — client-side
 // check is only a fast-fail UX nicety, the server re-validates independently.
@@ -14,11 +15,10 @@ export const useDocumentUpload = () => {
 
   // Returns the created document's id on success (truthy — desktop callers that only
   // check `if (id)` keep working), or null on failure. Mobile's scan flow (S6) uses the
-  // id to open review for exactly that document.
-  const upload = async (
-    file: File,
-    kind: DocumentUploadKind = 'receipt',
-  ): Promise<number | null> => {
+  // id to open review for exactly that document. `kind` is optional (W6) — omitted, the
+  // backend auto-detects receipt vs. statement from the document itself; only ever
+  // passed explicitly by the review dialogs' "doesn't look right" re-classify flow.
+  const upload = async (file: File, kind?: DocumentUploadKind): Promise<number | null> => {
     if (!ALLOWED_TYPES.has(file.type)) {
       toast.error('Only JPEG, PNG, or PDF files are accepted')
       return null
@@ -32,25 +32,21 @@ export const useDocumentUpload = () => {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('kind', kind)
+      if (kind) formData.append('kind', kind)
       // The shared client sets a default JSON Content-Type header; explicitly
       // unsetting it here lets the browser generate the multipart boundary itself
       // (a fixed header would otherwise send this as broken "JSON" with a file body).
       const res = await api.post('/api/documents/', formData, {
         headers: { 'Content-Type': undefined },
       })
-      toast.success(
-        kind === 'statement'
-          ? 'Statement uploaded — extracting transactions…'
-          : 'Scanned — review the details',
-      )
+      // Wording is deliberately kind-agnostic — `kind` is usually omitted now (W6
+      // auto-detect), so the client doesn't know receipt-vs-statement until the
+      // backend's response comes back; callers that show a per-item result (e.g.
+      // DocumentUploadDialog's multi-file queue) read the real kind off that response.
+      toast.success('Uploaded — analyzing…')
       return (res.data?.id as number) ?? null
-    } catch (error: any) {
-      // FastAPI's own 422s put an array of {type, loc, msg, input} objects in
-      // `detail` (distinct from this router's hand-raised HTTPExceptions, which are
-      // always a plain string) — guard against rendering that array as a toast body.
-      const detail = error.response?.data?.detail
-      toast.error(typeof detail === 'string' ? detail : 'Failed to upload document')
+    } catch (error) {
+      toast.error(getValidationErrorMessage(error, 'Failed to upload document'))
       return null
     } finally {
       setUploading(false)

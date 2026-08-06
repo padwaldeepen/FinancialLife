@@ -40,8 +40,8 @@ export interface RegisterFormActions {
 }
 
 export type RegisterFormSlice = {
-  registerForm: RegisterFormState
-} & RegisterFormActions
+  registerForm: RegisterFormState & RegisterFormActions
+}
 
 const initialState: RegisterFormState = {
   fullName: '',

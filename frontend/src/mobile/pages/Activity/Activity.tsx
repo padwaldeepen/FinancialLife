@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useRef, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -10,11 +10,11 @@ import {
   Dialog,
   Button,
   Card,
+  Skeleton,
 } from '@radix-ui/themes'
 import { Search, Trash2, X, Calendar, FileText } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
 import { useShallow } from 'zustand/react/shallow'
-import toast from '../../../shared/utils/toast.ts'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
@@ -62,33 +62,46 @@ export const Activity = (): JSX.Element => {
     updateNotes,
   } = useTransactionList(filters)
 
-  const { pending, fetchPendingDocuments, openScanReview } = useBoundStore(
+  const {
+    pending,
+    fetchPendingDocuments,
+    openScanReview,
+    showFilters,
+    swipedId,
+    selectedId,
+    editNotes,
+    setShowFilters,
+    setSwipedId,
+    openDetail,
+    closeDetail,
+    setEditNotes,
+  } = useBoundStore(
     useShallow((s) => ({
       // Select the stable array reference — filtering *inside* the selector returns a new
       // array every render and makes useShallow loop forever (Zustand pitfall).
       pending: s.documents.pending,
-      fetchPendingDocuments: s.fetchPendingDocuments,
-      openScanReview: s.openScanReview,
+      fetchPendingDocuments: s.documents.fetchPendingDocuments,
+      openScanReview: s.ui.openScanReview,
+      showFilters: s.activityPage.mobileShowFilters,
+      swipedId: s.activityPage.mobileSwipedId,
+      selectedId: s.activityPage.mobileSelectedId,
+      editNotes: s.activityPage.mobileEditNotes,
+      setShowFilters: s.activityPage.setMobileActivityShowFilters,
+      setSwipedId: s.activityPage.setMobileActivitySwipedId,
+      openDetail: s.activityPage.openMobileActivityDetail,
+      closeDetail: s.activityPage.closeMobileActivityDetail,
+      setEditNotes: s.activityPage.setMobileActivityEditNotes,
     })),
   )
   // Only receipt-kind docs get the mobile review sheet; statements need the desktop
   // multi-row table (S4), so they're not surfaced here.
   const pendingReceipts = pending.filter((d) => d.kind !== 'statement')
-
-  const [showFilters, setShowFilters] = useState(false)
-  const [swipedId, setSwipedId] = useState<number | null>(null)
-  const [selected, setSelected] = useState<Transaction | null>(null)
-  const [editNotes, setEditNotes] = useState('')
+  const selected = transactions.find((t) => t.id === selectedId) || null
   const touchStartX = useRef(0)
 
   useEffect(() => {
     fetchPendingDocuments()
   }, [fetchPendingDocuments])
-
-  const openDetail = (t: Transaction) => {
-    setSelected(t)
-    setEditNotes(t.notes || '')
-  }
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0]!.clientX
@@ -219,18 +232,13 @@ export const Activity = (): JSX.Element => {
 
       {loading && transactions.length === 0 ? (
         <Flex direction="column" gap="3" p="3">
-          <Box
-            className="skeleton"
-            style={{ height: 16, width: '100%', borderRadius: 'var(--radius-2)' }}
-          />
-          <Box
-            className="skeleton"
-            style={{ height: 16, width: '65%', borderRadius: 'var(--radius-2)' }}
-          />
-          <Box
-            className="skeleton"
-            style={{ height: 16, width: '80%', borderRadius: 'var(--radius-2)' }}
-          />
+          {['100%', '65%', '80%'].map((w) => (
+            <Skeleton key={w}>
+              <Text as="div" size="2" style={{ width: w }}>
+                Placeholder transaction line
+              </Text>
+            </Skeleton>
+          ))}
         </Flex>
       ) : transactions.length === 0 ? (
         <Flex direction="column" align="center" gap="2" py="6">
@@ -319,13 +327,13 @@ export const Activity = (): JSX.Element => {
         </Box>
       )}
 
-      <Dialog.Root open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+      <Dialog.Root open={!!selected} onOpenChange={(open) => !open && closeDetail()}>
         <Dialog.Content className={styles.dialogDetail}>
           {selected && (
             <>
               <Flex justify="between" align="center" mb="3">
                 <Dialog.Title className={styles.dialogTitle}>{selected.description}</Dialog.Title>
-                <IconButton variant="ghost" onClick={() => setSelected(null)}>
+                <IconButton variant="ghost" onClick={closeDetail}>
                   <X size={16} />
                 </IconButton>
               </Flex>
@@ -402,7 +410,6 @@ export const Activity = (): JSX.Element => {
                     className={styles.dialogButton}
                     onClick={() => {
                       updateNotes(selected.id, editNotes)
-                      toast.success('Notes updated')
                     }}
                   >
                     Save notes
@@ -413,7 +420,7 @@ export const Activity = (): JSX.Element => {
                     className={styles.dialogButton}
                     onClick={() => {
                       deleteTransaction(selected.id)
-                      setSelected(null)
+                      closeDetail()
                     }}
                   >
                     <Trash2 size={14} /> Delete

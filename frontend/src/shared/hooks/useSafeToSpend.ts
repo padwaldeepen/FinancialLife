@@ -20,7 +20,7 @@ export const useSafeToSpend = (currency: string): SafeToSpendView => {
     useShallow((s) => ({
       data: s.safeToSpend.data,
       loading: s.safeToSpend.loading,
-      fetchSafeToSpend: s.fetchSafeToSpend,
+      fetchSafeToSpend: s.safeToSpend.fetchSafeToSpend,
     })),
   )
 

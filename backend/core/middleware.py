@@ -36,10 +36,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
+    # Credential-guessing endpoints only. /api/auth/refresh and /api/auth/me are called
+    # on every page load (session bootstrap, axios 401 retries) — lumping them into the
+    # same tight brute-force bucket as /login and /register meant normal navigation
+    # alone could trip the limit and return a 429 from /refresh, which the frontend was
+    # (incorrectly, see authRefresh.ts) treating as an invalid session and logging the
+    # user out. Only the credential endpoints need the strict bucket.
+    _STRICT_AUTH_PATHS = {"/api/auth/login", "/api/auth/register"}
+
     async def dispatch(self, request: Request, call_next):
         client_ip = self._client_ip(request)
         now = time.time()
-        is_auth = request.url.path.startswith("/api/auth")
+        is_auth = request.url.path in self._STRICT_AUTH_PATHS
 
         limit = self.auth_limit if is_auth else self.general_limit
         key = f"{client_ip}:{'auth' if is_auth else 'general'}"

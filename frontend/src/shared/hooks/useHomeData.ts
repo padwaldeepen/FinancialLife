@@ -39,12 +39,12 @@ export const useHomeData = (): HomeData => {
     useShallow((s) => ({
       accounts: s.accounts.items,
       accountsLoading: s.accounts.loading,
-      fetchAccounts: s.fetchAccounts,
+      fetchAccounts: s.accounts.fetchAccounts,
       transactions: s.transactions.items,
       txLoading: s.transactions.loading,
-      fetchTransactions: s.fetchTransactions,
+      fetchTransactions: s.transactions.fetchTransactions,
       upcomingBills: s.bills.upcoming,
-      fetchUpcomingBills: s.fetchUpcomingBills,
+      fetchUpcomingBills: s.bills.fetchUpcomingBills,
     })),
   )
 

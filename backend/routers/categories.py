@@ -8,6 +8,7 @@ from database.models import Profile, User
 from database.session import get_db
 from routers.auth import get_current_profile, get_current_user
 from services import category_service
+from services.transaction_service import categorize
 
 router = APIRouter()
 
@@ -45,6 +46,10 @@ class CategorySpending(BaseModel):
     total: float
     percentage: float
     transaction_count: int
+
+
+class CategorySuggestResponse(BaseModel):
+    category: str | None
 
 
 def _to_response(cat, children: list | None = None) -> CategoryResponse:
@@ -105,6 +110,19 @@ async def category_spending(
     ]
     spending.sort(key=lambda s: s.total, reverse=True)
     return spending
+
+
+# W4: suggest a category name from a transaction's description, reusing quick-add's
+# same rules-based `categorize()` (services/transaction_service.py) — one keyword table
+# for "what category is this transaction," not a second copy. Registered before
+# `/{category_id}` so "suggest" isn't swallowed as a category_id path segment.
+@router.get("/suggest", response_model=CategorySuggestResponse)
+async def suggest_category(
+    description: str,
+    transaction_type: str = "expense",
+    _current_user: User = Depends(get_current_user),
+):
+    return CategorySuggestResponse(category=categorize(description, transaction_type))
 
 
 @router.get("/", response_model=list[CategoryResponse])

@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --check \"src/**/*.{ts,tsx,css}\"",
@@ -22,6 +21,7 @@
     "@radix-ui/themes": "^3.3.0",
     "axios": "^1.18.1",
     "date-fns": "^4.4.0",
+    "exceljs": "^4.4.0",
     "immer": "^11.1.8",
     "lucide-react": "^1.21.0",
     "papaparse": "^5.5.4",

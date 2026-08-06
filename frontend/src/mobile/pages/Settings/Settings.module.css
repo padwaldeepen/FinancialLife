@@ -3,14 +3,6 @@
   animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
 }
 
-.pageTitle {
-  font-size: var(--font-size-5);
-  font-weight: 700;
-  color: var(--gray-12);
-  letter-spacing: -0.01em;
-  margin-bottom: var(--space-4);
-}
-
 .section {
   margin-bottom: var(--space-5);
 }
@@ -27,8 +19,6 @@
 
 .card {
   padding: var(--space-4);
-  border-radius: var(--radius-card) !important;
-  border: 1px solid var(--gray-4);
 }
 
 .row {

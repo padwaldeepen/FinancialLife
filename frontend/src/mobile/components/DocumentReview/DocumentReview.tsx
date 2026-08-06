@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import { Box, Flex, Text, TextField, Select, Dialog, Button, Badge } from '@radix-ui/themes'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -6,10 +6,8 @@ import api from '../../../shared/api/client.ts'
 import toast from '../../../shared/utils/toast.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
-import type { FuzzyMatch, PendingDocument } from '../../../store/slices/documentsSlice.ts'
+import type { PendingDocument } from '../../../store/slices/documentsSlice.ts'
 import styles from './DocumentReview.module.css'
-
-const todayIso = () => new Date().toISOString().slice(0, 10)
 
 // S6: mobile review sheet for a just-scanned receipt. Mobile-tree twin of desktop's
 // DocumentReviewDialog (trees never share layout, rules/frontend.md) — same store slice
@@ -23,10 +21,10 @@ export const DocumentReview = (): JSX.Element | null => {
       useShallow((s) => ({
         docId: s.ui.scanReviewDocId,
         pending: s.documents.pending,
-        closeScanReview: s.closeScanReview,
-        fetchPendingDocuments: s.fetchPendingDocuments,
-        fetchAccounts: s.fetchAccounts,
-        fetchCategories: s.fetchCategories,
+        closeScanReview: s.ui.closeScanReview,
+        fetchPendingDocuments: s.documents.fetchPendingDocuments,
+        fetchAccounts: s.accounts.fetchAccounts,
+        fetchCategories: s.categories.fetchCategories,
       })),
     )
 
@@ -55,29 +53,55 @@ const ReviewSheet = ({
   onClose: () => void
 }): JSX.Element => {
   const currency = useActiveCurrency()
-  const { accounts, categories, reviewDocument, rejectDocument, fetchTransactions, fetchAccounts } =
-    useBoundStore(
-      useShallow((s) => ({
-        accounts: s.accounts.items,
-        categories: s.categories.flat,
-        reviewDocument: s.reviewDocument,
-        rejectDocument: s.rejectDocument,
-        fetchTransactions: s.fetchTransactions,
-        fetchAccounts: s.fetchAccounts,
-      })),
-    )
+  const {
+    accounts,
+    categories,
+    reviewDocument,
+    rejectDocument,
+    fetchTransactions,
+    fetchAccounts,
+    fetchReports,
+  } = useBoundStore(
+    useShallow((s) => ({
+      accounts: s.accounts.items,
+      categories: s.categories.flat,
+      reviewDocument: s.documents.reviewDocument,
+      rejectDocument: s.documents.rejectDocument,
+      fetchTransactions: s.transactions.fetchTransactions,
+      fetchAccounts: s.accounts.fetchAccounts,
+      fetchReports: s.reports.fetchReports,
+    })),
+  )
   const ex = doc.extracted_json
 
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [isPdf, setIsPdf] = useState(false)
-  const [amount, setAmount] = useState(ex?.total != null ? String(ex.total) : '')
-  const [description, setDescription] = useState(ex?.merchant || '')
-  const [transactionType, setTransactionType] = useState<'expense' | 'income'>('expense')
-  const [accountId, setAccountId] = useState(accounts[0] ? String(accounts[0].id) : '')
-  const [categoryId, setCategoryId] = useState(ex?.category_id ? String(ex.category_id) : '')
-  const [date, setDate] = useState(ex?.date || todayIso())
-  const [saving, setSaving] = useState(false)
-  const [fuzzyMatches, setFuzzyMatches] = useState<FuzzyMatch[] | null>(null)
+  const {
+    imageUrl,
+    isPdf,
+    amount,
+    description,
+    transactionType,
+    accountId,
+    categoryId,
+    date,
+    saving,
+    fuzzyMatches,
+    initDocumentReviewForm,
+    setDocumentReviewImageUrl,
+    setDocumentReviewIsPdf,
+    setDocumentReviewAmount,
+    setDocumentReviewDescription,
+    setDocumentReviewTransactionType,
+    setDocumentReviewAccountId,
+    setDocumentReviewCategoryId,
+    setDocumentReviewDate,
+    setDocumentReviewSaving,
+    setDocumentReviewFuzzyMatches,
+  } = useBoundStore(useShallow((s) => s.documentReviewForm))
+
+  useEffect(() => {
+    initDocumentReviewForm(ex, accounts[0] ? String(accounts[0].id) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.id])
 
   // Fetch the scanned image as an authenticated blob (a plain <img src> can't carry the
   // auth headers GET /documents/{id} needs) — same approach as the desktop dialogs.
@@ -86,9 +110,9 @@ const ReviewSheet = ({
     api
       .get(`/api/documents/${doc.id}`, { responseType: 'blob' })
       .then((res) => {
-        setIsPdf(res.data.type === 'application/pdf')
+        setDocumentReviewIsPdf(res.data.type === 'application/pdf')
         objectUrl = URL.createObjectURL(res.data)
-        setImageUrl(objectUrl)
+        setDocumentReviewImageUrl(objectUrl)
       })
       .catch(() => {
         /* preview is a nicety; the form still works without it */
@@ -96,6 +120,7 @@ const ReviewSheet = ({
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.id])
 
   const handleSave = async (skipDedup = false) => {
@@ -103,7 +128,7 @@ const ReviewSheet = ({
       toast.error('Amount, description, and account are required')
       return
     }
-    setSaving(true)
+    setDocumentReviewSaving(true)
     try {
       const result = await reviewDocument(doc.id, {
         amount: parseFloat(amount),
@@ -119,19 +144,20 @@ const ReviewSheet = ({
         toast.success('Transaction added')
         fetchTransactions({ reset: true, force: true })
         fetchAccounts({ force: true })
+        fetchReports()
         onClose()
       } else if (result.status === 'exact_duplicate') {
         toast.success('Already added — nothing new')
         onClose()
       } else {
-        setFuzzyMatches(result.fuzzy_matches)
+        setDocumentReviewFuzzyMatches(result.fuzzy_matches)
       }
     } catch (error: unknown) {
       const detail = (error as { response?: { data?: { detail?: unknown } } }).response?.data
         ?.detail
       toast.error(typeof detail === 'string' ? detail : 'Failed to save')
     } finally {
-      setSaving(false)
+      setDocumentReviewSaving(false)
     }
   }
 
@@ -168,7 +194,10 @@ const ReviewSheet = ({
 
         <Flex direction="column" gap="3">
           <Field label="Description">
-            <TextField.Root value={description} onChange={(e) => setDescription(e.target.value)} />
+            <TextField.Root
+              value={description}
+              onChange={(e) => setDocumentReviewDescription(e.target.value)}
+            />
           </Field>
           <Field label="Amount">
             <TextField.Root
@@ -176,13 +205,13 @@ const ReviewSheet = ({
               inputMode="decimal"
               step="0.01"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => setDocumentReviewAmount(e.target.value)}
             />
           </Field>
           <Field label="Type">
             <Select.Root
               value={transactionType}
-              onValueChange={(v) => setTransactionType(v as 'expense' | 'income')}
+              onValueChange={(v) => setDocumentReviewTransactionType(v as 'expense' | 'income')}
             >
               <Select.Trigger />
               <Select.Content>
@@ -192,7 +221,7 @@ const ReviewSheet = ({
             </Select.Root>
           </Field>
           <Field label="Account">
-            <Select.Root value={accountId} onValueChange={setAccountId}>
+            <Select.Root value={accountId} onValueChange={setDocumentReviewAccountId}>
               <Select.Trigger placeholder="Choose account" />
               <Select.Content>
                 {accounts.map((a) => (
@@ -204,7 +233,7 @@ const ReviewSheet = ({
             </Select.Root>
           </Field>
           <Field label="Category">
-            <Select.Root value={categoryId} onValueChange={setCategoryId}>
+            <Select.Root value={categoryId} onValueChange={setDocumentReviewCategoryId}>
               <Select.Trigger placeholder="None" />
               <Select.Content>
                 <Select.Item value="">None</Select.Item>
@@ -217,7 +246,11 @@ const ReviewSheet = ({
             </Select.Root>
           </Field>
           <Field label="Date">
-            <TextField.Root type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <TextField.Root
+              type="date"
+              value={date}
+              onChange={(e) => setDocumentReviewDate(e.target.value)}
+            />
           </Field>
         </Flex>
 

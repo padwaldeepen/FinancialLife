@@ -1,4 +1,4 @@
-import { useState, useEffect, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -7,9 +7,9 @@ import {
   Select,
   Badge,
   IconButton,
-  Dialog,
   Button,
   Checkbox,
+  Skeleton,
 } from '@radix-ui/themes'
 import { Search, Trash2, Calendar, Download, Upload, FileUp, Paperclip } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
@@ -28,8 +28,8 @@ import { ImportDialog } from './ImportDialog.tsx'
 import { DocumentUploadDialog } from './DocumentUploadDialog.tsx'
 import { PendingReceipts } from './PendingReceipts.tsx'
 import { DocumentViewerDialog } from './DocumentViewerDialog.tsx'
-import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 import styles from './Activity.module.css'
+import shared from '../../styles/shared.module.css'
 
 type DateGroup = 'today' | 'yesterday' | 'thisWeek' | 'earlier'
 
@@ -81,11 +81,11 @@ export const Activity = (): JSX.Element => {
   } = useBoundStore(
     useShallow((s) => ({
       accounts: s.accounts.items,
-      fetchAccounts: s.fetchAccounts,
+      fetchAccounts: s.accounts.fetchAccounts,
       bills: s.bills.items,
-      fetchBills: s.fetchBills,
-      linkTransactionToBill: s.linkTransactionToBill,
-      unlinkTransactionFromBill: s.unlinkTransactionFromBill,
+      fetchBills: s.bills.fetchBills,
+      linkTransactionToBill: s.bills.linkTransactionToBill,
+      unlinkTransactionFromBill: s.bills.unlinkTransactionFromBill,
     })),
   )
 
@@ -94,30 +94,34 @@ export const Activity = (): JSX.Element => {
     fetchBills()
   }, [fetchAccounts, fetchBills])
 
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [selectMode, setSelectMode] = useState(false)
-  const [documentUploadOpen, setDocumentUploadOpen] = useState(false)
-  const [viewingDocumentId, setViewingDocumentId] = useState<number | null>(null)
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [bulkCategory, setBulkCategory] = useState('')
-  const [bulkAccount, setBulkAccount] = useState('')
-  const [bulkApplying, setBulkApplying] = useState(false)
+  const {
+    selectedId,
+    selectMode,
+    documentUploadOpen,
+    viewingDocumentId,
+    selectedIds,
+    bulkCategory,
+    bulkAccount,
+    bulkApplying,
+    setActivitySelectedId,
+    toggleActivitySelectMode,
+    toggleActivitySelected,
+    setActivityDocumentUploadOpen,
+    setActivityViewingDocumentId,
+    setActivityBulkCategory,
+    setActivityBulkAccount,
+    setActivityBulkApplying,
+    resetActivityBulkEdit,
+  } = useBoundStore(useShallow((s) => s.activityPage))
 
   const csv = useCsvImport(accounts[0]?.id, refetch)
   const selected = transactions.find((t) => t.id === selectedId) || null
 
-  const toggleSelect = (id: number) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
+  const toggleSelect = toggleActivitySelected
 
   const applyBulkEdit = async () => {
     if (!bulkCategory && !bulkAccount) return
-    setBulkApplying(true)
+    setActivityBulkApplying(true)
     const data: Partial<Transaction> = {}
     if (bulkCategory) data.category_id = Number(bulkCategory)
     if (bulkAccount) data.account_id = Number(bulkAccount)
@@ -125,11 +129,7 @@ export const Activity = (): JSX.Element => {
     const failed = results.filter((ok) => !ok).length
     if (failed > 0) toast.error(`${failed} of ${results.length} rows failed to update`)
     else toast.success(`Updated ${selectedIds.size} transactions`)
-    setSelectedIds(new Set())
-    setSelectMode(false)
-    setBulkCategory('')
-    setBulkAccount('')
-    setBulkApplying(false)
+    resetActivityBulkEdit()
   }
 
   const handleExport = async () => {
@@ -165,10 +165,6 @@ export const Activity = (): JSX.Element => {
 
   return (
     <Box>
-      <PageHeader
-        subtitle={`${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}`}
-      />
-
       <TextField.Root
         className={styles.searchInput}
         mb="3"
@@ -184,6 +180,9 @@ export const Activity = (): JSX.Element => {
       <PendingReceipts />
 
       <Flex className={styles.filterBar} mb="4" wrap="wrap">
+        <Text size="1" color="gray" className={styles.resultCount}>
+          {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+        </Text>
         <Select.Root value={filters.typeFilter} onValueChange={setTypeFilter}>
           <Select.Trigger className={styles.filterBarSelect} placeholder="All types" />
           <Select.Content>
@@ -219,6 +218,7 @@ export const Activity = (): JSX.Element => {
 
         <TextField.Root
           type="date"
+          aria-label="Filter start date"
           value={filters.startDate}
           onChange={(e) => setStartDate(e.target.value)}
           className={styles.dateInput}
@@ -232,6 +232,7 @@ export const Activity = (): JSX.Element => {
         </Text>
         <TextField.Root
           type="date"
+          aria-label="Filter end date"
           value={filters.endDate}
           onChange={(e) => setEndDate(e.target.value)}
           className={styles.dateInput}
@@ -245,18 +246,15 @@ export const Activity = (): JSX.Element => {
           <Download size={14} /> Export CSV
         </Button>
         <Button variant="outline" size="2" onClick={() => csv.setImportOpen(true)}>
-          <Upload size={14} /> Import CSV
+          <Upload size={14} /> Import
         </Button>
-        <Button variant="outline" size="2" onClick={() => setDocumentUploadOpen(true)}>
+        <Button variant="outline" size="2" onClick={() => setActivityDocumentUploadOpen(true)}>
           <FileUp size={14} /> Upload Receipt
         </Button>
         <Button
           variant={selectMode ? 'solid' : 'outline'}
           size="2"
-          onClick={() => {
-            setSelectMode(!selectMode)
-            setSelectedIds(new Set())
-          }}
+          onClick={toggleActivitySelectMode}
         >
           {selectMode ? 'Cancel select' : 'Select'}
         </Button>
@@ -267,7 +265,7 @@ export const Activity = (): JSX.Element => {
           <Text size="2" weight="medium">
             {selectedIds.size} selected
           </Text>
-          <Select.Root value={bulkCategory} onValueChange={setBulkCategory}>
+          <Select.Root value={bulkCategory} onValueChange={setActivityBulkCategory}>
             <Select.Trigger className={styles.filterBarSelect} placeholder="Set category" />
             <Select.Content>
               {categories.map((c) => (
@@ -277,7 +275,7 @@ export const Activity = (): JSX.Element => {
               ))}
             </Select.Content>
           </Select.Root>
-          <Select.Root value={bulkAccount} onValueChange={setBulkAccount}>
+          <Select.Root value={bulkAccount} onValueChange={setActivityBulkAccount}>
             <Select.Trigger className={styles.filterBarSelect} placeholder="Set account" />
             <Select.Content>
               {accounts.map((a) => (
@@ -298,26 +296,29 @@ export const Activity = (): JSX.Element => {
       )}
 
       {loading && transactions.length === 0 ? (
-        <Flex className={styles.emptyState} direction="column" gap="3">
-          <Box
-            className="skeleton"
-            style={{ height: 16, width: '100%', borderRadius: 'var(--radius-2)' }}
-          />
-          <Box
-            className="skeleton"
-            style={{ height: 16, width: '70%', borderRadius: 'var(--radius-2)' }}
-          />
-          <Box
-            className="skeleton"
-            style={{ height: 16, width: '45%', borderRadius: 'var(--radius-2)' }}
-          />
+        <Flex className={shared.emptyState} direction="column" gap="3">
+          <Skeleton>
+            <Text as="div" size="2">
+              Placeholder transaction line of typical length for loading state
+            </Text>
+          </Skeleton>
+          <Skeleton>
+            <Text as="div" size="2">
+              Shorter placeholder line
+            </Text>
+          </Skeleton>
+          <Skeleton>
+            <Text as="div" size="2">
+              Shortest line
+            </Text>
+          </Skeleton>
         </Flex>
       ) : transactions.length === 0 ? (
-        <Flex className={styles.emptyState} direction="column">
-          <Text as="div" className={styles.emptyTitle}>
+        <Flex className={shared.emptyState} direction="column">
+          <Text as="div" className={shared.emptyTitle}>
             No transactions yet
           </Text>
-          <Text as="div" className={styles.emptyHint}>
+          <Text as="div" className={shared.emptyHint}>
             Add one using the quick-add feature
           </Text>
         </Flex>
@@ -335,7 +336,7 @@ export const Activity = (): JSX.Element => {
                     className={styles.row}
                     align="center"
                     justify="between"
-                    onClick={() => (selectMode ? toggleSelect(t.id) : setSelectedId(t.id))}
+                    onClick={() => (selectMode ? toggleSelect(t.id) : setActivitySelectedId(t.id))}
                   >
                     {selectMode && (
                       <Checkbox
@@ -370,7 +371,7 @@ export const Activity = (): JSX.Element => {
                             aria-label="View source document"
                             onClick={(e) => {
                               e.stopPropagation()
-                              setViewingDocumentId(t.document_id!)
+                              setActivityViewingDocumentId(t.document_id!)
                             }}
                           />
                         )}
@@ -415,40 +416,53 @@ export const Activity = (): JSX.Element => {
         </Box>
       )}
 
-      <Dialog.Root open={!!selected} onOpenChange={(open) => !open && setSelectedId(null)}>
-        {selected && (
-          <TransactionDetailDialog
-            transaction={selected}
-            currency={currency}
-            categories={categories}
-            merchants={merchants}
-            accounts={accounts}
-            bills={bills}
-            onClose={() => setSelectedId(null)}
-            onDelete={deleteTransaction}
-            onSaveNotes={updateNotes}
-            onSaveEdit={saveTransaction}
-            onLinkBill={async (billId) => {
+      {selected && (
+        <TransactionDetailDialog
+          transaction={selected}
+          currency={currency}
+          categories={categories}
+          merchants={merchants}
+          accounts={accounts}
+          bills={bills}
+          open={!!selected}
+          onOpenChange={(open) => !open && setActivitySelectedId(null)}
+          onClose={() => setActivitySelectedId(null)}
+          onDelete={deleteTransaction}
+          onSaveNotes={updateNotes}
+          onSaveEdit={saveTransaction}
+          onLinkBill={async (billId) => {
+            try {
               await linkTransactionToBill(billId, selected.id)
-              toast.success('Linked to bill')
               refetch()
-            }}
-            onUnlinkBill={async () => {
-              if (!selected.bill_id) return
+            } catch {
+              // toast handled in store
+            }
+          }}
+          onUnlinkBill={async () => {
+            if (!selected.bill_id) return
+            try {
               await unlinkTransactionFromBill(selected.bill_id, selected.id)
-              toast.success('Unlinked from bill')
               refetch()
-            }}
-          />
-        )}
-      </Dialog.Root>
+            } catch {
+              // toast handled in store
+            }
+          }}
+        />
+      )}
 
       <ImportDialog currency={currency} csv={csv} />
-      <DocumentUploadDialog open={documentUploadOpen} onOpenChange={setDocumentUploadOpen} />
+      <DocumentUploadDialog
+        open={documentUploadOpen}
+        onOpenChange={setActivityDocumentUploadOpen}
+        onSpreadsheetFile={(file) => {
+          csv.handleImportFile(file)
+          csv.setImportOpen(true)
+        }}
+      />
       {viewingDocumentId != null && (
         <DocumentViewerDialog
           documentId={viewingDocumentId}
-          onClose={() => setViewingDocumentId(null)}
+          onClose={() => setActivityViewingDocumentId(null)}
         />
       )}
     </Box>

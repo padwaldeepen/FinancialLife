@@ -17,8 +17,8 @@ export type SafeToSpendSlice = {
     data: SafeToSpendData | null
     loading: boolean
     lastFetchedAt: number | null
+    fetchSafeToSpend: (opts?: { force?: boolean }) => Promise<void>
   }
-  fetchSafeToSpend: (opts?: { force?: boolean }) => Promise<void>
 }
 
 export const createSafeToSpendSlice = namespaceSlice('safeToSpend', (set, get) => ({

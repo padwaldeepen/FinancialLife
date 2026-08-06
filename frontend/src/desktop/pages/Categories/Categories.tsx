@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -10,11 +10,13 @@ import {
   TextField,
   Select,
   IconButton,
+  Skeleton,
 } from '@radix-ui/themes'
 import { Tags, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Categories.module.css'
+import shared from '../../styles/shared.module.css'
 import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 
 const COLOR_OPTIONS = [
@@ -30,86 +32,70 @@ const COLOR_OPTIONS = [
   '#EC4899',
 ]
 
-interface CategoryFormData {
-  name: string
-  color: string
-  parent_id: number | null
-}
-
-const emptyForm = (): CategoryFormData => ({ name: '', color: '#6B7280', parent_id: null })
-
 export const Categories = (): JSX.Element => {
   const { tree, loading, fetchCategories, createCategory, updateCategory, deleteCategory } =
     useBoundStore(
       useShallow((s) => ({
         tree: s.categories.tree,
         loading: s.categories.loading,
-        fetchCategories: s.fetchCategories,
-        createCategory: s.createCategory,
-        updateCategory: s.updateCategory,
-        deleteCategory: s.deleteCategory,
+        fetchCategories: s.categories.fetchCategories,
+        createCategory: s.categories.createCategory,
+        updateCategory: s.categories.updateCategory,
+        deleteCategory: s.categories.deleteCategory,
       })),
     )
-  const [expanded, setExpanded] = useState<Set<number>>(new Set())
-
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editId, setEditId] = useState<number | null>(null)
-  const [form, setForm] = useState<CategoryFormData>(emptyForm())
-  const [saving, setSaving] = useState(false)
-  const [deleteId, setDeleteId] = useState<number | null>(null)
-  const [deleting, setDeleting] = useState(false)
+  const {
+    expanded,
+    dialogOpen,
+    editId,
+    form,
+    saving,
+    deleteId,
+    deleting,
+    toggleCategoryExpand,
+    openCategoryCreate,
+    openCategoryEdit,
+    setCategoryDialogOpen,
+    setCategoryFormField,
+    setCategorySaving,
+    startCategoryDelete,
+    cancelCategoryDelete,
+    setCategoryDeleting,
+  } = useBoundStore(useShallow((s) => s.categoriesForm))
 
   useEffect(() => {
     fetchCategories()
   }, [fetchCategories])
 
-  const toggleExpand = (id: number) => {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
+  const toggleExpand = toggleCategoryExpand
 
-  const openCreate = () => {
-    setEditId(null)
-    setForm(emptyForm())
-    setDialogOpen(true)
-  }
+  const openCreate = openCategoryCreate
 
-  const openEdit = useCallback(
-    (cat: { id: number; name: string; color: string; parent_id: number | null }) => {
-      setEditId(cat.id)
-      setForm({ name: cat.name, color: cat.color, parent_id: cat.parent_id })
-      setDialogOpen(true)
-    },
-    [],
-  )
+  const openEdit = openCategoryEdit
 
   const handleSave = async () => {
     if (!form.name.trim()) return
-    setSaving(true)
+    setCategorySaving(true)
     try {
       if (editId !== null) {
         await updateCategory(editId, form)
       } else {
         await createCategory(form)
       }
-      setDialogOpen(false)
+      setCategoryDialogOpen(false)
     } finally {
-      setSaving(false)
+      setCategorySaving(false)
     }
   }
 
   const handleDelete = async () => {
     if (deleteId === null) return
-    setDeleting(true)
+    setCategoryDeleting(true)
     try {
       await deleteCategory(deleteId)
-      setDeleteId(null)
+      cancelCategoryDelete()
     } finally {
-      setDeleting(false)
+      setCategoryDeleting(false)
     }
   }
 
@@ -131,7 +117,12 @@ export const Categories = (): JSX.Element => {
         <IconButton size="1" variant="ghost" onClick={() => openEdit(cat)}>
           <Pencil size={14} />
         </IconButton>
-        <IconButton size="1" variant="ghost" color="red" onClick={() => setDeleteId(cat.id)}>
+        <IconButton
+          size="1"
+          variant="ghost"
+          color="red"
+          onClick={() => startCategoryDelete(cat.id)}
+        >
           <Trash2 size={14} />
         </IconButton>
       </Flex>
@@ -150,22 +141,13 @@ export const Categories = (): JSX.Element => {
 
       {loading ? (
         <Flex direction="column" gap="3" p="4">
-          <Box
-            className="skeleton"
-            style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
-          />
-          <Box
-            className="skeleton"
-            style={{ height: 20, width: '75%', borderRadius: 'var(--radius-2)' }}
-          />
-          <Box
-            className="skeleton"
-            style={{ height: 20, width: '55%', borderRadius: 'var(--radius-2)' }}
-          />
-          <Box
-            className="skeleton"
-            style={{ height: 20, width: '90%', borderRadius: 'var(--radius-2)' }}
-          />
+          {['100%', '75%', '55%', '90%'].map((w) => (
+            <Skeleton key={w}>
+              <Text as="div" size="3" style={{ width: w }}>
+                Placeholder category name
+              </Text>
+            </Skeleton>
+          ))}
         </Flex>
       ) : (
         <Flex direction="column" gap="2">
@@ -236,7 +218,7 @@ export const Categories = (): JSX.Element => {
           })}
 
           {parents.length === 0 && (
-            <Flex className={styles.emptyState} direction="column">
+            <Flex className={shared.emptyState} direction="column">
               <Tags size={32} />
               <Text color="gray">No categories yet</Text>
             </Flex>
@@ -245,7 +227,7 @@ export const Categories = (): JSX.Element => {
       )}
 
       {/* Create/Edit Dialog */}
-      <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog.Root open={dialogOpen} onOpenChange={setCategoryDialogOpen}>
         <Dialog.Content className={styles.dialogWide}>
           <Dialog.Title>{editId !== null ? 'Edit Category' : 'Add Category'}</Dialog.Title>
           <Flex direction="column" gap="3" mt="3">
@@ -256,7 +238,7 @@ export const Categories = (): JSX.Element => {
               <TextField.Root
                 placeholder="Category name"
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e) => setCategoryFormField('name', e.target.value)}
               />
             </Box>
             <Box>
@@ -274,14 +256,14 @@ export const Categories = (): JSX.Element => {
                         '--swatch-outline': form.color === c ? '2px solid var(--accent-9)' : 'none',
                       } as React.CSSProperties
                     }
-                    onClick={() => setForm({ ...form, color: c })}
+                    onClick={() => setCategoryFormField('color', c)}
                   />
                 ))}
               </Flex>
               <TextField.Root
                 placeholder="#6B7280"
                 value={form.color}
-                onChange={(e) => setForm({ ...form, color: e.target.value })}
+                onChange={(e) => setCategoryFormField('color', e.target.value)}
               />
             </Box>
             <Box>
@@ -291,7 +273,7 @@ export const Categories = (): JSX.Element => {
               <Select.Root
                 value={form.parent_id !== null ? String(form.parent_id) : 'none'}
                 onValueChange={(v) =>
-                  setForm({ ...form, parent_id: v === 'none' ? null : Number(v) })
+                  setCategoryFormField('parent_id', v === 'none' ? null : Number(v))
                 }
               >
                 <Select.Trigger />
@@ -323,7 +305,7 @@ export const Categories = (): JSX.Element => {
       <Dialog.Root
         open={deleteId !== null}
         onOpenChange={(o) => {
-          if (!o) setDeleteId(null)
+          if (!o) cancelCategoryDelete()
         }}
       >
         <Dialog.Content className={styles.dialogNarrow}>
@@ -333,7 +315,7 @@ export const Categories = (): JSX.Element => {
             uncategorized.
           </Text>
           <Flex gap="3" mt="4" justify="end">
-            <Button variant="soft" color="gray" onClick={() => setDeleteId(null)}>
+            <Button variant="soft" color="gray" onClick={() => cancelCategoryDelete()}>
               Cancel
             </Button>
             <Button color="red" onClick={handleDelete} disabled={deleting}>

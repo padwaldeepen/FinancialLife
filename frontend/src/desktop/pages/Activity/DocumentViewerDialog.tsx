@@ -1,5 +1,7 @@
-import { useEffect, useState, type JSX } from 'react'
-import { Box, Dialog } from '@radix-ui/themes'
+import { useEffect, type JSX } from 'react'
+import { Box, Dialog, Skeleton, VisuallyHidden } from '@radix-ui/themes'
+import { useShallow } from 'zustand/react/shallow'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import api from '../../../shared/api/client.ts'
 import toast from '../../../shared/utils/toast.ts'
 
@@ -13,30 +15,40 @@ interface Props {
 // every other API call, so a plain `<img src>` can't point at it directly; fetch as a
 // blob and view it via an object URL instead (same approach as DocumentReviewDialog).
 export const DocumentViewerDialog = ({ documentId, onClose }: Props): JSX.Element => {
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [isPdf, setIsPdf] = useState(false)
+  const { imageUrl, isPdf, setDocumentViewerImageUrl, setDocumentViewerIsPdf } = useBoundStore(
+    useShallow((s) => s.documentViewerDialog),
+  )
 
   useEffect(() => {
     let objectUrl: string | null = null
+    setDocumentViewerImageUrl(null)
     api
       .get(`/api/documents/${documentId}`, { responseType: 'blob' })
       .then((res) => {
-        setIsPdf(res.data.type === 'application/pdf')
+        setDocumentViewerIsPdf(res.data.type === 'application/pdf')
         objectUrl = URL.createObjectURL(res.data)
-        setImageUrl(objectUrl)
+        setDocumentViewerImageUrl(objectUrl)
       })
       .catch(() => toast.error('Could not load the document image'))
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId])
 
   return (
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
       <Dialog.Content maxWidth="600px">
         <Dialog.Title>Source Document</Dialog.Title>
+        <VisuallyHidden>
+          <Dialog.Description>
+            Read-only view of the original receipt or bill image
+          </Dialog.Description>
+        </VisuallyHidden>
         {!imageUrl ? (
-          <Box className="skeleton" style={{ height: 300, borderRadius: 'var(--radius-3)' }} />
+          <Skeleton>
+            <Box style={{ height: 300 }} />
+          </Skeleton>
         ) : isPdf ? (
           <object
             data={imageUrl}

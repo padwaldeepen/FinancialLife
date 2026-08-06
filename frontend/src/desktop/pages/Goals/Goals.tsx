@@ -1,4 +1,4 @@
-import { useState, useEffect, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -10,14 +10,15 @@ import {
   Select,
   IconButton,
   Badge,
+  Skeleton,
 } from '@radix-ui/themes'
 import { Plus, Trash2, Target, PiggyBank, TrendingDown, Pencil } from 'lucide-react'
-import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Goals.module.css'
+import shared from '../../styles/shared.module.css'
 import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 
 const goalIcons: Record<string, JSX.Element> = {
@@ -39,121 +40,122 @@ export const Goals = (): JSX.Element => {
       useShallow((s) => ({
         goals: s.goals.items,
         loading: s.goals.loading,
-        fetchGoals: s.fetchGoals,
-        createGoal: s.createGoal,
-        updateGoal: s.updateGoal,
-        contributeToGoal: s.contributeToGoal,
-        deleteGoal: s.deleteGoal,
+        fetchGoals: s.goals.fetchGoals,
+        createGoal: s.goals.createGoal,
+        updateGoal: s.goals.updateGoal,
+        contributeToGoal: s.goals.contributeToGoal,
+        deleteGoal: s.goals.deleteGoal,
       })),
     )
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [goalAmount, setGoalAmount] = useState('')
-  const [goalType, setGoalType] = useState('save_up')
-  const [initialAmount, setInitialAmount] = useState('')
-  const [saving, setSaving] = useState(false)
+  const { create, detailGoalId, contribute, edit } = useBoundStore(useShallow((s) => s.goalsForm))
+  const {
+    setGoalCreateOpen,
+    setGoalCreateField,
+    setGoalCreateSaving,
+    resetGoalCreateForm,
+    openGoalDetail,
+    closeGoalDetail,
+    setGoalContributeOpen,
+    setGoalContributeAmount,
+    setGoalContributing,
+    openGoalEdit,
+    setGoalEditOpen,
+    setGoalEditField,
+    setGoalEditSaving,
+  } = useBoundStore(
+    useShallow((s) => ({
+      setGoalCreateOpen: s.goalsForm.setGoalCreateOpen,
+      setGoalCreateField: s.goalsForm.setGoalCreateField,
+      setGoalCreateSaving: s.goalsForm.setGoalCreateSaving,
+      resetGoalCreateForm: s.goalsForm.resetGoalCreateForm,
+      openGoalDetail: s.goalsForm.openGoalDetail,
+      closeGoalDetail: s.goalsForm.closeGoalDetail,
+      setGoalContributeOpen: s.goalsForm.setGoalContributeOpen,
+      setGoalContributeAmount: s.goalsForm.setGoalContributeAmount,
+      setGoalContributing: s.goalsForm.setGoalContributing,
+      openGoalEdit: s.goalsForm.openGoalEdit,
+      setGoalEditOpen: s.goalsForm.setGoalEditOpen,
+      setGoalEditField: s.goalsForm.setGoalEditField,
+      setGoalEditSaving: s.goalsForm.setGoalEditSaving,
+    })),
+  )
 
-  const [detailGoal, setDetailGoal] = useState<(typeof goals)[0] | null>(null)
-  const [contributeOpen, setContributeOpen] = useState(false)
-  const [contributeAmount, setContributeAmount] = useState('')
-  const [contributing, setContributing] = useState(false)
-  const [editOpen, setEditOpen] = useState(false)
-  const [editName, setEditName] = useState('')
-  const [editTarget, setEditTarget] = useState('')
-  const [editCurrent, setEditCurrent] = useState('')
-  const [editMonthly, setEditMonthly] = useState('')
-  const [editDeadline, setEditDeadline] = useState('')
-  const [editType, setEditType] = useState('save_up')
-  const [savingEdit, setSavingEdit] = useState(false)
+  const detailGoal = goals.find((g) => g.id === detailGoalId) ?? null
 
   useEffect(() => {
     fetchGoals()
   }, [fetchGoals])
 
   const handleCreate = async () => {
-    if (!name.trim() || !goalAmount) return
-    setSaving(true)
+    if (!create.name.trim() || !create.goalAmount) return
+    setGoalCreateSaving(true)
     try {
       await createGoal({
-        name: name.trim(),
-        target_amount: parseFloat(goalAmount),
-        type: goalType,
-        current_amount: parseFloat(initialAmount) || 0,
+        name: create.name.trim(),
+        target_amount: parseFloat(create.goalAmount),
+        type: create.goalType,
+        current_amount: parseFloat(create.initialAmount) || 0,
       })
-      toast.success('Goal created')
-      setOpen(false)
-      setName('')
-      setGoalAmount('')
-      setGoalType('save_up')
-      setInitialAmount('')
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to create goal')
+      setGoalCreateOpen(false)
+      resetGoalCreateForm()
+    } catch {
+      // toast handled in store
     } finally {
-      setSaving(false)
+      setGoalCreateSaving(false)
     }
   }
 
   const handleDelete = async (id: number) => {
     try {
       await deleteGoal(id)
-      toast.success('Goal deleted')
     } catch {
-      toast.error('Failed to delete goal')
+      // toast handled in store
     }
   }
 
   const handleContribute = async () => {
-    if (!detailGoal || !contributeAmount) return
-    setContributing(true)
+    if (!detailGoal || !contribute.amount) return
+    setGoalContributing(true)
     try {
-      await contributeToGoal(detailGoal.id, parseFloat(contributeAmount))
-      toast.success('Contribution added')
-      setContributeOpen(false)
-      setContributeAmount('')
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to contribute')
+      await contributeToGoal(detailGoal.id, parseFloat(contribute.amount))
+      setGoalContributeOpen(false)
+    } catch {
+      // toast handled in store
     } finally {
-      setContributing(false)
+      setGoalContributing(false)
     }
   }
 
   const openEdit = () => {
     if (!detailGoal) return
-    setEditName(detailGoal.name)
-    setEditTarget(String(detailGoal.target_amount))
-    setEditCurrent(String(detailGoal.current_amount))
-    setEditMonthly(detailGoal.monthly_contribution ? String(detailGoal.monthly_contribution) : '')
-    setEditDeadline(detailGoal.deadline || '')
-    setEditType(detailGoal.type)
-    setEditOpen(true)
+    openGoalEdit(detailGoal)
   }
 
   const handleUpdate = async () => {
-    if (!detailGoal || !editName.trim() || !editTarget) return
-    setSavingEdit(true)
+    if (!detailGoal || !edit.name.trim() || !edit.target) return
+    setGoalEditSaving(true)
     try {
       await updateGoal(detailGoal.id, {
-        name: editName.trim(),
-        target_amount: parseFloat(editTarget),
-        current_amount: parseFloat(editCurrent) || 0,
-        monthly_contribution: editMonthly ? parseFloat(editMonthly) : null,
-        type: editType,
-        deadline: editDeadline || null,
+        name: edit.name.trim(),
+        target_amount: parseFloat(edit.target),
+        current_amount: parseFloat(edit.current) || 0,
+        monthly_contribution: edit.monthly ? parseFloat(edit.monthly) : null,
+        type: edit.type,
+        deadline: edit.deadline || null,
       })
-      toast.success('Goal updated')
-      setEditOpen(false)
-      setDetailGoal(null)
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to update goal')
+      setGoalEditOpen(false)
+      closeGoalDetail()
+    } catch {
+      // toast handled in store
     } finally {
-      setSavingEdit(false)
+      setGoalEditSaving(false)
     }
   }
 
   const completed = (g: (typeof goals)[0]) => g.progress_pct >= 100
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root open={create.open} onOpenChange={setGoalCreateOpen}>
       <Box>
         <PageHeader
           action={
@@ -173,15 +175,18 @@ export const Goals = (): JSX.Element => {
               </Text>
               <TextField.Root
                 placeholder="e.g. Emergency Fund"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={create.name}
+                onChange={(e) => setGoalCreateField('name', e.target.value)}
               />
             </Flex>
             <Flex direction="column" gap="1">
               <Text size="2" weight="medium">
                 Goal Type
               </Text>
-              <Select.Root value={goalType} onValueChange={setGoalType}>
+              <Select.Root
+                value={create.goalType}
+                onValueChange={(v) => setGoalCreateField('goalType', v)}
+              >
                 <Select.Trigger />
                 <Select.Content>
                   <Select.Item value="save_up">Save Up</Select.Item>
@@ -197,8 +202,8 @@ export const Goals = (): JSX.Element => {
               <TextField.Root
                 type="number"
                 placeholder="10000"
-                value={goalAmount}
-                onChange={(e) => setGoalAmount(e.target.value)}
+                value={create.goalAmount}
+                onChange={(e) => setGoalCreateField('goalAmount', e.target.value)}
               >
                 <TextField.Slot side="left">$</TextField.Slot>
               </TextField.Root>
@@ -210,41 +215,47 @@ export const Goals = (): JSX.Element => {
               <TextField.Root
                 type="number"
                 placeholder="0"
-                value={initialAmount}
-                onChange={(e) => setInitialAmount(e.target.value)}
+                value={create.initialAmount}
+                onChange={(e) => setGoalCreateField('initialAmount', e.target.value)}
               >
                 <TextField.Slot side="left">$</TextField.Slot>
               </TextField.Root>
             </Flex>
-            <Button onClick={handleCreate} loading={saving} size="3" mt="2">
-              Create Goal
-            </Button>
+            <Flex justify="end" mt="2">
+              <Button onClick={handleCreate} loading={create.saving} size="3">
+                Create Goal
+              </Button>
+            </Flex>
           </Flex>
         </Dialog.Content>
 
         {loading ? (
           <Flex direction="column" gap="3" p="4">
-            <div
-              className="skeleton"
-              style={{ height: 20, width: '100%', borderRadius: 'var(--radius-2)' }}
-            />
-            <div
-              className="skeleton"
-              style={{ height: 16, width: '60%', borderRadius: 'var(--radius-2)' }}
-            />
-            <div
-              className="skeleton"
-              style={{ height: 20, width: '85%', borderRadius: 'var(--radius-2)' }}
-            />
-            <div
-              className="skeleton"
-              style={{ height: 16, width: '40%', borderRadius: 'var(--radius-2)' }}
-            />
+            <Skeleton>
+              <Text as="div" size="3">
+                Placeholder goal name
+              </Text>
+            </Skeleton>
+            <Skeleton>
+              <Text as="div" size="2" style={{ width: '60%' }}>
+                Placeholder progress detail
+              </Text>
+            </Skeleton>
+            <Skeleton>
+              <Text as="div" size="3" style={{ width: '85%' }}>
+                Placeholder goal name
+              </Text>
+            </Skeleton>
+            <Skeleton>
+              <Text as="div" size="2" style={{ width: '40%' }}>
+                Placeholder progress detail
+              </Text>
+            </Skeleton>
           </Flex>
         ) : goals.length === 0 ? (
-          <Flex className={styles.emptyState} direction="column">
-            <span className={styles.emptyTitle}>No goals yet</span>
-            <span className={styles.emptyHint}>Create your first goal to start tracking</span>
+          <Flex className={shared.emptyState} direction="column">
+            <span className={shared.emptyTitle}>No goals yet</span>
+            <span className={shared.emptyHint}>Create your first goal to start tracking</span>
           </Flex>
         ) : (
           <Flex direction="column" gap="3">
@@ -255,7 +266,7 @@ export const Goals = (): JSX.Element => {
                   key={goal.id}
                   size="2"
                   className={styles.card}
-                  onClick={() => setDetailGoal(goal)}
+                  onClick={() => openGoalDetail(goal.id)}
                 >
                   <Flex direction="column" gap="2">
                     <Flex align="center" justify="between">
@@ -316,9 +327,9 @@ export const Goals = (): JSX.Element => {
                   </Flex>
                   {/* Detail Dialog */}
                   <Dialog.Root
-                    open={detailGoal?.id === goal.id}
+                    open={detailGoalId === goal.id}
                     onOpenChange={(open) => {
-                      if (!open) setDetailGoal(null)
+                      if (!open) closeGoalDetail()
                     }}
                   >
                     <Dialog.Content maxWidth="420px">
@@ -399,14 +410,14 @@ export const Goals = (): JSX.Element => {
                             <Button
                               size="2"
                               className={styles.flex1}
-                              onClick={() => setContributeOpen(true)}
+                              onClick={() => setGoalContributeOpen(true)}
                             >
                               <Plus size={14} /> Add Contribution
                             </Button>
                           </Flex>
 
                           {/* Contribute Dialog */}
-                          <Dialog.Root open={contributeOpen} onOpenChange={setContributeOpen}>
+                          <Dialog.Root open={contribute.open} onOpenChange={setGoalContributeOpen}>
                             <Dialog.Content maxWidth="360px">
                               <Dialog.Title>Add Contribution</Dialog.Title>
                               <Flex direction="column" gap="3" mt="3">
@@ -417,26 +428,27 @@ export const Goals = (): JSX.Element => {
                                   <TextField.Root
                                     type="number"
                                     placeholder="100"
-                                    value={contributeAmount}
-                                    onChange={(e) => setContributeAmount(e.target.value)}
+                                    value={contribute.amount}
+                                    onChange={(e) => setGoalContributeAmount(e.target.value)}
                                   >
                                     <TextField.Slot side="left">$</TextField.Slot>
                                   </TextField.Root>
                                 </Flex>
-                                <Button
-                                  onClick={handleContribute}
-                                  loading={contributing}
-                                  size="3"
-                                  mt="2"
-                                >
-                                  Add
-                                </Button>
+                                <Flex justify="end" mt="2">
+                                  <Button
+                                    onClick={handleContribute}
+                                    loading={contribute.contributing}
+                                    size="3"
+                                  >
+                                    Add
+                                  </Button>
+                                </Flex>
                               </Flex>
                             </Dialog.Content>
                           </Dialog.Root>
 
                           {/* Edit Goal Dialog */}
-                          <Dialog.Root open={editOpen} onOpenChange={setEditOpen}>
+                          <Dialog.Root open={edit.open} onOpenChange={setGoalEditOpen}>
                             <Dialog.Content maxWidth="400px">
                               <Dialog.Title>Edit Goal</Dialog.Title>
                               <Flex direction="column" gap="3" mt="3">
@@ -446,15 +458,18 @@ export const Goals = (): JSX.Element => {
                                   </Text>
                                   <TextField.Root
                                     placeholder="Goal name"
-                                    value={editName}
-                                    onChange={(e) => setEditName(e.target.value)}
+                                    value={edit.name}
+                                    onChange={(e) => setGoalEditField('name', e.target.value)}
                                   />
                                 </Flex>
                                 <Flex direction="column" gap="1">
                                   <Text size="2" weight="medium">
                                     Type
                                   </Text>
-                                  <Select.Root value={editType} onValueChange={setEditType}>
+                                  <Select.Root
+                                    value={edit.type}
+                                    onValueChange={(v) => setGoalEditField('type', v)}
+                                  >
                                     <Select.Trigger />
                                     <Select.Content>
                                       <Select.Item value="save_up">Save Up</Select.Item>
@@ -472,8 +487,8 @@ export const Goals = (): JSX.Element => {
                                   <TextField.Root
                                     type="number"
                                     placeholder="10000"
-                                    value={editTarget}
-                                    onChange={(e) => setEditTarget(e.target.value)}
+                                    value={edit.target}
+                                    onChange={(e) => setGoalEditField('target', e.target.value)}
                                   >
                                     <TextField.Slot side="left">$</TextField.Slot>
                                   </TextField.Root>
@@ -485,8 +500,8 @@ export const Goals = (): JSX.Element => {
                                   <TextField.Root
                                     type="number"
                                     placeholder="0"
-                                    value={editCurrent}
-                                    onChange={(e) => setEditCurrent(e.target.value)}
+                                    value={edit.current}
+                                    onChange={(e) => setGoalEditField('current', e.target.value)}
                                   >
                                     <TextField.Slot side="left">$</TextField.Slot>
                                   </TextField.Root>
@@ -498,8 +513,8 @@ export const Goals = (): JSX.Element => {
                                   <TextField.Root
                                     type="number"
                                     placeholder="100"
-                                    value={editMonthly}
-                                    onChange={(e) => setEditMonthly(e.target.value)}
+                                    value={edit.monthly}
+                                    onChange={(e) => setGoalEditField('monthly', e.target.value)}
                                   >
                                     <TextField.Slot side="left">$</TextField.Slot>
                                   </TextField.Root>
@@ -510,22 +525,22 @@ export const Goals = (): JSX.Element => {
                                   </Text>
                                   <TextField.Root
                                     type="date"
-                                    value={editDeadline}
-                                    onChange={(e) => setEditDeadline(e.target.value)}
+                                    value={edit.deadline}
+                                    onChange={(e) => setGoalEditField('deadline', e.target.value)}
                                   />
                                 </Flex>
                                 <Flex gap="3" mt="2" justify="end">
                                   <Button
                                     variant="soft"
                                     color="gray"
-                                    onClick={() => setEditOpen(false)}
+                                    onClick={() => setGoalEditOpen(false)}
                                   >
                                     Cancel
                                   </Button>
                                   <Button
                                     onClick={handleUpdate}
-                                    loading={savingEdit}
-                                    disabled={!editName.trim() || !editTarget}
+                                    loading={edit.saving}
+                                    disabled={!edit.name.trim() || !edit.target}
                                   >
                                     Save Changes
                                   </Button>

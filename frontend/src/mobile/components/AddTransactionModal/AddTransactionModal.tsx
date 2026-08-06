@@ -20,6 +20,8 @@ import { formatCurrency, getCurrencySymbol } from '../../../shared/utils/format.
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import api from '../../../shared/api/client.ts'
 import { extractTextFromImage, cleanOcrText } from '../../../shared/utils/ocr.ts'
+import { useDocumentUpload } from '../../../shared/hooks/useDocumentUpload.ts'
+import { getErrorDetail } from '../../../store/namespaceSlice.ts'
 import styles from './AddTransactionModal.module.css'
 
 export const AddTransactionModal = (): JSX.Element => {
@@ -47,12 +49,14 @@ export const AddTransactionModal = (): JSX.Element => {
     fetchAccounts,
     fetchTransactions,
     fetchUpcomingBills,
+    fetchPendingDocuments,
+    fetchReports,
   } = useBoundStore(
     useShallow((s) => ({
       addModalOpen: s.ui.addModalOpen,
-      closeAddModal: s.closeAddModal,
+      closeAddModal: s.ui.closeAddModal,
       categories: s.categories.flat,
-      fetchCategories: s.fetchCategories,
+      fetchCategories: s.categories.fetchCategories,
       input: s.quickAddModal.input,
       loading: s.quickAddModal.loading,
       parsed: s.quickAddModal.parsed,
@@ -60,21 +64,24 @@ export const AddTransactionModal = (): JSX.Element => {
       scanning: s.quickAddModal.scanning,
       selectedCategoryId: s.quickAddModal.selectedCategoryId,
       manualAmount: s.quickAddModal.manualAmount,
-      setInput: s.setQuickAddInput,
-      setLoading: s.setQuickAddLoading,
-      setParsed: s.setQuickAddParsed,
-      setSaving: s.setQuickAddSaving,
-      setScanning: s.setQuickAddScanning,
-      setSelectedCategoryId: s.setQuickAddSelectedCategoryId,
-      setManualAmount: s.setQuickAddManualAmount,
-      resetQuickAdd: s.resetQuickAddModal,
-      fetchAccounts: s.fetchAccounts,
-      fetchTransactions: s.fetchTransactions,
-      fetchUpcomingBills: s.fetchUpcomingBills,
+      setInput: s.quickAddModal.setQuickAddInput,
+      setLoading: s.quickAddModal.setQuickAddLoading,
+      setParsed: s.quickAddModal.setQuickAddParsed,
+      setSaving: s.quickAddModal.setQuickAddSaving,
+      setScanning: s.quickAddModal.setQuickAddScanning,
+      setSelectedCategoryId: s.quickAddModal.setQuickAddSelectedCategoryId,
+      setManualAmount: s.quickAddModal.setQuickAddManualAmount,
+      resetQuickAdd: s.quickAddModal.resetQuickAddModal,
+      fetchAccounts: s.accounts.fetchAccounts,
+      fetchTransactions: s.transactions.fetchTransactions,
+      fetchUpcomingBills: s.bills.fetchUpcomingBills,
+      fetchPendingDocuments: s.documents.fetchPendingDocuments,
+      fetchReports: s.reports.fetchReports,
     })),
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
   const amountMissing = Boolean(parsed?.missing?.includes('amount'))
+  const { upload: uploadDocument } = useDocumentUpload()
 
   useEffect(() => {
     if (addModalOpen) {
@@ -88,8 +95,8 @@ export const AddTransactionModal = (): JSX.Element => {
     try {
       const response = await api.post('/api/transactions/parse', { text: input })
       setParsed(response.data)
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Could not parse that text')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Could not parse that text'))
     } finally {
       setLoading(false)
     }
@@ -114,8 +121,9 @@ export const AddTransactionModal = (): JSX.Element => {
       fetchAccounts({ force: true })
       fetchTransactions({ reset: true, force: true })
       fetchUpcomingBills(30, { force: true })
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to save transaction')
+      fetchReports()
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to save transaction'))
     } finally {
       setSaving(false)
     }
@@ -124,6 +132,27 @@ export const AddTransactionModal = (): JSX.Element => {
   const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    // PDFs (a statement pulled from the Files app rather than the camera/photo
+    // library) can't run through client-side OCR — route those through the same
+    // server-side document pipeline desktop uses instead of rejecting them.
+    if (file.type === 'application/pdf') {
+      setScanning(true)
+      try {
+        const docId = await uploadDocument(file, 'receipt')
+        if (docId) {
+          fetchPendingDocuments({ force: true })
+          toast.success('Document uploaded! Review it in Activity.')
+          resetQuickAdd()
+          closeAddModal()
+        } else {
+          toast.error('Failed to upload document')
+        }
+      } finally {
+        setScanning(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      }
+      return
+    }
     setScanning(true)
     try {
       const raw = await extractTextFromImage(file)
@@ -211,12 +240,12 @@ export const AddTransactionModal = (): JSX.Element => {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,application/pdf"
                 className={styles.hiddenInput}
                 onChange={handleFileScan}
               />
               <Text size="1" color="gray">
-                Try typing or scan a receipt
+                Try typing, scan a receipt, or attach a PDF statement
               </Text>
             </Flex>
 

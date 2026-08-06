@@ -1,4 +1,4 @@
-import { useState, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import {
   Flex,
   Text,
@@ -9,9 +9,12 @@ import {
   Dialog,
   Button,
   Checkbox,
+  VisuallyHidden,
 } from '@radix-ui/themes'
 import { Search, Trash2, Pencil, X, Link2, Unlink } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+import { useShallow } from 'zustand/react/shallow'
+import { useBoundStore } from '../../../store/useBoundStore.ts'
 import type { Transaction } from '../../../store/slices/transactionsSlice.ts'
 import { formatCurrency, getAmountColor } from '../../../shared/utils/format.ts'
 import styles from './Activity.module.css'
@@ -55,6 +58,8 @@ interface Props {
   merchants: Merchant[]
   accounts: Account[]
   bills: Bill[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
   onClose: () => void
   onDelete: (id: number) => void
   onSaveNotes: (id: number, notes: string) => void
@@ -70,6 +75,8 @@ export const TransactionDetailDialog = ({
   merchants,
   accounts,
   bills,
+  open,
+  onOpenChange,
   onClose,
   onDelete,
   onSaveNotes,
@@ -77,21 +84,31 @@ export const TransactionDetailDialog = ({
   onLinkBill,
   onUnlinkBill,
 }: Props): JSX.Element => {
-  const [editing, setEditing] = useState(false)
-  const [editNotes, setEditNotes] = useState(transaction.notes || '')
-  const [linkBillOpen, setLinkBillOpen] = useState(false)
-  const [linkBillSearch, setLinkBillSearch] = useState('')
-  const [editForm, setEditForm] = useState<EditForm>({
-    amount: transaction.amount,
-    description: transaction.description,
-    transaction_type: transaction.transaction_type,
-    category_id: transaction.category_id,
-    merchant_id: transaction.merchant_id,
-    account_id: transaction.account_id,
-    date: transaction.date,
-    is_pending: transaction.is_pending,
-    is_recurring: transaction.is_recurring,
-  })
+  const {
+    editing,
+    editNotes,
+    linkBillOpen,
+    linkBillSearch,
+    editForm,
+    initTransactionEditForm,
+    setTransactionEditing,
+    setTransactionEditNotes,
+    setTransactionLinkBillOpen,
+    setTransactionLinkBillSearch,
+    setTransactionEditFormField,
+    suggestTransactionCategory,
+  } = useBoundStore(useShallow((s) => s.transactionEditForm))
+
+  useEffect(() => {
+    initTransactionEditForm(transaction)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transaction.id])
+
+  useEffect(() => {
+    if (!editing || transaction.category_id !== null) return
+    suggestTransactionCategory(transaction.description, transaction.transaction_type, categories)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, transaction.id])
 
   const linkedBill = transaction.bill_id ? bills.find((b) => b.id === transaction.bill_id) : null
   const availableBills = bills.filter((b) =>
@@ -100,11 +117,11 @@ export const TransactionDetailDialog = ({
 
   const handleSave = async () => {
     const ok = await onSaveEdit(transaction.id, editForm)
-    if (ok) setEditing(false)
+    if (ok) setTransactionEditing(false)
   }
 
   return (
-    <>
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content className={styles.dialogDetail}>
         <Flex justify="between" align="center" className={styles.detailHeader}>
           <Dialog.Title className={styles.dialogTitle}>
@@ -114,6 +131,9 @@ export const TransactionDetailDialog = ({
             <X size={16} />
           </IconButton>
         </Flex>
+        <VisuallyHidden>
+          <Dialog.Description>View and edit transaction details</Dialog.Description>
+        </VisuallyHidden>
 
         {editing ? (
           <Flex direction="column" gap="3">
@@ -123,7 +143,7 @@ export const TransactionDetailDialog = ({
               </Text>
               <TextField.Root
                 value={editForm.description}
-                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                onChange={(e) => setTransactionEditFormField('description', e.target.value)}
               />
             </Flex>
 
@@ -136,7 +156,7 @@ export const TransactionDetailDialog = ({
                 step="0.01"
                 value={editForm.amount}
                 onChange={(e) =>
-                  setEditForm({ ...editForm, amount: parseFloat(e.target.value) || 0 })
+                  setTransactionEditFormField('amount', parseFloat(e.target.value) || 0)
                 }
               />
             </Flex>
@@ -147,7 +167,7 @@ export const TransactionDetailDialog = ({
               </Text>
               <Select.Root
                 value={editForm.transaction_type}
-                onValueChange={(v) => setEditForm({ ...editForm, transaction_type: v })}
+                onValueChange={(v) => setTransactionEditFormField('transaction_type', v)}
               >
                 <Select.Trigger />
                 <Select.Content>
@@ -164,7 +184,7 @@ export const TransactionDetailDialog = ({
               <TextField.Root
                 type="date"
                 value={editForm.date}
-                onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                onChange={(e) => setTransactionEditFormField('date', e.target.value)}
               />
             </Flex>
 
@@ -175,7 +195,7 @@ export const TransactionDetailDialog = ({
               <Select.Root
                 value={editForm.category_id ? String(editForm.category_id) : ''}
                 onValueChange={(v) =>
-                  setEditForm({ ...editForm, category_id: v ? Number(v) : null })
+                  setTransactionEditFormField('category_id', v ? Number(v) : null)
                 }
               >
                 <Select.Trigger placeholder="None" />
@@ -197,7 +217,7 @@ export const TransactionDetailDialog = ({
               <Select.Root
                 value={editForm.merchant_id ? String(editForm.merchant_id) : ''}
                 onValueChange={(v) =>
-                  setEditForm({ ...editForm, merchant_id: v ? Number(v) : null })
+                  setTransactionEditFormField('merchant_id', v ? Number(v) : null)
                 }
               >
                 <Select.Trigger placeholder="None" />
@@ -218,7 +238,7 @@ export const TransactionDetailDialog = ({
               </Text>
               <Select.Root
                 value={String(editForm.account_id)}
-                onValueChange={(v) => setEditForm({ ...editForm, account_id: Number(v) })}
+                onValueChange={(v) => setTransactionEditFormField('account_id', Number(v))}
               >
                 <Select.Trigger />
                 <Select.Content>
@@ -235,21 +255,21 @@ export const TransactionDetailDialog = ({
               <Text as="label" className={styles.checkboxLabel}>
                 <Checkbox
                   checked={editForm.is_pending}
-                  onCheckedChange={(v) => setEditForm({ ...editForm, is_pending: v === true })}
+                  onCheckedChange={(v) => setTransactionEditFormField('is_pending', v === true)}
                 />
                 <Text size="2">Pending</Text>
               </Text>
               <Text as="label" className={styles.checkboxLabel}>
                 <Checkbox
                   checked={editForm.is_recurring}
-                  onCheckedChange={(v) => setEditForm({ ...editForm, is_recurring: v === true })}
+                  onCheckedChange={(v) => setTransactionEditFormField('is_recurring', v === true)}
                 />
                 <Text size="2">Recurring</Text>
               </Text>
             </Flex>
 
             <Flex gap="2" justify="end">
-              <Button variant="soft" color="gray" onClick={() => setEditing(false)}>
+              <Button variant="soft" color="gray" onClick={() => setTransactionEditing(false)}>
                 Cancel
               </Button>
               <Button variant="solid" onClick={handleSave}>
@@ -329,7 +349,7 @@ export const TransactionDetailDialog = ({
                   </Button>
                 </Flex>
               ) : (
-                <Button size="1" variant="soft" onClick={() => setLinkBillOpen(true)}>
+                <Button size="1" variant="soft" onClick={() => setTransactionLinkBillOpen(true)}>
                   <Link2 size={12} /> Link to bill
                 </Button>
               )}
@@ -350,13 +370,13 @@ export const TransactionDetailDialog = ({
               </Text>
               <TextField.Root
                 value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
+                onChange={(e) => setTransactionEditNotes(e.target.value)}
                 placeholder="Add notes..."
               />
             </Flex>
 
             <Flex gap="2" justify="end">
-              <Button variant="soft" onClick={() => setEditing(true)}>
+              <Button variant="soft" onClick={() => setTransactionEditing(true)}>
                 <Pencil size={14} /> Edit
               </Button>
               <Button
@@ -381,13 +401,16 @@ export const TransactionDetailDialog = ({
         )}
       </Dialog.Content>
 
-      <Dialog.Root open={linkBillOpen} onOpenChange={setLinkBillOpen}>
+      <Dialog.Root open={linkBillOpen} onOpenChange={setTransactionLinkBillOpen}>
         <Dialog.Content maxWidth="400px">
           <Dialog.Title>Link to Bill</Dialog.Title>
+          <Dialog.Description size="2" color="gray">
+            Attach this transaction to a recurring bill
+          </Dialog.Description>
           <TextField.Root
             placeholder="Search bills..."
             value={linkBillSearch}
-            onChange={(e) => setLinkBillSearch(e.target.value)}
+            onChange={(e) => setTransactionLinkBillSearch(e.target.value)}
             mt="3"
             mb="3"
           >
@@ -409,7 +432,7 @@ export const TransactionDetailDialog = ({
                   className={`${styles.row} ${styles.billItem}`}
                   onClick={async () => {
                     await onLinkBill(bill.id)
-                    setLinkBillOpen(false)
+                    setTransactionLinkBillOpen(false)
                   }}
                 >
                   <Text size="2" weight="medium">
@@ -424,6 +447,6 @@ export const TransactionDetailDialog = ({
           </Flex>
         </Dialog.Content>
       </Dialog.Root>
-    </>
+    </Dialog.Root>
   )
 }

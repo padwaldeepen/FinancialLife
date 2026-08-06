@@ -14,9 +14,9 @@ export type AdviceSlice = {
     cards: AdviceCard[]
     loading: boolean
     lastFetchedAt: number | null
+    fetchAdvice: (opts?: { force?: boolean }) => Promise<void>
+    dismissAdviceType: (type: string) => Promise<void>
   }
-  fetchAdvice: (opts?: { force?: boolean }) => Promise<void>
-  dismissAdviceType: (type: string) => Promise<void>
 }
 
 export const createAdviceSlice = namespaceSlice('advice', (set, get) => ({

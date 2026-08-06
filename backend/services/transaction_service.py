@@ -228,14 +228,21 @@ def _extract_description(text: str, amount: Decimal | None) -> str:
         amount_literal = (
             f"{amount:.2f}" if amount != amount.to_integral_value() else str(int(amount))
         )
+        # Replace the matched amount phrase with a single space, not "" — removing it
+        # outright mashes the words on either side together (e.g. "parking 12
+        # transport" -> "parkingtransport" instead of "parking transport"). The
+        # trailing preposition alternation also needs a \b: without one it matches as
+        # a bare substring ("in" inside "income"), silently eating real letters
+        # ("freelance payment 800 income" -> "...paymentcome").
         cleaned = re.sub(
             r"(?:spent|paid|sent|used|gave|cost|spend|spending)?\s*\$?\s*"
             + re.escape(amount_literal)
-            + r"\s*(?:dollars|bucks|rs|rupees)?\s*(?:on|for|at|in|to|:)?\s*",
-            "",
+            + r"\s*(?:dollars|bucks|rs|rupees)?\s*(?:(?:on|for|at|in|to)\b|:)?\s*",
+            " ",
             text,
             flags=re.IGNORECASE,
         ).strip()
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
     # Remove leading noise words
     noise = r"^(?:spent|paid|sent|used|gave|bought|got|received|earned)\s+"
@@ -256,7 +263,16 @@ def _determine_type(description: str) -> str:
     return "expense"
 
 
-def _categorize(description: str, transaction_type: str) -> str | None:
+def _capitalize_first_letter(text: str) -> str:
+    """Uppercase the first alphabetic character only — unlike str.capitalize(), never
+    lowercases the rest, so proper nouns ("Starbucks", "Olive Garden") survive intact."""
+    for i, ch in enumerate(text):
+        if ch.isalpha():
+            return text[:i] + ch.upper() + text[i + 1 :]
+    return text
+
+
+def categorize(description: str, transaction_type: str) -> str | None:
     if transaction_type == "income":
         return "Income"
 
@@ -292,7 +308,7 @@ def parse_transaction(text: str, today: date | None = None) -> dict:
     amount = _extract_amount(remaining)
     description = _extract_description(remaining, amount)
     transaction_type = _determine_type(description)
-    category = _categorize(description, transaction_type)
+    category = categorize(description, transaction_type)
 
     missing: list[str] = []
     if amount is None:
@@ -302,7 +318,7 @@ def parse_transaction(text: str, today: date | None = None) -> dict:
 
     return {
         "amount": amount,
-        "description": description.capitalize() if description else "",
+        "description": _capitalize_first_letter(description) if description else "",
         "type": transaction_type,
         "category": category,
         "date": resolved_date,

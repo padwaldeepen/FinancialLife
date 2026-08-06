@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import {
   Box,
   Flex,
@@ -16,16 +16,7 @@ import { Trash2, Check, X, Shield } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import toast from '../../../shared/utils/toast.ts'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
-import type { AdminUserCreate } from '../../../store/slices/adminSlice.ts'
 import styles from './Manage.module.css'
-
-const emptyUser = (): AdminUserCreate => ({
-  email: '',
-  username: '',
-  password: '',
-  full_name: '',
-  country: 'US',
-})
 
 // A2: the admin panel — only mounted when auth.user.is_admin (Manage.tsx gates it), and
 // every call is server-gated by A1's require_admin. Manages the *system* (users,
@@ -50,24 +41,38 @@ export const AdminTab = (): JSX.Element => {
       users: s.admin.users,
       systemCategories: s.admin.systemCategories,
       status: s.admin.status,
-      fetchAdminUsers: s.fetchAdminUsers,
-      createAdminUser: s.createAdminUser,
-      setUserActive: s.setUserActive,
-      fetchSystemCategories: s.fetchSystemCategories,
-      createSystemCategory: s.createSystemCategory,
-      updateSystemCategory: s.updateSystemCategory,
-      deleteSystemCategory: s.deleteSystemCategory,
-      fetchAdminStatus: s.fetchAdminStatus,
-      triggerBackup: s.triggerBackup,
+      fetchAdminUsers: s.admin.fetchAdminUsers,
+      createAdminUser: s.admin.createAdminUser,
+      setUserActive: s.admin.setUserActive,
+      fetchSystemCategories: s.admin.fetchSystemCategories,
+      createSystemCategory: s.admin.createSystemCategory,
+      updateSystemCategory: s.admin.updateSystemCategory,
+      deleteSystemCategory: s.admin.deleteSystemCategory,
+      fetchAdminStatus: s.admin.fetchAdminStatus,
+      triggerBackup: s.admin.triggerBackup,
       currentUserId: s.auth.user?.id ?? null,
     })),
   )
 
-  const [userDialogOpen, setUserDialogOpen] = useState(false)
-  const [userForm, setUserForm] = useState<AdminUserCreate>(emptyUser())
-  const [savingUser, setSavingUser] = useState(false)
-  const [newCatName, setNewCatName] = useState('')
-  const [newCatColor, setNewCatColor] = useState('#6B7280')
+  const {
+    userDialogOpen,
+    userForm,
+    savingUser,
+    newCatName,
+    newCatColor,
+    editingSystemCategoryId,
+    systemCategoryDraft,
+    setUserDialogOpen,
+    setUserFormField,
+    setSavingUser,
+    resetUserForm,
+    setNewCatName,
+    setNewCatColor,
+    resetNewCategoryForm,
+    startSystemCategoryEdit,
+    cancelSystemCategoryEdit,
+    setSystemCategoryDraft,
+  } = useBoundStore(useShallow((s) => s.adminForm))
 
   useEffect(() => {
     fetchAdminUsers()
@@ -83,12 +88,11 @@ export const AdminTab = (): JSX.Element => {
     setSavingUser(true)
     try {
       await createAdminUser(userForm)
-      toast.success('User created — they can log in now')
       setUserDialogOpen(false)
-      setUserForm(emptyUser())
+      resetUserForm()
       fetchAdminStatus()
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Could not create user')
+    } catch {
+      // toast handled in store
     } finally {
       setSavingUser(false)
     }
@@ -98,10 +102,9 @@ export const AdminTab = (): JSX.Element => {
     if (!newCatName.trim()) return
     try {
       await createSystemCategory(newCatName.trim(), newCatColor)
-      setNewCatName('')
-      toast.success('Category added')
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Could not add category')
+      resetNewCategoryForm()
+    } catch {
+      // toast handled in store
     }
   }
 
@@ -233,6 +236,11 @@ export const AdminTab = (): JSX.Element => {
               name={c.name}
               color={c.color}
               isChild={c.parent_id !== null}
+              editing={editingSystemCategoryId === c.id}
+              draft={systemCategoryDraft}
+              onStartEdit={() => startSystemCategoryEdit(c.id, c.name)}
+              onCancelEdit={cancelSystemCategoryEdit}
+              onDraftChange={setSystemCategoryDraft}
               onRename={(name) => updateSystemCategory(c.id, { name })}
               onRecolor={(color) => updateSystemCategory(c.id, { color })}
               onDelete={() => deleteSystemCategory(c.id)}
@@ -250,27 +258,27 @@ export const AdminTab = (): JSX.Element => {
               placeholder="Email"
               type="email"
               value={userForm.email}
-              onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+              onChange={(e) => setUserFormField('email', e.target.value)}
             />
             <TextField.Root
               placeholder="Username"
               value={userForm.username}
-              onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+              onChange={(e) => setUserFormField('username', e.target.value)}
             />
             <TextField.Root
               placeholder="Password (8+ characters)"
               type="password"
               value={userForm.password}
-              onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+              onChange={(e) => setUserFormField('password', e.target.value)}
             />
             <TextField.Root
               placeholder="Full name (optional)"
               value={userForm.full_name ?? ''}
-              onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })}
+              onChange={(e) => setUserFormField('full_name', e.target.value)}
             />
             <Select.Root
               value={userForm.country}
-              onValueChange={(v) => setUserForm({ ...userForm, country: v as 'US' | 'IN' | 'CA' })}
+              onValueChange={(v) => setUserFormField('country', v)}
             >
               <Select.Trigger placeholder="Country" />
               <Select.Content>
@@ -298,6 +306,11 @@ const SystemCategoryRow = ({
   name,
   color,
   isChild,
+  editing,
+  draft,
+  onStartEdit,
+  onCancelEdit,
+  onDraftChange,
   onRename,
   onRecolor,
   onDelete,
@@ -306,13 +319,15 @@ const SystemCategoryRow = ({
   name: string
   color: string
   isChild: boolean
+  editing: boolean
+  draft: string
+  onStartEdit: () => void
+  onCancelEdit: () => void
+  onDraftChange: (draft: string) => void
   onRename: (name: string) => void
   onRecolor: (color: string) => void
   onDelete: () => void
 }): JSX.Element => {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(name)
-
   return (
     <Flex align="center" justify="between" gap="2" py="1" pl={isChild ? '4' : '0'}>
       <Flex align="center" gap="2" style={{ flex: 1 }}>
@@ -326,7 +341,7 @@ const SystemCategoryRow = ({
         {editing ? (
           <TextField.Root
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => onDraftChange(e.target.value)}
             style={{ flex: 1 }}
           />
         ) : (
@@ -341,26 +356,18 @@ const SystemCategoryRow = ({
             color="green"
             onClick={() => {
               if (draft.trim() && draft.trim() !== name) onRename(draft.trim())
-              setEditing(false)
+              onCancelEdit()
             }}
           >
             <Check size={14} />
           </IconButton>
-          <IconButton
-            size="1"
-            variant="soft"
-            color="gray"
-            onClick={() => {
-              setDraft(name)
-              setEditing(false)
-            }}
-          >
+          <IconButton size="1" variant="soft" color="gray" onClick={onCancelEdit}>
             <X size={14} />
           </IconButton>
         </Flex>
       ) : (
         <Flex gap="1">
-          <Button size="1" variant="ghost" onClick={() => setEditing(true)}>
+          <Button size="1" variant="ghost" onClick={onStartEdit}>
             Rename
           </Button>
           <IconButton size="1" variant="ghost" color="red" onClick={onDelete} aria-label="Delete">

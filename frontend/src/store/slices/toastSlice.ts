@@ -11,9 +11,9 @@ export interface ToastItem {
 export type ToastSlice = {
   toasts: {
     items: ToastItem[]
+    pushToast: (message: string, variant: ToastVariant) => void
+    dismissToast: (id: number) => void
   }
-  pushToast: (message: string, variant: ToastVariant) => void
-  dismissToast: (id: number) => void
 }
 
 let nextId = 1

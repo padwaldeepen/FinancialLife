@@ -1,5 +1,5 @@
-import { useState, useEffect, type JSX } from 'react'
-import { Box, Flex, Text, Card, Grid, Select } from '@radix-ui/themes'
+import { useEffect, type JSX } from 'react'
+import { Box, Flex, Text, Card, Grid, Select, Skeleton } from '@radix-ui/themes'
 import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -29,8 +29,9 @@ const MONTH_NAMES = [
 export const Insights = (): JSX.Element => {
   const currency = useActiveCurrency()
   const today = new Date()
-  const [year, setYear] = useState(today.getFullYear())
-  const [month, setMonth] = useState(today.getMonth() + 1)
+  const { year, month, setInsightsYear, setInsightsMonth } = useBoundStore(
+    useShallow((s) => s.insightsPeriod),
+  )
 
   const {
     monthly,
@@ -49,8 +50,8 @@ export const Insights = (): JSX.Element => {
       periodComparisonMoM: s.reports.periodComparisonMoM,
       periodComparisonYoY: s.reports.periodComparisonYoY,
       periodLoading: s.reports.periodLoading,
-      fetchMonthly: s.fetchMonthly,
-      fetchInsightsPeriod: s.fetchInsightsPeriod,
+      fetchMonthly: s.reports.fetchMonthly,
+      fetchInsightsPeriod: s.reports.fetchInsightsPeriod,
     })),
   )
 
@@ -66,7 +67,7 @@ export const Insights = (): JSX.Element => {
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i)
 
   const handleSelectMonth = (m: number) => {
-    setMonth(m)
+    setInsightsMonth(m)
   }
 
   return (
@@ -74,7 +75,7 @@ export const Insights = (): JSX.Element => {
       <PageHeader
         action={
           <Flex align="center" gap="2">
-            <Select.Root value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+            <Select.Root value={String(month)} onValueChange={(v) => setInsightsMonth(Number(v))}>
               <Select.Trigger />
               <Select.Content>
                 {MONTH_NAMES.map((m, i) => (
@@ -84,7 +85,7 @@ export const Insights = (): JSX.Element => {
                 ))}
               </Select.Content>
             </Select.Root>
-            <Select.Root value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+            <Select.Root value={String(year)} onValueChange={(v) => setInsightsYear(Number(v))}>
               <Select.Trigger />
               <Select.Content>
                 {years.map((y) => (
@@ -100,14 +101,12 @@ export const Insights = (): JSX.Element => {
 
       {periodLoading && !periodComparisonMoM ? (
         <Flex direction="column" gap="3" p="4">
-          <Box
-            className="skeleton"
-            style={{ height: 100, width: '100%', borderRadius: 'var(--radius-2)' }}
-          />
-          <Box
-            className="skeleton"
-            style={{ height: 200, width: '100%', borderRadius: 'var(--radius-2)' }}
-          />
+          <Skeleton>
+            <Box style={{ height: 100 }} />
+          </Skeleton>
+          <Skeleton>
+            <Box style={{ height: 200 }} />
+          </Skeleton>
         </Flex>
       ) : (
         <>

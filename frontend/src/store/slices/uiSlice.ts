@@ -11,13 +11,13 @@ export type UISlice = {
     // Global (not local to CaptureSheet) so both the scan flow and the "pending
     // receipts" entry point on Activity can open the same review sheet.
     scanReviewDocId: number | null
+    openAddModal: () => void
+    closeAddModal: () => void
+    openCaptureSheet: () => void
+    closeCaptureSheet: () => void
+    openScanReview: (documentId: number) => void
+    closeScanReview: () => void
   }
-  openAddModal: () => void
-  closeAddModal: () => void
-  openCaptureSheet: () => void
-  closeCaptureSheet: () => void
-  openScanReview: (documentId: number) => void
-  closeScanReview: () => void
 }
 
 export const createUISlice = namespaceSlice('ui', (set) => ({

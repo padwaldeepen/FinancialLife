@@ -29,7 +29,9 @@ of `useState` calls.
 
 ## Creating a Slice
 
-Use `namespaceSlice` helper from `store/namespaceSlice.ts`. It auto-namespaces state fields under a key while keeping action functions flat.
+Use `namespaceSlice` helper from `store/namespaceSlice.ts`. It namespaces both state fields
+and actions under one key — `namespaceSlice(name, creator)` returns `{ [name]: creator(...) }`,
+so everything the creator returns (state *and* actions) lives under `s.<name>.*`.
 
 ```ts
 // store/slices/authSlice.ts
@@ -37,8 +39,8 @@ import { namespaceSlice } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
 
 export type AuthSlice = {
-  auth: AuthState
-} & AuthActions
+  auth: AuthState & AuthActions
+}
 
 export const createAuthSlice = namespaceSlice('auth', (set, get) => ({
   // State — goes under s.auth.*
@@ -46,7 +48,7 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => ({
   token: null as string | null,
   loading: true,
 
-  // Actions — stay flat at top level
+  // Actions — also under s.auth.*, called as s.auth.login(...)
   login: async (email: string, password: string) => {
     const res = await api.post('/api/auth/login', { email, password })
     set({ token: res.data.access_token, user: res.data.user })

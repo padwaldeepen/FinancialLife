@@ -2025,6 +2025,416 @@ clean.
 
 ---
 
+## Phase V — State Management Consolidation & Radix/CSS Debt (recovered plan, 2026-08-05)
+
+This phase recovers a plan that was drafted mid-session and lost (never turned into a
+backlog ticket, never executed). Re-verified against live code before writing this
+ticket: node was on `22.23.1` (bumped to LTS `24.19.0` as V0, done first since it's
+small and unblocks nothing else), the slice-file split described in V1 still exists
+exactly as found, 13 raw `useState` calls remain (V2), 14 files still call
+`toast.success`/`toast.error` directly from components (V3), and the skeleton
+anti-pattern described in V4 has grown from 35 to 82 occurrences since it was first
+flagged. Sequenced so state-management changes (V1–V3) land before the CSS/Radix pass
+(V4), since V4 touches many of the same files and re-touching them twice would be
+wasted motion.
+
+### [ ] V0 — Node LTS bump
+**Goal:** stay on a supported Node LTS line (22 was Active LTS, 24 now is, supported
+through April 2028).
+**Build:** `frontend/Dockerfile` `node:22.23.1-slim` → `node:24.19.0-slim`.
+**Accept:** `docker compose build frontend` succeeds; stack boots clean; app loads with
+no console errors.
+**Depends:** —
+
+### [ ] V1 — Consolidate slice files
+**Goal:** one file per domain instead of a data slice + a separately-filed form/page
+slice for the same domain (`store/slices/accountsSlice.ts` +
+`store/slices/accountFormSlice.ts`, etc.) — same exported creators/types, just
+co-located.
+**Build:** merge each pair per: `accountsSlice`+`accountFormSlice`,
+`adminSlice`+`adminFormSlice`, `budgetsSlice`+`budgetFormSlice`,
+`categoriesSlice`+`categoriesFormSlice`, `goalsSlice`+`goalsFormSlice`,
+`merchantsSlice`+`merchantsPageSlice`, `documentsSlice`+`documentReviewFormSlice`+
+`documentDialogsSlice`+`statementReviewSlice`, `transactionsSlice`+
+`transactionEditFormSlice`+`activityPageSlice`, `reportsSlice`+`insightsSlice`. Update
+the two import sites (`store/types.ts`, `store/useBoundStore.ts`). Components import
+only from `useBoundStore.ts`, so no component changes are needed.
+**Accept:** `grep -rn "from '.*\(accountForm\|adminForm\|budgetForm\|categoriesForm\|merchantsPage\|documentReviewForm\|documentDialogs\|statementReview\|transactionEditForm\|activityPage\|insights\)Slice'" src` returns nothing; `tsc` clean.
+**Depends:** V0 (sequencing only, no technical dependency).
+
+### [ ] V2 — Finish useState → Zustand migration
+**Goal:** close out the remaining local-state holdouts per `rules/zustand.md`'s "2+
+pieces of state → Zustand" rule.
+**Build:** `BillDetail.tsx` (`linkOpen`, `linkSearch`) → `billsSlice.ts`;
+`AccountTab.tsx` change-password form → `authSlice.ts`; `ChatBot.tsx` → new
+`chatSlice.ts`; mobile `Activity.tsx` → `transactionsSlice.ts`; mobile `Home.tsx` →
+`reportsSlice.ts`; `AddTransactionModal.tsx` (both trees, 6 `useState` calls, already
+flagged in "Discovered" below) → new `quickAddModalSlice.ts`.
+**Accept:** re-grep `useState(` across `desktop/` and `mobile/` — only deliberate
+single-flag exceptions remain (none currently identified); `tsc` clean.
+**Depends:** V1 (lands in the consolidated files).
+
+### [ ] V3 — Move toast + CRUD side effects into slice actions
+**Goal:** stop every page component hand-wrapping mutations in
+`try { ...; toast.success() } catch { toast.error() }`; actions own their own
+toast/error handling and throw on failure (pattern already established in
+`transactionsSlice.ts`'s `updateTransaction`).
+**Build:** apply that pattern to the 14 files still calling `toast.success`/
+`toast.error` directly (`Activity`, `DocumentReviewDialog`, `DocumentViewerDialog`,
+`StatementReviewDialog`, `Goals`, `AccountsTab`, `AccountTab`, `AdminTab`,
+`AiPrivacyTab`, `Merchants`, `BillDetail`, `Recurring`, mobile `Activity`, mobile
+`Settings`). Add one shared `getErrorDetail(error, fallback)` helper (colocate with
+`namespaceSlice.ts`'s `isFresh`) replacing ~18 duplicated
+`error.response?.data?.detail` extractions, and one shared
+`refetchCollection(set, url, key)` helper replacing ~15 duplicated
+mutate-then-refetch-whole-collection call sites (`goalsSlice`, `budgetsSlice`,
+`billsSlice`, `merchantsSlice`, `categoriesSlice`, `adminSlice`).
+**Accept:** `grep -rln "toast\.\(success\|error\)" src/desktop/pages src/mobile/pages`
+shrinks to near-zero outside slice files; `tsc`/`eslint` clean.
+**Depends:** V2.
+
+### [ ] V4 — Radix/CSS architecture fixes
+**Goal:** close the Radix/CSS debt found in a full architecture audit — the actual
+source of the "lot of CSS issues and Radix issues" this phase was recovered to fix.
+**Build:**
+1. **Skeletons** — convert all 82 hand-rolled `className="skeleton"` occurrences
+   (13+ files: `Activity` desktop+mobile, `DocumentReviewDialog`,
+   `DocumentViewerDialog`, `StatementReviewDialog`, `Categories`, `Goals`,
+   `AnnualTimeline`, `Insights`, `Merchants`, `BillDetail`, `Recurring`, mobile `Home`)
+   to Radix's real `<Skeleton>`, shaped per `design-system.md` §4.
+2. **Dialog a11y + consistency** — add `Dialog.Description` (visually hidden where no
+   visible description fits) to all 6 dialogs (`DocumentReviewDialog`,
+   `DocumentUploadDialog`, `DocumentViewerDialog`, `StatementReviewDialog`,
+   `TransactionDetailDialog`, `ImportDialog`) to remove the Radix console a11y
+   warning; standardize `Dialog.Root` ownership so `TransactionDetailDialog.tsx` owns
+   its own `Root` like the other five, instead of relying on its parent
+   (`Activity.tsx`) to own it.
+3. **Duplicated CSS classes** — extract shared `.emptyState`/`.emptyTitle`/
+   `.emptyHint` (currently byte-for-byte duplicated across `Activity`, `Goals`,
+   `Recurring`, `Merchants`), `.sectionHeader` (`Home.module.css`,
+   `Manage.module.css`), and `.row`/`.row + .row`/`.labelGroup` (`Activity`, `Manage`
+   desktop, `Activity`, `Settings` mobile) into one shared location each.
+4. **Stale docs** — `rules/frontend.md` cites `react-hot-toast` (not in
+   `package.json`; real toast is `@radix-ui/react-toast`, zero inline styles, no
+   exception needed) — delete the stale line. `rules/zustand.md`'s worked example
+   still shows the pre-restructure flat-action shape (`s.login()`) instead of the
+   real nested shape (`s.auth.login()`) every call site uses — fix to match.
+**Accept:** `grep -rn 'className="skeleton"' src/desktop src/mobile` returns nothing;
+spot-check 2-3 converted pages visually via Playwright/chrome-devtools MCP to confirm
+shape still matches real content; no Radix Dialog console warnings on any of the 6
+dialogs; `tsc`/`eslint` clean.
+**Depends:** V3 (touches several of the same files; sequenced to avoid re-touching).
+
+### [ ] V5 — Lint cleanup
+**Goal:** zero real bugs, minimize `any` where a real type is easy to supply.
+**Build:** fix `react-hooks/set-state-in-effect` at
+`desktop/pages/Recurring/BillFormDialog.tsx:68` (`if (open) setForm(...)` inside a
+bare `useEffect` — real bug, not just a lint nit); fix the 2
+`react-refresh/only-export-components` warnings (`main.tsx:17`, `theme.tsx:11`);
+reduce `@typescript-eslint/no-explicit-any` where a real type is easy to supply (skip
+deliberate escape hatches, e.g. axios error catches already replaced by
+`getErrorDetail` in V3).
+**Accept:** `npm run lint` warning count drops from 34; no new errors introduced.
+**Depends:** V3 (shares files via `getErrorDetail`).
+
+**Verification (all of V0–V5):** Docker stack up on Node 24; exercise every touched
+CRUD flow (Accounts, Goals, Categories, Merchants, Admin, Bills/Budgets, Transactions,
+Document review/upload) via Playwright against the live app on both desktop (≥1024px)
+and mobile (390×844) viewports — confirm toasts fire, dialogs open/close correctly, no
+console errors (including the Radix Dialog a11y warning disappearing). `tsc`/`eslint`
+clean throughout.
+
+---
+
+## Phase W — Pre-merge polish & upload pipeline upgrade (planned 2026-08-06)
+
+Bug batch reported while using the app before merging `feat/premium-ui-redesign` into
+`main`, researched via Explore agents against live code (not assumed). Two reported
+items turned out not to be bugs (transaction-count pluralization was already correct;
+Upload Receipt vs. `AddTransactionModal` upload aren't duplicated — see W1/W6 Results
+below) and got a design decision instead of a fix.
+
+### [ ] W0 — Dialog button alignment
+**Goal:** every dialog's action-button row matches the established `Flex justify="end"`
+pattern (confirmed standard across ~10 dialogs: `DocumentReviewDialog`, `ImportDialog`,
+`TransactionDetailDialog`, `Categories`, `AccountsTab`, `AdminTab`, `Merchants`,
+`Recurring`, etc.).
+**Build:** `AddTransactionModal.tsx:263` (desktop; check mobile's equivalent layout too)
+— add `justify="end"` to the `Flex gap="3"` wrapping Parse/Confirm & save.
+`BillFormDialog.tsx:182` and Goals' Create Goal (~224-226) / Add Contribution (~419-444)
+dialogs — each currently a bare full-width `<Button>` with no `Flex` wrapper; wrap each
+in `<Flex justify="end">`.
+**Accept:** all four dialogs render their action buttons bottom-right; `tsc`/`eslint`
+clean; screenshot each via Playwright to confirm.
+**Depends:** —
+
+### [ ] W1 — Activity tab: count relocation + live UI diagnosis
+**Goal:** address the reported "0 transaction(s)" placement complaint and the
+"date stuff/UI is broken" report.
+**Build:** the count text (`Activity.tsx:169-171`) is correctly pluralized already — no
+bug there, but relocate it from the standalone page subtitle into the filter-bar `Flex`
+(`Activity.tsx:187-243`) so it reads as a live result count for the current filter.
+Date filters (`useTransactionFilters.ts`, native `type="date"` inputs) showed nothing
+structurally broken in a static read — **live-reproduce first** via Playwright before
+writing any date-filter fix; if real, the bug is likely in the fetch/API layer
+(`useTransactionList.ts` → backend `date_from`/`date_to` handling), not the filter
+inputs themselves.
+**Result (upload consistency, resolved as a decision not a fix):** Upload Receipt
+(`DocumentUploadDialog`) and `AddTransactionModal`'s upload already share the exact
+same `useDocumentUpload` hook and `/api/documents/` endpoint — not duplicated.
+`AddTransactionModal` additionally does instant client-side OCR for dropped images (a
+quick-add speed shortcut, no server round-trip) while `DocumentUploadDialog` always does
+the full upload+review pipeline. Decision: keep the split — two different entry points
+for two different intents, not user-facing inconsistency.
+**Accept:** count reads correctly in the filter bar; date filters verified live (fixed
+if a real bug is found, or confirmed working if not); no console errors on Activity.
+**Depends:** —
+
+### [ ] W2 — Add Transaction "bounce" + desktop upload failure (live-diagnose first)
+**Goal:** resolve two reported issues where static code review found no obvious bug.
+**Build:** "bouncing" Add Transaction button — prime suspect is
+`Sidebar.module.css:66-68`'s `.addButton:hover { transform: translateY(-1px) }` (the
+only animated effect on that button, a hover lift not a real bounce/keyframe) —
+reproduce live first to confirm this is what's being seen, then remove/soften it if so.
+"Desktop upload not working" — the full path (`DocumentUploadDialog.tsx` →
+`useDocumentUpload.ts` → `POST /api/documents/` → `backend/routers/documents.py`) traced
+clean (field names match, content-type override correct, errors not swallowed); this
+needs a real browser repro (attempt an upload, read the actual network
+response/console error) before a fix can be written.
+**Accept:** both issues have a confirmed root cause and a verified-live fix, or are
+confirmed not reproducible (with the repro steps documented here for future reference).
+**Depends:** —
+**Result (2026-08-06):** Both live-repro'd, neither is an ongoing bug.
+- *Bounce*: hovered/measured the button's `boundingBox()` across frames — confirmed a
+  clean, single 1px `translateY` on hover (matches the static finding) with no
+  oscillation; `--ease-out: cubic-bezier(0.16, 1, 0.3, 1)` has no overshoot (both
+  y-control-points are exactly 1.0), so there's no spring/bounce in the curve itself.
+  The modal's own open animation was also measured frame-by-frame — grows monotonically
+  to its final size, no overshoot. **No true "bounce" found anywhere in this flow.**
+  Left as-is; if it resurfaces, the 1px hover lift in `Sidebar.module.css:66-68` remains
+  the only candidate to soften.
+- *Desktop upload*: uploaded a real PDF through `DocumentUploadDialog` end-to-end —
+  succeeded cleanly, appeared in Pending Documents with extracted data at high
+  confidence. **Not reproducible.** Likely explanation: earlier in this session the
+  `frontend` Docker container's bind-mounted file watcher was confirmed to silently
+  serve a stale build (Vite kept serving an old transform of an edited file — see the
+  "Known dev-environment gotcha" note in `CLAUDE.md`); if the user hit this while a
+  stale build was being served, a container restart (already done multiple times this
+  session) would explain why it now works. No code change made.
+
+### [ ] W3 — Manage restructure: fold AI & Privacy into Account
+**Goal:** one fewer Manage tab; no functional loss.
+**Build:** move `AiPrivacyTab.tsx`'s single Cloud-AI-toggle Card into `AccountTab.tsx`
+as a new section (after Password), reusing the existing `updateAiCloudEnabled` action
+and its lazy `fetchCurrentUser` effect. Delete `AiPrivacyTab.tsx`; remove its
+`Tabs.Trigger`/`Tabs.Content` registration from `Manage.tsx`.
+**Accept:** AI toggle works identically from its new location (on/off, persists); no
+`AiPrivacyTab` references remain; `tsc`/`eslint` clean.
+**Depends:** —
+
+### [x] W4 — Category suggestion on manual edit
+**Goal:** editing a transaction's category should suggest, not just present a blank
+list to pick from (quick-add already does this via a Badge+Popover; the gap was
+`TransactionDetailDialog.tsx`'s bare `Select`).
+**Scope correction (2026-08-06):** the original ticket also proposed merging
+`transaction_service.py`'s `CATEGORY_KEYWORDS` with `document_extract.py`'s
+`_CATEGORY_KEYWORDS`. On reading both fully, they're **not duplicated** — they operate
+at different granularity by design: `transaction_service.py` matches broad top-level
+categories ("Food & Dining") for quick-add's sparse text, while `document_extract.py`
+matches specific subcategories ("Electric", "Coffee Shops", "Rideshare") from richer
+receipt/statement content. Forcing them into one table would either coarsen document
+extraction's categorization or start having quick-add assign subcategories it doesn't
+expect — and risks the exact duplicate-category creation bug noted in the Phase R7 entry
+above (a category auto-created by name that doesn't match the tree's actual structure).
+**Not merged** — kept as two intentionally different-granularity tables.
+**Build (done):** `transaction_service.py`'s private `_categorize()` renamed to public
+`categorize()` (was only called internally before) and reused, not duplicated, from a
+new `GET /api/categories/suggest?description=&transaction_type=` endpoint
+(`routers/categories.py`, registered before `/{category_id}` so it isn't swallowed as a
+path param). Frontend: `transactionsSlice.ts`'s `transactionEditForm` namespace gained
+`suggestTransactionCategory(description, transactionType, categories)` — resolves the
+suggested name to an id against the caller's already-fetched flat category list (a
+slice can't read another slice's state via `get()`, so the list is passed in rather
+than re-fetched) and fills `editForm.category_id` only if it's still `null`, never
+overwriting an existing choice. Wired into `TransactionDetailDialog.tsx` via a `useEffect`
+keyed on `editing`+`transaction.id`, guarded to only fire when the transaction is
+genuinely uncategorized. CSV import auto-suggestion stays optional/not built (no
+caller currently supplies a description-only categorization need there).
+**Accept:** editing an uncategorized transaction pre-highlights a sensible category,
+fully overridable; editing an already-categorized one is untouched; `tsc`/`ruff check .`
+clean.
+**Depends:** —
+
+### [ ] W5 — Sidebar: show name instead of email
+**Goal:** the sidebar footer identity reads as a name, not an email address.
+**Build:** `Sidebar.tsx:40` (avatar-initial fallback) and `:85` (footer trigger text)
+both currently use `user?.email`. Change to
+`user?.full_name || user?.username || user?.email` (matches the existing fallback
+pattern already used in `AccountTab.tsx:79` — `full_name` is nullable, `username` is
+guaranteed non-null once `hydrateCurrentUser` resolves post-login).
+**Accept:** a user with `full_name` set sees their name; one without falls back to
+username, then email; verified live for both cases.
+**Depends:** —
+
+### [x] W6 — Upload pipeline upgrade: multi-file, auto-detect kind, Excel
+**Goal:** drop the manual receipt-vs-statement picker in favor of auto-detection, allow
+uploading several files at once, and accept `.xlsx` alongside image/PDF/CSV — the
+biggest chunk of this phase, land as its own reviewable unit after W0's alignment fix.
+**Build:**
+1. **Multi-file** — add `multiple` to the file input, read all of
+   `e.dataTransfer.files`/`e.target.files` instead of `[0]`, loop `upload()` once per
+   file (`PendingReceipts.tsx` already renders an arbitrary-length queue and opens one
+   review dialog per item independently by `document_id` — no backend/review-dialog
+   change needed). Show per-file status (pending/uploading/done/failed) so one bad file
+   doesn't block the rest; call `fetchPendingDocuments({ force: true })` once at the end.
+2. **Auto-detect kind** — local tier: after the pdfplumber text extraction that already
+   runs regardless of kind, classify via the existing statement row-pattern regexes
+   (`_STMT_ROW_DATE`/`_STMT_ROW_AMOUNT` — 3+ date-led rows → statement) vs. a single
+   `_TOTAL_LINE_RE` match → receipt; for scanned images, classify from the OCR'd text
+   using the same heuristic (OCR already has to run once regardless of kind, no extra
+   cost). Cloud tier: combine the two Gemini prompts into one classify-and-extract call
+   returning `{"kind": ..., ...fields}`, branch on the *returned* kind. Backend: `kind`
+   on `POST /api/documents/` becomes optional/inferred rather than a required `Form`
+   field. Add a "Doesn't look right? Switch to Receipt/Statement" affordance in
+   `DocumentReviewDialog.tsx`/`StatementReviewDialog.tsx` that re-runs extraction under
+   the other kind on the already-uploaded file — the escape hatch that makes removing
+   the manual picker low-risk.
+3. **Excel support** — `.xlsx` is structured tabular data like CSV, not an unstructured
+   document needing OCR/AI. Extend the *existing* client-side import pipeline
+   (`useCsvImport.ts`/`ImportDialog.tsx`) to also parse `.xlsx` via a new frontend
+   dependency (`xlsx`/SheetJS) rather than adding a fourth extraction path to
+   `document_extract.py` — no new backend dependency, no new server round-trip, reuses
+   the existing column-mapping/review UX. `DocumentUploadDialog` sniffs the dropped
+   file's type and routes it: image/PDF → the OCR/Gemini pipeline (auto-detected kind,
+   above); `.xlsx`/`.csv` → the import pipeline — one upload entry point, two pipelines
+   underneath.
+**Accept:** upload 3+ files at once (one deliberately invalid) and confirm the valid
+ones succeed independently; drop a real receipt and a real statement and confirm each
+auto-classifies correctly; exercise the misclassify escape hatch once; import a real
+`.xlsx` file through the same drop zone and confirm it routes to the import/review flow;
+`tsc`/`eslint`/`ruff check .` clean.
+**Depends:** W0 (touches the same file, land the small fix first for reviewable diffs).
+**Result (2026-08-06):** All three pieces landed and verified live end-to-end.
+- **Excel library scope correction**: the plan named `xlsx`/SheetJS, but `npm install`
+  surfaced 2 unpatched high-severity CVEs (prototype pollution, ReDoS — SheetJS ships
+  fixes via its own CDN, not npm). Swapped to `exceljs` instead (no open CVEs, 13M
+  weekly downloads) after checking it wasn't itself abandoned (last release Dec 2024,
+  but stable/feature-complete, not deprecated). Also evaluated and rejected
+  `@office-viewer/parser` (a suggestion mid-session) — brand new, ~5 downloads/week,
+  single unknown maintainer, name pattern resembling an unofficial republish of an
+  existing project. `frontend/src/shared/hooks/useCsvImport.ts` now branches on file
+  type: `.xlsx`/`.xls` parsed via `ExcelJS.Workbook().xlsx.load()` into the same
+  `{headers, rows}` shape PapaParse already produces for CSV, so column-mapping/
+  preview/review stay one shared path. `ImportDialog.tsx` accepts `.csv,.xlsx,.xls` now
+  (title/copy updated from "Import CSV" to "Import Transactions"/"Import").
+- **Multi-file + auto-detect**: `documentUploadDialog` slice's `kind` field replaced
+  with a `queue: DocumentUploadQueueItem[]` (per-file pending/uploading/done/failed).
+  `document_extract.py` gained a shared `extract_raw_text()` (de-duplicated out of
+  `extract_local`/`extract_statement_local`, which both used to do their own separate
+  pdfplumber/Tesseract pass) and `guess_document_kind()` (3+ statement-row-shaped lines
+  → statement, else receipt). `documents.py`'s `kind` form field is now optional;
+  omitted, it classifies from that same local text before dispatching to the
+  receipt/statement extraction path — costs one extra local-text pass when the file is
+  later re-extracted under the classified kind (accepted tradeoff over threading
+  pre-extracted text through both extraction functions' signatures). Gemini's prompts
+  were **not** merged into one classify-and-extract call as originally sketched — the
+  local classification already exists and is reused to pick which of the two existing
+  Gemini extraction paths (`extract`/`extract_statement`) runs, which is simpler and
+  lower-risk than restructuring `gemini.py`'s prompt/response contracts for the same
+  outcome.
+- **Misclassification escape hatch**: new `POST /{document_id}/reclassify?kind=` (backend)
+  and `reclassifyDocument` slice action re-run extraction under a forced kind against
+  the already-stored file. `DocumentReviewDialog`/`StatementReviewDialog` each show a
+  small "Looks like a statement/receipt, not a X? Switch" ghost button; `PendingReceipts.tsx`
+  now passes `onReclassified={setReviewing}` so the correct dialog component swaps in
+  automatically once the kind flips (verified live both directions).
+- **Docker gotcha hit again**: `npm install` on the host doesn't reach the `frontend`
+  container's separate `node_modules` volume — had to `docker compose exec frontend npm
+  install` too before the new dependency resolved; documented already in `CLAUDE.md`,
+  this is a second confirmation of that same gotcha.
+- Verified live: multi-file upload (3 files, statuses shown correctly), auto-detected
+  receipt vs. statement on real documents, escape hatch both directions (zero console
+  errors), and a full `.xlsx` → column-mapping → preview → import round-trip (2 rows,
+  correct amounts/types/dates, landed in Activity). `tsc`/`eslint`/`ruff check .` all
+  clean; `npm run build` succeeds (bundle grew from adding `exceljs` — flagged, not a
+  blocker for this single-user self-hosted app).
+
+### [ ] W7 — Testing/tooling follow-ups
+**Goal:** close out the housekeeping asks that came with this batch.
+**Build:** delete `frontend/e2e/debug.spec.ts` (confirmed scratch file, no real
+assertions). Add e2e coverage scoped to what W0–W6 touch (add-transaction, document
+upload including multi-file/auto-detect, Activity filters) following
+`auth-flow.spec.ts`'s existing pattern. Run a whole-codebase CSS-Modules unused-class
+check (no existing tool fits this repo's `styles.foo` convention — Grep-based: extract
+each `X.module.css`'s `.className` selectors, grep the paired `X.tsx` for
+`styles.className` usage, flag anything defined-but-unreferenced; review each flag
+before deleting, since conditional `className={cond ? styles.a : styles.b}` usage can
+false-positive) across every `.module.css` in `frontend/src/`, clean up what it finds.
+Document the chrome-devtools MCP Lighthouse/perf-trace workflow in
+`docs/DEVELOPMENT.md` (no new npm dependency — the MCP server already exposes
+`lighthouse_audit`/`performance_start_trace`/`performance_stop_trace`).
+**Accept:** `debug.spec.ts` gone; new specs pass (`npx playwright test`); CSS audit
+run with findings resolved or explicitly noted as false positives; Lighthouse workflow
+documented.
+**Depends:** W0–W6 (covers what they touch).
+**Result (2026-08-06):**
+- `debug.spec.ts` deleted. Also fixed **8 of the 14 pre-existing `auth-flow.spec.ts`
+  tests, which were silently failing** before this batch (found while verifying the
+  suite still passes) — root causes: `beforeAll`'s direct-API registration was missing
+  the now-required `country` field (the country-profile model), the UI registration
+  test never filled the now-required `username`/`confirmPassword` fields, three
+  `/api/transactions/*` API tests never sent `X-Profile-Id` (every financial route
+  requires it) or a valid `account_id`, and the navigation test asserted routes
+  (`/transactions`, `/budgets`) and a "Dashboard" heading that never existed in this
+  app's real 5-page map. All 14 pass now, individually and as a full serial run — a
+  full-suite-in-quick-succession run can trip the auth rate limiter from repeated
+  registrations across files' `beforeAll`s, a test-execution artifact of rerunning the
+  suite many times back-to-back while debugging, not an app bug.
+- Added `e2e/add-transaction.spec.ts` (quick-add parse→confirm, plus a regression guard
+  that the Parse/Confirm row stays right-aligned per W0) and
+  `e2e/document-upload.spec.ts` (Activity's relocated count per W1, no manual kind
+  picker + `multiple` attribute + per-file queue statuses per W6). Both pass.
+  `eslint.config.js` gained an `e2e/**/*.ts` override for Node globals (`Buffer` etc. —
+  these specs run under Playwright's Node runner, not the browser).
+- **Whole-codebase CSS audit**: Grep-based script (extract each `.module.css`'s class
+  selectors, check every one against `\.<class>\b` across all `.tsx` files) found 7
+  genuinely dead classes, all removed: `ChatBot.module.css`'s `.closeBtn`, `.txInfo`,
+  `.sendBtn` (and their pseudo-selector variants); mobile `Activity.module.css`'s
+  `.pageHeader`, `.pageTitle`, `.previewRow`; mobile `Settings.module.css`'s
+  `.pageTitle`. Re-ran after removal — zero remaining. `tsc`/`eslint`/`prettier --check`/
+  `npm run build` all clean.
+- Lighthouse/perf workflow documented in `docs/DEVELOPMENT.md` (see below).
+
+**Verification (all of W0–W7):** Docker stack up; exercise every touched flow via
+Playwright on both viewports — dialog alignment, Activity filters, add-transaction,
+document upload (single + multi-file + auto-detect + Excel), Manage's merged Account
+tab, Sidebar identity, category suggestion on edit. `npm run typecheck && npm run lint
+&& npm run build` and `ruff check . && ruff format .` clean throughout. Finish with
+`/code-review` (dead-code + complexity focus) against the full diff before merging
+`feat/premium-ui-redesign` into `main`.
+
+**Code review (2026-08-06)** — 3 parallel finder agents (backend correctness,
+frontend upload-pipeline correctness/reuse, dead-code/complexity) against the full
+Phase W diff, verified by direct re-reading before fixing:
+
+| Severity | File:Line | Issue |
+|---|---|---|
+| 🟡 Warning | `DocumentUploadDialog.tsx:48` | Mixed batch (spreadsheet + image/PDF) silently discarded every non-spreadsheet file — fixed |
+| 🟡 Warning | `useCsvImport.ts:11` | Ambiguous `application/vnd.ms-excel` MIME type could misroute a `.csv` into the binary xlsx parser — fixed |
+| 🟡 Warning | `DocumentUploadDialog.tsx:94` | Closing the dialog mid-upload cleared the queue while uploads were still in flight, orphaning their results — fixed (dismiss now blocked while uploading) |
+| 🟢 Suggestion | `DocumentUploadDialog.tsx:137` | Hand-rolled spinner instead of Radix `<Spinner>` (`rules/frontend.md:38`) — fixed |
+| 🟢 Suggestion | `useDocumentUpload.ts:46` | Multi-file batches stack one toast per file on top of the queue UI already showing status — not fixed, noted |
+| 🟢 Suggestion | `e2e/add-transaction.spec.ts:12` | Registration/login boilerplate copy-pasted across 3 spec files instead of a shared `e2e/helpers.ts` — not fixed, noted |
+
+One candidate (claimed dead `uploading` state in `useDocumentUpload.ts`) was **refuted**
+on verification — still consumed by `CaptureSheet.tsx`, just not by the new
+`DocumentUploadDialog` caller. Backend agent found zero issues (clean parameterized
+SQL, no stale references after the `categorize()`/`extract_raw_text()` renames,
+behavior-preserving refactors). All fixes re-verified: `tsc`/`eslint`/`ruff check .`
+clean, `npm run build` succeeds, e2e specs pass. **Verdict: ready to commit.**
+
+---
+
 ## Discovered (parking lot — do not act without a ticket)
 
 - README structure/feature sections still describe the pre-rebuild app (finish in T4).
@@ -2035,6 +2445,15 @@ clean.
   requests (fold into U-phase quick-add work), or set container TZ.
 - **Port 3000 IPv6 clash**: another dev server bound to `[::1]:3000` shadows the app for
   `localhost` URLs — use `http://127.0.0.1:3000` (documented here so nobody debugs it twice).
+- **`BillFormDialog.tsx`'s form `useState<BillFormValues>`** (found 2026-08-06 while
+  re-verifying V2 with a corrected grep — `useState<T>(...)` generic calls don't match a
+  plain `useState(` search): a multi-field form object in local `useState`, not Zustand,
+  outside V2's original scope. Fold into a future state-cleanup ticket.
+- **Radix `Select.Trigger` a11y gap** (found via Lighthouse, W7, 2026-08-06): an unset
+  `Select.Trigger` with only a `placeholder` prop has no accessible name — the
+  placeholder is CSS-generated `content`, invisible to the accessibility tree. Affects
+  every filter Select app-wide (confirmed on Activity's type/category/merchant
+  filters). Fix: audit every `Select.Trigger` usage and add an explicit `aria-label`.
 - Saving a transaction from the Quick Add dialog doesn't refresh Home's already-mounted
   slices (needs reload) — already covered by U3's staleness/refresh work.
 - Desktop Settings renders the Profile card twice (duplicate block) — retires with U7 anyway.

@@ -9,9 +9,20 @@ const TEST_USER = {
 const API = 'http://localhost:8080'
 
 let token: string
+// Every financial route requires this — get_current_profile 400s without it (the
+// country-profile model, see architecture-and-goals.md). Missing here broke the three
+// /api/transactions/* API tests below; fixed alongside the `country` fix (W7).
+let profileId: number
+// Registration auto-creates default accounts for the new profile — grabbed once so
+// the create-transaction test has a real account_id (TransactionCreate requires one).
+let accountId: number
 
 test.describe('Authentication Flow', () => {
-  // Register the test user once before all tests
+  // Register the test user once before all tests. `country` is required by the
+  // backend (routers/auth.py's UserRegister, the country-profile model) — omitting it
+  // 422s and silently broke every test below that depends on `token` (found and fixed
+  // here, W7; the UI-driven registration test further down was unaffected since
+  // registerFormSlice defaults `country` to 'US' client-side).
   test.beforeAll(async () => {
     const res = await fetch(`${API}/api/auth/register`, {
       method: 'POST',
@@ -21,10 +32,21 @@ test.describe('Authentication Flow', () => {
         username: TEST_USER.email.split('@')[0],
         password: TEST_USER.password,
         full_name: TEST_USER.name,
+        country: 'US',
       }),
     })
+    if (res.status !== 200) {
+      throw new Error(`beforeAll registration failed: ${res.status} ${await res.text()}`)
+    }
     const data = await res.json()
-    if (res.status === 200) token = data.access_token
+    token = data.access_token
+    profileId = data.profiles[0].id
+
+    const accountsRes = await fetch(`${API}/api/accounts/`, {
+      headers: { Authorization: `Bearer ${token}`, 'X-Profile-Id': String(profileId) },
+    })
+    const accounts = await accountsRes.json()
+    accountId = accounts[0].id
   })
 
   // ─── REGISTRATION ───────────────────────────
@@ -53,10 +75,13 @@ test.describe('Authentication Flow', () => {
     })
 
     test('should register a new user successfully', async ({ page }) => {
+      const altEmail = `alt_${TEST_USER.email}`
       await page.goto('/register')
       await page.fill('#fullName', TEST_USER.name)
-      await page.fill('#regEmail', `alt_${TEST_USER.email}`)
+      await page.fill('#regUsername', altEmail.split('@')[0]!)
+      await page.fill('#regEmail', altEmail)
       await page.fill('#regPassword', TEST_USER.password)
+      await page.fill('#regConfirmPassword', TEST_USER.password)
       await page.click('button[type="submit"]')
       await page.waitForURL('/', { timeout: 10000 })
     })
@@ -122,7 +147,7 @@ test.describe('Authentication Flow', () => {
 
     test('GET /api/transactions/ - should list transactions', async () => {
       const res = await fetch(`${API}/api/transactions/`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, 'X-Profile-Id': String(profileId) },
       })
       expect(res.status).toBe(200)
     })
@@ -133,12 +158,14 @@ test.describe('Authentication Flow', () => {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'X-Profile-Id': String(profileId),
         },
         body: JSON.stringify({
           description: 'E2E test transaction',
           amount: 42.5,
           date: new Date().toISOString().split('T')[0],
           transaction_type: 'expense',
+          account_id: accountId,
         }),
       })
       expect(res.status).toBe(201)
@@ -150,6 +177,7 @@ test.describe('Authentication Flow', () => {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'X-Profile-Id': String(profileId),
         },
         body: JSON.stringify({ text: 'spent 15 dollars on pizza yesterday' }),
       })
@@ -160,6 +188,10 @@ test.describe('Authentication Flow', () => {
   })
 
   // ─── UI NAVIGATION ─────────────────────────
+  // Real routes/copy per the app's actual 5-page desktop map (design-system.md §3):
+  // Home/Activity/Recurring/Insights/Manage — the original `/transactions`, `/budgets`,
+  // and a "Dashboard" heading never existed in this app; fixed while restoring this
+  // suite to a passing state (W7).
   test.describe('UI Navigation (authenticated)', () => {
     test('should navigate all pages after login', async ({ page }) => {
       await page.goto('/login')
@@ -169,13 +201,13 @@ test.describe('Authentication Flow', () => {
       await page.waitForURL('/', { timeout: 10000 })
 
       await page.waitForLoadState('networkidle')
-      await expect(page.getByRole('heading', { name: /dashboard/i }).first()).toBeVisible()
+      await expect(page.getByText('Safe to Spend')).toBeVisible()
 
-      await page.goto('/transactions')
-      await page.waitForLoadState('networkidle')
-
-      await page.goto('/budgets')
-      await page.waitForLoadState('networkidle')
+      for (const path of ['/activity', '/recurring', '/insights', '/manage']) {
+        await page.goto(path)
+        await page.waitForLoadState('networkidle')
+        await expect(page).toHaveURL(path)
+      }
     })
   })
 })

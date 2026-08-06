@@ -62,11 +62,11 @@ export type ReportsSlice = {
     periodComparisonYoY: Comparison | null
     periodLoading: boolean
     loading: boolean
+    fetchReports: (year?: string) => Promise<void>
+    fetchMonthly: (year: number) => Promise<void>
+    fetchInsightsPeriod: (year: number, month: number) => Promise<void>
+    fetchCategoriesForMonth: (year: number, month: number) => Promise<CategoryTotal[]>
   }
-  fetchReports: (year?: string) => Promise<void>
-  fetchMonthly: (year: number) => Promise<void>
-  fetchInsightsPeriod: (year: number, month: number) => Promise<void>
-  fetchCategoriesForMonth: (year: number, month: number) => Promise<CategoryTotal[]>
 }
 
 export const createReportsSlice = namespaceSlice('reports', (set) => ({
@@ -142,4 +142,81 @@ export const createReportsSlice = namespaceSlice('reports', (set) => ({
     const res = await api.get('/api/reports/categories', { params: { year, month } })
     return res.data as CategoryTotal[]
   },
+}))
+
+// --- Insights period + annual timeline state (merged from insightsSlice.ts) ---
+
+export interface InsightsPeriodState {
+  year: number
+  month: number
+}
+
+export interface InsightsPeriodActions {
+  setInsightsYear: (year: number) => void
+  setInsightsMonth: (month: number) => void
+}
+
+export type InsightsPeriodSlice = {
+  insightsPeriod: InsightsPeriodState & InsightsPeriodActions
+}
+
+const today = new Date()
+
+export const createInsightsPeriodSlice = namespaceSlice('insightsPeriod', (set) => ({
+  year: today.getFullYear(),
+  month: today.getMonth() + 1,
+
+  setInsightsYear: (year: number) => set({ year }),
+  setInsightsMonth: (month: number) => set({ month }),
+}))
+
+export interface AnnualTimelineState {
+  hoverMonth: number | null
+  hoverBreakdown: CategoryTotal[] | null
+  loadingHover: boolean
+}
+
+export interface AnnualTimelineActions {
+  setAnnualTimelineHoverMonth: (month: number | null) => void
+  setAnnualTimelineHoverBreakdown: (breakdown: CategoryTotal[] | null) => void
+  setAnnualTimelineLoadingHover: (loading: boolean) => void
+}
+
+export type AnnualTimelineSlice = {
+  annualTimeline: AnnualTimelineState & AnnualTimelineActions
+}
+
+export const createAnnualTimelineSlice = namespaceSlice('annualTimeline', (set) => ({
+  hoverMonth: null as number | null,
+  hoverBreakdown: null as CategoryTotal[] | null,
+  loadingHover: false,
+
+  setAnnualTimelineHoverMonth: (month: number | null) => set({ hoverMonth: month }),
+  setAnnualTimelineHoverBreakdown: (breakdown: CategoryTotal[] | null) =>
+    set({ hoverBreakdown: breakdown }),
+  setAnnualTimelineLoadingHover: (loading: boolean) => set({ loadingHover: loading }),
+}))
+
+// --- Mobile Home pull-to-refresh state (merged from useState) ---
+
+export interface HomeRefreshState {
+  refreshing: boolean
+  pullDistance: number
+}
+
+export interface HomeRefreshActions {
+  setHomeRefreshing: (refreshing: boolean) => void
+  setHomePullDistance: (distance: number) => void
+}
+
+export type HomeRefreshSlice = {
+  homeRefresh: HomeRefreshState & HomeRefreshActions
+}
+
+export const createHomeRefreshSlice = namespaceSlice('homeRefresh', (set) => ({
+  refreshing: false,
+  pullDistance: 0,
+
+  setHomeRefreshing: (refreshing: boolean) => set({ refreshing }),
+  setHomePullDistance: (distance: number) => set({ pullDistance: distance }),
 }))

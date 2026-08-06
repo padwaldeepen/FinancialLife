@@ -1,6 +1,7 @@
-import { useRef, useState, type JSX } from 'react'
-import { Box, Flex, Text } from '@radix-ui/themes'
+import { useRef, type JSX } from 'react'
+import { Box, Flex, Text, Skeleton } from '@radix-ui/themes'
 import { ResponsiveBar } from '@nivo/bar'
+import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import type { CategoryTotal } from '../../../store/slices/reportsSlice.ts'
 import { BreakdownChart } from './BreakdownChart.tsx'
@@ -41,29 +42,34 @@ interface Props {
 // would just be redundant UI). Hover previews a month's breakdown without changing the
 // selected period; click pins it as the active month for the rest of the page.
 export const AnnualTimeline = ({ year, monthly, currency, onSelectMonth }: Props): JSX.Element => {
-  const fetchCategoriesForMonth = useBoundStore((s) => s.fetchCategoriesForMonth)
-  const [hoverMonth, setHoverMonth] = useState<number | null>(null)
-  const [hoverBreakdown, setHoverBreakdown] = useState<CategoryTotal[] | null>(null)
-  const [loadingHover, setLoadingHover] = useState(false)
+  const fetchCategoriesForMonth = useBoundStore((s) => s.reports.fetchCategoriesForMonth)
+  const {
+    hoverMonth,
+    hoverBreakdown,
+    loadingHover,
+    setAnnualTimelineHoverMonth,
+    setAnnualTimelineHoverBreakdown,
+    setAnnualTimelineLoadingHover,
+  } = useBoundStore(useShallow((s) => s.annualTimeline))
   const cacheRef = useRef<Map<string, CategoryTotal[]>>(new Map())
 
   const previewMonth = async (monthName: string) => {
     const month = MONTH_NAMES.indexOf(monthName) + 1
     if (month === 0) return
-    setHoverMonth(month)
+    setAnnualTimelineHoverMonth(month)
     const key = `${year}-${month}`
     const cached = cacheRef.current.get(key)
     if (cached) {
-      setHoverBreakdown(cached)
+      setAnnualTimelineHoverBreakdown(cached)
       return
     }
-    setLoadingHover(true)
+    setAnnualTimelineLoadingHover(true)
     try {
       const data = await fetchCategoriesForMonth(year, month)
       cacheRef.current.set(key, data)
-      setHoverBreakdown(data)
+      setAnnualTimelineHoverBreakdown(data)
     } finally {
-      setLoadingHover(false)
+      setAnnualTimelineLoadingHover(false)
     }
   }
 
@@ -99,7 +105,9 @@ export const AnnualTimeline = ({ year, monthly, currency, onSelectMonth }: Props
           {hoverMonth ? `${MONTH_NAMES[hoverMonth - 1]} ${year} — where it went` : 'Hover a month'}
         </Text>
         {loadingHover ? (
-          <Box className="skeleton" style={{ height: 120, borderRadius: 'var(--radius-2)' }} />
+          <Skeleton>
+            <Box style={{ height: 120 }} />
+          </Skeleton>
         ) : hoverMonth && hoverBreakdown ? (
           <BreakdownChart
             items={hoverBreakdown.map((c) => ({

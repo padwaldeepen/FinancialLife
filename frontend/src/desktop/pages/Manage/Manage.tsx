@@ -6,7 +6,6 @@ import { Merchants } from '../Merchants/Merchants.tsx'
 import { Goals } from '../Goals/Goals.tsx'
 import { AccountsTab } from './AccountsTab.tsx'
 import { ImportTab } from './ImportTab.tsx'
-import { AiPrivacyTab } from './AiPrivacyTab.tsx'
 import { AccountTab } from './AccountTab.tsx'
 import { AdminTab } from './AdminTab.tsx'
 import styles from './Manage.module.css'
@@ -28,7 +27,6 @@ export const Manage = (): JSX.Element => {
           <Tabs.Trigger value="merchants">Merchants</Tabs.Trigger>
           <Tabs.Trigger value="goals">Goals</Tabs.Trigger>
           <Tabs.Trigger value="import">Import</Tabs.Trigger>
-          <Tabs.Trigger value="ai">AI &amp; Privacy</Tabs.Trigger>
           <Tabs.Trigger value="account">Account</Tabs.Trigger>
           {isAdmin && <Tabs.Trigger value="admin">Admin</Tabs.Trigger>}
         </Tabs.List>
@@ -48,9 +46,6 @@ export const Manage = (): JSX.Element => {
           </Tabs.Content>
           <Tabs.Content value="import">
             <ImportTab />
-          </Tabs.Content>
-          <Tabs.Content value="ai">
-            <AiPrivacyTab />
           </Tabs.Content>
           <Tabs.Content value="account">
             <AccountTab />

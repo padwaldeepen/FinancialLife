@@ -14,7 +14,7 @@ export const ProfilePickPrompt = (): JSX.Element | null => {
     useShallow((s) => ({
       needsProfilePick: s.auth.needsProfilePick,
       profiles: s.auth.profiles,
-      setActiveProfile: s.setActiveProfile,
+      setActiveProfile: s.auth.setActiveProfile,
     })),
   )
 

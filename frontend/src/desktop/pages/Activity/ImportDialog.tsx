@@ -1,5 +1,15 @@
 import { useRef, type JSX } from 'react'
-import { Box, Flex, Text, Select, Badge, Dialog, Button, Table } from '@radix-ui/themes'
+import {
+  Box,
+  Flex,
+  Text,
+  Select,
+  Badge,
+  Dialog,
+  Button,
+  Table,
+  VisuallyHidden,
+} from '@radix-ui/themes'
 import { Upload } from 'lucide-react'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { classifyImportType, type useCsvImport } from '../../../shared/hooks/useCsvImport.ts'
@@ -50,17 +60,22 @@ export const ImportDialog = ({ currency, csv }: Props): JSX.Element => {
       }}
     >
       <Dialog.Content maxWidth="680px">
-        <Dialog.Title>Import CSV</Dialog.Title>
+        <Dialog.Title>Import Transactions</Dialog.Title>
+        <VisuallyHidden>
+          <Dialog.Description>
+            Upload, map, and review a CSV or Excel file of transactions to import
+          </Dialog.Description>
+        </VisuallyHidden>
 
         {importStep === 'upload' && (
           <Flex direction="column" gap="4" py="4" align="center">
             <Text size="2" color="gray">
-              Upload a CSV file with your transactions
+              Upload a CSV or Excel (.xlsx) file with your transactions
             </Text>
             <input
               ref={importFileRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx,.xls"
               style={{ display: 'none' }}
               onChange={(e) => {
                 const file = e.target.files?.[0]
@@ -68,7 +83,7 @@ export const ImportDialog = ({ currency, csv }: Props): JSX.Element => {
               }}
             />
             <Button variant="soft" onClick={() => importFileRef.current?.click()}>
-              <Upload size={14} /> Choose CSV file
+              <Upload size={14} /> Choose file
             </Button>
           </Flex>
         )}

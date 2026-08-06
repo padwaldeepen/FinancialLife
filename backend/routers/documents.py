@@ -24,7 +24,13 @@ from routers.transactions import FuzzyMatchInfo
 from services.ai.ai_service import AIService
 from services.category_service import get_valid_category_ids
 from services.ingest.dedup import DedupCandidate, compute_import_hash, find_duplicates
-from services.ingest.document_extract import ExtractedDocument, extract, extract_statement
+from services.ingest.document_extract import (
+    ExtractedDocument,
+    extract,
+    extract_raw_text,
+    extract_statement,
+    guess_document_kind,
+)
 from services.merchant_service import (
     extract_merchant_from_description,
     find_matching_merchant,
@@ -297,7 +303,10 @@ async def list_pending_documents(
 @router.post("/", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     file: UploadFile = File(...),
-    kind: DocumentKind = Form(default="receipt"),
+    # W6: auto-detected when omitted — the frontend no longer sends this by default
+    # (dropped the manual Receipt/Statement picker). Still accepted so the review
+    # dialogs' "doesn't look right, switch kind" escape hatch can force one explicitly.
+    kind: DocumentKind | None = Form(default=None),
     profile: Profile = Depends(get_current_profile),
     conn: asyncpg.Connection = Depends(get_db),
 ):
@@ -325,6 +334,20 @@ async def upload_document(
     dest.write_bytes(content)
     relative_path = str(Path(settings.UPLOAD_DIR) / str(profile.user_id) / filename)
 
+    if kind is None:
+        # W6: classify from the same local text tier C always extracts anyway (zero
+        # network, no extra cost beyond one redundant re-extraction inside whichever
+        # of _extract_receipt_json/_extract_statement_json runs next — accepted
+        # tradeoff over threading pre-extracted text through both extraction paths).
+        # Best-effort: a classification failure (corrupt file, etc.) must not fail the
+        # upload — the existing extraction step will hit and log the same error.
+        try:
+            raw_text, _ = extract_raw_text(dest, content_type)
+            kind = guess_document_kind(raw_text)
+        except Exception as e:
+            log.warning("Kind auto-detection failed, defaulting to receipt: %s", e)
+            kind = "receipt"
+
     row = await conn.fetchrow(
         """INSERT INTO documents (profile_id, kind, file_path, mime_type, status)
            VALUES ($1, $2, $3, $4, 'pending')
@@ -343,6 +366,50 @@ async def upload_document(
         mime_type=row["mime_type"],
         status=row["status"],
         uploaded_at=row["uploaded_at"].isoformat(),
+    )
+
+
+@router.post("/{document_id}/reclassify", response_model=PendingDocumentResponse)
+async def reclassify_document(
+    document_id: int,
+    kind: DocumentKind,
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
+):
+    """W6's misclassification escape hatch — auto-detect guesses wrong occasionally, so
+    the review dialogs offer "doesn't look right, switch to Receipt/Statement" instead
+    of forcing a re-upload. Re-runs extraction against the already-stored file under
+    the user-forced kind and overwrites `extracted_json`."""
+    row = await conn.fetchrow(
+        """SELECT file_path, mime_type FROM documents
+           WHERE id = $1 AND profile_id = $2 AND status = 'pending'""",
+        document_id,
+        profile.id,
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found or already reviewed",
+        )
+
+    file_path = Path(row["file_path"])
+    if not file_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source file missing")
+
+    await conn.execute("UPDATE documents SET kind = $1 WHERE id = $2", kind, document_id)
+    await _extract_and_store(document_id, file_path, row["mime_type"], kind, profile, conn)
+
+    updated = await conn.fetchrow(
+        "SELECT id, kind, mime_type, status, uploaded_at, extracted_json FROM documents WHERE id = $1",
+        document_id,
+    )
+    return PendingDocumentResponse(
+        id=updated["id"],
+        kind=updated["kind"],
+        mime_type=updated["mime_type"],
+        status=updated["status"],
+        uploaded_at=updated["uploaded_at"].isoformat(),
+        extracted_json=updated["extracted_json"],
     )
 
 

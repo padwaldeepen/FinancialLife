@@ -33,8 +33,8 @@ export interface QuickAddModalActions {
 }
 
 export type QuickAddModalSlice = {
-  quickAddModal: QuickAddModalState
-} & QuickAddModalActions
+  quickAddModal: QuickAddModalState & QuickAddModalActions
+}
 
 const initialState: QuickAddModalState = {
   input: '',

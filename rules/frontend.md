@@ -157,7 +157,6 @@ scoped future refactor, not something to fix incidentally mid-unrelated-change).
   actually needed and which breakpoint to use
 - No `@apply`, no Tailwind directives, no CSS-in-JS, no inline styles
 - Always use Radix spacing tokens: `padding: var(--space-4)` not `padding: 16px`
-- Exception: third-party components that render outside the theme tree (e.g. react-hot-toast `Toaster`) may use inline styles since CSS variables are out of scope
 
 ## State Management
 - Zustand (bound store pattern) for ALL global state — auth, transactions, budgets, UI
@@ -217,7 +216,7 @@ export const createAuthSlice = namespaceSlice('auth', (set, get) => ({
   },
 }))
 ```
-Consumers access state as `s.auth.user` and actions as `s.login()`.
+Consumers access both state and actions under the namespace: `s.auth.user`, `s.auth.login()`.
 
 ## Nivo Charts
 - Use `@nivo/pie` for spending by category

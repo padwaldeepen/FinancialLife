@@ -15,7 +15,7 @@ import styles from './ToastHost.module.css'
 // identical notification behavior everywhere, not a device-specific layout.
 export const ToastHost = (): JSX.Element => {
   const { items, dismissToast } = useBoundStore(
-    useShallow((s) => ({ items: s.toasts.items, dismissToast: s.dismissToast })),
+    useShallow((s) => ({ items: s.toasts.items, dismissToast: s.toasts.dismissToast })),
   )
 
   return (

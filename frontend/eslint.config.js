@@ -98,6 +98,6 @@ export default [
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', 'vite.config.d.ts'],
+    ignores: ['dist/', 'node_modules/', 'vite.config.d.ts', 'public/'],
   },
 ]

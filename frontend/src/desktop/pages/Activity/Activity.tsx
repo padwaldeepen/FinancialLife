@@ -177,87 +177,96 @@ export const Activity = (): JSX.Element => {
         </TextField.Slot>
       </TextField.Root>
 
-      <PendingReceipts />
+      <Flex className={styles.filterBar} mb="4" direction="column" gap="3">
+        <Flex gap="2" align="center" wrap="wrap">
+          <Text size="1" color="gray" className={styles.resultCount}>
+            {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+          </Text>
+          <Select.Root value={filters.typeFilter} onValueChange={setTypeFilter}>
+            <Select.Trigger className={styles.filterBarSelect} placeholder="All types" />
+            <Select.Content>
+              <Select.Item value="">All types</Select.Item>
+              <Select.Item value="income">Income</Select.Item>
+              <Select.Item value="expense">Expense</Select.Item>
+            </Select.Content>
+          </Select.Root>
 
-      <Flex className={styles.filterBar} mb="4" wrap="wrap">
-        <Text size="1" color="gray" className={styles.resultCount}>
-          {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
-        </Text>
-        <Select.Root value={filters.typeFilter} onValueChange={setTypeFilter}>
-          <Select.Trigger className={styles.filterBarSelect} placeholder="All types" />
-          <Select.Content>
-            <Select.Item value="">All types</Select.Item>
-            <Select.Item value="income">Income</Select.Item>
-            <Select.Item value="expense">Expense</Select.Item>
-          </Select.Content>
-        </Select.Root>
+          <Select.Root value={filters.categoryFilter} onValueChange={setCategoryFilter}>
+            <Select.Trigger className={styles.filterBarSelect} placeholder="All categories" />
+            <Select.Content>
+              <Select.Item value="">All categories</Select.Item>
+              {categories.map((c) => (
+                <Select.Item key={c.id} value={String(c.id)}>
+                  {c.name}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
 
-        <Select.Root value={filters.categoryFilter} onValueChange={setCategoryFilter}>
-          <Select.Trigger className={styles.filterBarSelect} placeholder="All categories" />
-          <Select.Content>
-            <Select.Item value="">All categories</Select.Item>
-            {categories.map((c) => (
-              <Select.Item key={c.id} value={String(c.id)}>
-                {c.name}
-              </Select.Item>
-            ))}
-          </Select.Content>
-        </Select.Root>
+          <Select.Root value={filters.merchantFilter} onValueChange={setMerchantFilter}>
+            <Select.Trigger className={styles.filterBarSelect} placeholder="All merchants" />
+            <Select.Content>
+              <Select.Item value="">All merchants</Select.Item>
+              {merchants.map((m) => (
+                <Select.Item key={m.id} value={String(m.id)}>
+                  {m.name}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
 
-        <Select.Root value={filters.merchantFilter} onValueChange={setMerchantFilter}>
-          <Select.Trigger className={styles.filterBarSelect} placeholder="All merchants" />
-          <Select.Content>
-            <Select.Item value="">All merchants</Select.Item>
-            {merchants.map((m) => (
-              <Select.Item key={m.id} value={String(m.id)}>
-                {m.name}
-              </Select.Item>
-            ))}
-          </Select.Content>
-        </Select.Root>
+          <TextField.Root
+            type="date"
+            aria-label="Filter start date"
+            value={filters.startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className={styles.dateInput}
+          >
+            <TextField.Slot side="left">
+              <Calendar size={14} />
+            </TextField.Slot>
+          </TextField.Root>
+          <Text size="1" color="gray">
+            to
+          </Text>
+          <TextField.Root
+            type="date"
+            aria-label="Filter end date"
+            value={filters.endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className={styles.dateInput}
+          >
+            <TextField.Slot side="left">
+              <Calendar size={14} />
+            </TextField.Slot>
+          </TextField.Root>
+        </Flex>
 
-        <TextField.Root
-          type="date"
-          aria-label="Filter start date"
-          value={filters.startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className={styles.dateInput}
-        >
-          <TextField.Slot side="left">
-            <Calendar size={14} />
-          </TextField.Slot>
-        </TextField.Root>
-        <Text size="1" color="gray">
-          to
-        </Text>
-        <TextField.Root
-          type="date"
-          aria-label="Filter end date"
-          value={filters.endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className={styles.dateInput}
-        >
-          <TextField.Slot side="left">
-            <Calendar size={14} />
-          </TextField.Slot>
-        </TextField.Root>
-
-        <Button variant="outline" size="2" onClick={handleExport}>
-          <Download size={14} /> Export CSV
-        </Button>
-        <Button variant="outline" size="2" onClick={() => csv.setImportOpen(true)}>
-          <Upload size={14} /> Import
-        </Button>
-        <Button variant="outline" size="2" onClick={() => setActivityDocumentUploadOpen(true)}>
-          <FileUp size={14} /> Upload Receipt
-        </Button>
-        <Button
-          variant={selectMode ? 'solid' : 'outline'}
-          size="2"
-          onClick={toggleActivitySelectMode}
-        >
-          {selectMode ? 'Cancel select' : 'Select'}
-        </Button>
+        <Flex gap="2" justify="end" wrap="wrap">
+          <Button variant="soft" color="gray" size="2" onClick={handleExport}>
+            <Download size={14} /> Export CSV
+          </Button>
+          <Button variant="soft" color="gray" size="2" onClick={() => csv.setImportOpen(true)}>
+            <Upload size={14} /> Import
+          </Button>
+          <Button
+            variant="soft"
+            color="gray"
+            size="2"
+            onClick={() => setActivityDocumentUploadOpen(true)}
+          >
+            <FileUp size={14} /> Upload Receipt
+          </Button>
+          <Button
+            variant={selectMode ? 'solid' : 'soft'}
+            color="gray"
+            highContrast={selectMode}
+            size="2"
+            onClick={toggleActivitySelectMode}
+          >
+            {selectMode ? 'Cancel select' : 'Select'}
+          </Button>
+        </Flex>
       </Flex>
 
       {selectMode && selectedIds.size > 0 && (
@@ -294,6 +303,8 @@ export const Activity = (): JSX.Element => {
           </Button>
         </Flex>
       )}
+
+      <PendingReceipts />
 
       {loading && transactions.length === 0 ? (
         <Flex className={shared.emptyState} direction="column" gap="3">

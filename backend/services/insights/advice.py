@@ -192,7 +192,7 @@ def _goal_pacing_cards(goals: list[GoalStatus], today: date_type) -> list[Advice
                 AdviceCard(
                     type="goal_pacing",
                     message=(
-                        f"\"{g.name}\" is behind pace — {actual_pct:.0f}% saved vs an "
+                        f'"{g.name}" is behind pace — {actual_pct:.0f}% saved vs an '
                         f"expected {expected_pct:.0f}%."
                     ),
                     evidence={

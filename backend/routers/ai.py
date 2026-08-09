@@ -2,6 +2,7 @@ import asyncpg
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from core.money import Money
 from database.models import User
 from database.session import get_db
 from routers.auth import get_current_user
@@ -14,14 +15,14 @@ ai_service = AIService()
 
 class CategorizeRequest(BaseModel):
     description: str
-    amount: float | None = None
+    amount: Money | None = None
     date: str | None = None
 
 
 class CategorizeResponse(BaseModel):
     suggested_category: str
     confidence: float
-    extracted_amount: float | None = None
+    extracted_amount: Money | None = None
     extracted_date: str | None = None
     transaction_type: str
     merchant: str | None = None

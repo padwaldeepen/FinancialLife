@@ -19,7 +19,10 @@
   justify-content: center;
   flex-direction: column;
   text-decoration: none;
-  color: var(--gray-10);
+  /* Z5: was --gray-10, which is Radix's SOLID-BACKGROUND/disabled step, not a text
+     step — it measured 3.78:1 here, under the 4.5:1 AA floor. --gray-11 is the
+     designated low-contrast *text* step and passes. */
+  color: var(--gray-11);
   padding: var(--space-1) 0;
   border-radius: var(--radius-3);
   transition: color var(--duration-fast) var(--ease-out);
@@ -29,11 +32,15 @@
 }
 
 .tab:active {
-  color: var(--accent-9);
+  color: var(--accent-12);
 }
 
 .tabActive {
-  color: var(--accent-9);
+  /* Z5: was --accent-9, a SOLID-SURFACE step used as text — it measured 2.97:1 on the
+     light tab bar, well under AA for a 12px label. Same class of mistake as the
+     --gray-10-as-text one. --accent-12 is the high-contrast text step and stays
+     unmistakably orange. */
+  color: var(--accent-12);
 }
 
 .tabActive .label {

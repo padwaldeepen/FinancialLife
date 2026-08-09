@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../store/useBoundStore.ts'
 import type { Transaction } from '../../store/slices/transactionsSlice.ts'
 import type { TransactionFilters } from './useTransactionFilters.ts'
+import { useDebouncedValue } from './useDebouncedValue.ts'
 
 // Shared between desktop/mobile Activity (rules/dry.md) — search/filter refetch,
 // infinite scroll, and the optimistic mutations, one implementation for both trees.
@@ -29,11 +30,21 @@ export const useTransactionList = (filters: TransactionFilters) => {
     })),
   )
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const { search, typeFilter, categoryFilter, merchantFilter, startDate, endDate } = filters
+  const { typeFilter, categoryFilter, merchantFilter, startDate, endDate } = filters
+  // Same reason as the document library: the effect below depends on the query string,
+  // so an un-debounced box issued one /api/transactions/ request per keystroke.
+  const search = useDebouncedValue(filters.search)
 
   useEffect(() => {
+    // force: true — this effect only re-runs because a filter value actually changed
+    // (it's in the dependency array), so it must always hit the network. Without it,
+    // clearing the search box back to "" looks identical to a plain unfiltered reset
+    // (an empty string is falsy) and can get skipped by the 30s staleness gate that's
+    // meant for Home's simple mount-only fetch, leaving stale filtered results on
+    // screen until something else forces a refetch.
     fetchTransactions({
       reset: true,
+      force: true,
       search,
       typeFilter,
       categoryFilter,

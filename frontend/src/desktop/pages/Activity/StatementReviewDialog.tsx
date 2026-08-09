@@ -19,6 +19,7 @@ import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import type { PendingDocument, StatementRow } from '../../../store/slices/documentsSlice.ts'
 import styles from './Activity.module.css'
 import shared from '../../styles/shared.module.css'
+import { refreshAfterMoneyChange } from '../../../store/refreshAfterMoneyChange.ts'
 
 interface Props {
   document: PendingDocument
@@ -45,27 +46,16 @@ export const StatementReviewDialog = ({
   onReclassified,
 }: Props): JSX.Element => {
   const currency = useActiveCurrency()
-  const {
-    accounts,
-    categories,
-    fetchStatementRows,
-    importStatement,
-    reclassifyDocument,
-    fetchTransactions,
-    fetchAccounts,
-    fetchReports,
-  } = useBoundStore(
-    useShallow((s) => ({
-      accounts: s.accounts.items,
-      categories: s.categories.flat,
-      fetchStatementRows: s.documents.fetchStatementRows,
-      importStatement: s.documents.importStatement,
-      reclassifyDocument: s.documents.reclassifyDocument,
-      fetchTransactions: s.transactions.fetchTransactions,
-      fetchAccounts: s.accounts.fetchAccounts,
-      fetchReports: s.reports.fetchReports,
-    })),
-  )
+  const { accounts, categories, fetchStatementRows, importStatement, reclassifyDocument } =
+    useBoundStore(
+      useShallow((s) => ({
+        accounts: s.accounts.items,
+        categories: s.categories.flat,
+        fetchStatementRows: s.documents.fetchStatementRows,
+        importStatement: s.documents.importStatement,
+        reclassifyDocument: s.documents.reclassifyDocument,
+      })),
+    )
 
   const handleSwitchToReceipt = async () => {
     try {
@@ -156,9 +146,7 @@ export const StatementReviewDialog = ({
           skip_dedup: r.dedup_status === 'fuzzy',
         })),
       )
-      fetchTransactions({ reset: true, force: true })
-      fetchAccounts({ force: true })
-      fetchReports()
+      refreshAfterMoneyChange()
       onClose()
     } catch {
       // toast handled in store

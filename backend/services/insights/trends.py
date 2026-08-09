@@ -166,9 +166,7 @@ def detect_insights(
         )[:MIN_TRAILING_MONTHS]
 
         if current_total > 0 and len(prior_months) >= MIN_TRAILING_MONTHS:
-            trailing_avg = sum((months[mk] for mk in prior_months), Decimal(0)) / len(
-                prior_months
-            )
+            trailing_avg = sum((months[mk] for mk in prior_months), Decimal(0)) / len(prior_months)
             if (
                 trailing_avg > 0
                 and current_total >= MIN_ANOMALY_AMOUNT

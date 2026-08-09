@@ -1,5 +1,17 @@
 import { useState, type JSX } from 'react'
-import { Box, Flex, Text, Button, Dialog, TextField, Select, Checkbox } from '@radix-ui/themes'
+import {
+  Box,
+  Flex,
+  Text,
+  Button,
+  Dialog,
+  TextField,
+  Select,
+  Checkbox,
+  IconButton,
+  VisuallyHidden,
+} from '@radix-ui/themes'
+import { X } from 'lucide-react'
 import type { Bill } from '../../../store/slices/billsSlice.ts'
 import styles from './Recurring.module.css'
 
@@ -25,6 +37,12 @@ const emptyForm: BillFormValues = {
   account_id: '',
   is_variable: false,
 }
+
+// weekly/biweekly bills store due_day as a weekday index (0=Monday..6=Sunday, matching
+// Python's date.weekday()); monthly/quarterly/yearly store it as a day-of-month (1-31).
+// Same field, different domain depending on frequency — the UI has to switch accordingly.
+const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const isWeekly = (frequency: string) => frequency === 'weekly' || frequency === 'biweekly'
 
 const toFormValues = (bill: Bill): BillFormValues => ({
   name: bill.name,
@@ -74,6 +92,19 @@ export const BillFormDialog = ({
   }
 
   const valid = form.name.trim() && form.amount && form.account_id && form.due_day
+  const isWeeklyFrequency = isWeekly(form.frequency)
+
+  const handleFrequencyChange = (frequency: string) => {
+    // Crossing the weekly<->monthly domain boundary makes the previous due_day value
+    // meaningless (a weekday index isn't a valid day-of-month and vice versa) — reset
+    // it to that domain's default instead of silently carrying over a bad number.
+    const crossedDomain = isWeekly(frequency) !== isWeekly(form.frequency)
+    setForm({
+      ...form,
+      frequency,
+      due_day: crossedDomain ? (isWeekly(frequency) ? '0' : '1') : form.due_day,
+    })
+  }
 
   const handleSubmit = () => {
     if (!valid) return
@@ -90,7 +121,23 @@ export const BillFormDialog = ({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="400px">
-        <Dialog.Title>{bill ? 'Edit Bill' : 'Create Bill'}</Dialog.Title>
+        {/* This dialog had NO way out except Escape — same defect as the Import dialog
+            (Y6). Uses the shared header pattern (title + ghost X) that
+            AddTransactionModal and the upload dialog already use, so dismissal is
+            consistent everywhere instead of per-dialog guesswork. */}
+        <Flex align="center" justify="between" mb="2">
+          <Dialog.Title mb="0">{bill ? 'Edit Bill' : 'Create Bill'}</Dialog.Title>
+          <Dialog.Close>
+            <IconButton variant="ghost" size="2" color="gray" aria-label="Close">
+              <X size={18} />
+            </IconButton>
+          </Dialog.Close>
+        </Flex>
+        <VisuallyHidden>
+          <Dialog.Description>
+            Set the amount, due date and how often this bill repeats
+          </Dialog.Description>
+        </VisuallyHidden>
         <Flex direction="column" gap="3" mt="3">
           <Flex direction="column" gap="1">
             <Text size="2" weight="medium">
@@ -139,10 +186,7 @@ export const BillFormDialog = ({
                 <Text size="2" weight="medium">
                   Frequency
                 </Text>
-                <Select.Root
-                  value={form.frequency}
-                  onValueChange={(v) => setForm({ ...form, frequency: v })}
-                >
+                <Select.Root value={form.frequency} onValueChange={handleFrequencyChange}>
                   <Select.Trigger />
                   <Select.Content>
                     <Select.Item value="weekly">Weekly</Select.Item>
@@ -157,16 +201,32 @@ export const BillFormDialog = ({
             <Box className={styles.colWidth100}>
               <Flex direction="column" gap="1">
                 <Text size="2" weight="medium">
-                  Due Day
+                  {isWeeklyFrequency ? 'Due Day' : 'Due Day of Month'}
                 </Text>
-                <TextField.Root
-                  type="number"
-                  min={1}
-                  max={31}
-                  placeholder="1"
-                  value={form.due_day}
-                  onChange={(e) => setForm({ ...form, due_day: e.target.value })}
-                />
+                {isWeeklyFrequency ? (
+                  <Select.Root
+                    value={form.due_day}
+                    onValueChange={(v) => setForm({ ...form, due_day: v })}
+                  >
+                    <Select.Trigger placeholder="Day of week" />
+                    <Select.Content>
+                      {WEEKDAY_NAMES.map((label, idx) => (
+                        <Select.Item key={idx} value={String(idx)}>
+                          {label}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                ) : (
+                  <TextField.Root
+                    type="number"
+                    min={1}
+                    max={31}
+                    placeholder="1"
+                    value={form.due_day}
+                    onChange={(e) => setForm({ ...form, due_day: e.target.value })}
+                  />
+                )}
               </Flex>
             </Box>
           </Flex>
@@ -179,7 +239,12 @@ export const BillFormDialog = ({
               <Text>Variable amount (estimated)</Text>
             </Flex>
           </Text>
-          <Flex justify="end" mt="2">
+          <Flex justify="end" gap="2" mt="2">
+            <Dialog.Close>
+              <Button variant="soft" color="gray" size="3">
+                Cancel
+              </Button>
+            </Dialog.Close>
             <Button onClick={handleSubmit} loading={saving} size="3" disabled={!valid}>
               {bill ? 'Save Changes' : 'Create Bill'}
             </Button>

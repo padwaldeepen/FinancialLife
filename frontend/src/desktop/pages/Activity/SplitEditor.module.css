@@ -1,0 +1,27 @@
+/* E3. No colour-coded panel: the balanced/unbalanced hint is text only, and it uses the
+   money tokens — which is legitimate here because it *is* an amount, the remainder. */
+
+.editor {
+  padding: var(--space-3);
+  border: 1px solid var(--gray-5);
+  border-radius: var(--radius-3);
+  background-color: var(--gray-2);
+}
+
+.cat {
+  flex: 1;
+  min-width: 0;
+}
+
+.amount {
+  width: 110px;
+  flex-shrink: 0;
+}
+
+.balanced {
+  color: var(--money-positive);
+}
+
+.unbalanced {
+  color: var(--gray-11);
+}

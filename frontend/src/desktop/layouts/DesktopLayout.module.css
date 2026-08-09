@@ -5,6 +5,12 @@
 
 .main {
   flex: 1;
+  /* A flex item defaults to `min-width: auto`, meaning it refuses to shrink below its
+     content's min-content width. Manage's 7-tab strip is ~624px intrinsic, so without
+     this the whole column stayed 624px wide at tablet widths and pushed the page into
+     horizontal scroll (ZB). Wide content scrolls inside its own container instead — see
+     Manage.module.css's .tabList. */
+  min-width: 0;
   margin-left: 240px;
   display: flex;
   flex-direction: column;
@@ -36,11 +42,20 @@
   }
 }
 
-@media (max-width: 1024px) {
+/* ZB: keyed to main.tsx's 767px breakpoint, not the old 1024. This rule removes the
+   240px gutter that makes room for the fixed sidebar, so it must fire on exactly the
+   widths where Sidebar.module.css hides that sidebar — otherwise the content either
+   sits under the sidebar (gutter dropped too early, which is what happened at 768) or
+   leaves a 240px empty column (gutter kept after the sidebar is gone). */
+@media (max-width: 767px) {
   .main {
     margin-left: 0;
   }
+}
 
+/* Tablet: keep the sidebar and its gutter, but stop spending space on wide page padding
+   at a width where content is already tight. */
+@media (max-width: 1024px) {
   .content {
     padding: var(--space-4);
   }

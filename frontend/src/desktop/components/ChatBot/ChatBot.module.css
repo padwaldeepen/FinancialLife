@@ -22,7 +22,8 @@
 }
 
 .fab:hover {
-  transform: scale(1.08);
+  /* Hover grow removed (owner, 2026-08-08) - decorative motion. The :active press
+     below stays: that's touch/click feedback, not a hover bounce. */
   background: var(--accent-10);
 }
 

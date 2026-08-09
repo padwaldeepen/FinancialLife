@@ -40,6 +40,11 @@ UPGRADE_STATEMENTS = [
         normalized_name VARCHAR NOT NULL,
         aliases JSONB,
         is_hidden BOOLEAN NOT NULL DEFAULT FALSE,
+        -- Y7: the category the user last chose for this merchant, so a correction only
+        -- has to be made once. Consulted ahead of the keyword table; NULL means nothing
+        -- learned yet. ON DELETE SET NULL - deleting a category forgets the preference,
+        -- it must never delete the merchant.
+        default_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )""",
     "CREATE INDEX ix_merchants_profile_id ON merchants (profile_id)",

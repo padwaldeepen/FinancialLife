@@ -10,7 +10,7 @@ const FREQUENCY_MONTHLY_RATIO: Record<string, { timesPerYear: number }> = {
   yearly: { timesPerYear: 1 },
 }
 
-const toCents = (amount: number): number => Math.round(amount * 100)
+export const toCents = (amount: number): number => Math.round(amount * 100)
 
 // One bill's monthly-equivalent cost, in cents, rounded independently — this is the
 // number displayed on that bill's row.

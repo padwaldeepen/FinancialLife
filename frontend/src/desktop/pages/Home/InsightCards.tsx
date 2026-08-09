@@ -45,9 +45,16 @@ function evidenceLine(card: AdviceCard, currency: string): string {
 
 export const InsightCards = (): JSX.Element => {
   const currency = useActiveCurrency()
-  const { cards, loading, fetchAdvice, dismissAdviceType } = useBoundStore(
+  const {
+    cards: allCards,
+    attention,
+    loading,
+    fetchAdvice,
+    dismissAdviceType,
+  } = useBoundStore(
     useShallow((s) => ({
       cards: s.advice.cards,
+      attention: s.advice.attention,
       loading: s.advice.loading,
       fetchAdvice: s.advice.fetchAdvice,
       dismissAdviceType: s.advice.dismissAdviceType,
@@ -78,6 +85,12 @@ export const InsightCards = (): JSX.Element => {
       </Flex>
     )
   }
+
+  // Y3: the "needs attention" block sits directly above this on Home and is fed by the
+  // same engines, so an anomaly could render twice on one screen. That block is the
+  // urgent surface; this is the browsable feed, so the duplicate is dropped here.
+  const attentionTypes = new Set(attention.map((a) => a.type))
+  const cards = allCards.filter((c) => !attentionTypes.has(c.type))
 
   if (cards.length === 0) {
     return (

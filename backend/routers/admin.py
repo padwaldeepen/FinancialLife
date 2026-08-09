@@ -33,9 +33,7 @@ async def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Gate for every admin route. Non-admin (or an inactive account, already blocked by
     get_current_user) → 403."""
     if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return current_user
 
 
@@ -162,9 +160,7 @@ async def set_user_active(
     updated = await conn.fetchrow(
         "UPDATE users SET is_active = $1 WHERE id = $2 RETURNING *", payload.is_active, user_id
     )
-    profile_count = await conn.fetchval(
-        "SELECT COUNT(*) FROM profiles WHERE user_id = $1", user_id
-    )
+    profile_count = await conn.fetchval("SELECT COUNT(*) FROM profiles WHERE user_id = $1", user_id)
     return _user_response(updated, profile_count)
 
 

@@ -1,9 +1,11 @@
+from decimal import Decimal
 from typing import Literal
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
+from core.money import Money
 from database.models import Profile
 from database.session import get_db
 from routers.auth import get_current_profile
@@ -28,7 +30,9 @@ class AccountResponse(BaseModel):
     id: int
     name: str
     type: str
-    balance: float
+    # R6: Decimal internally (Postgres sums money exactly as NUMERIC), serialised as a
+    # JSON number at the boundary — see core/money.py.
+    balance: Money
     is_active: bool
     sort_order: int
     created_at: str | None = None
@@ -37,7 +41,7 @@ class AccountResponse(BaseModel):
         from_attributes = True
 
 
-def _to_response(account, balance: float) -> AccountResponse:
+def _to_response(account, balance: Decimal) -> AccountResponse:
     return AccountResponse(
         id=account.id,
         name=account.name,
@@ -56,7 +60,7 @@ async def list_accounts(
 ):
     accounts = await account_service.get_accounts(profile.id, conn)
     balances = await account_service.get_account_balances(profile.id, conn)
-    return [_to_response(a, balances.get(a.id, 0.0)) for a in accounts]
+    return [_to_response(a, balances.get(a.id, Decimal("0"))) for a in accounts]
 
 
 @router.get("/{account_id}", response_model=AccountResponse)

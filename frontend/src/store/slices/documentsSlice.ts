@@ -13,6 +13,12 @@ export interface ExtractedFields {
   line_items?: { description: string; amount: number }[] | null
   category_hint?: string | null
   category_id?: number | null
+  // E4: what currency the document itself claims, and whether that contradicts the
+  // profile it's being filed into. Undefined/null means "no marker found", which is
+  // the common case and is NOT a mismatch.
+  currency?: string | null
+  currency_mismatch?: boolean
+  profile_currency?: string | null
   // Statement mode (S4): the extracted transaction rows (preview count only here — the
   // full rows with dedup verdicts come from GET /documents/{id}/statement).
   kind?: string
@@ -26,6 +32,33 @@ export interface PendingDocument {
   status: string
   uploaded_at: string
   extracted_json: ExtractedFields | null
+}
+
+// X1: a row in the document library — every document ever uploaded, not just the
+// review queue. Extends the pending shape with the two things a library needs and the
+// queue never did: what the file was called, and what it turned into.
+export interface LibraryDocument extends PendingDocument {
+  // NULL for anything uploaded before migration 0006 — render "Untitled document".
+  original_filename: string | null
+  // A receipt yields one transaction, a statement import yields many; the id is the
+  // first one (for a deep link when there's exactly one) and the count tells the UI
+  // whether a single link is even the right affordance.
+  linked_transaction_id: number | null
+  linked_transaction_count: number
+}
+
+export interface BulkReviewResult {
+  created: number
+  duplicates: number
+  needs_review: number[]
+}
+
+export type DocumentStatusFilter = 'pending' | 'processed' | 'all'
+
+export interface DocumentLibraryFilters {
+  status: DocumentStatusFilter
+  kind: string
+  q: string
 }
 
 export interface FuzzyMatch {
@@ -91,6 +124,17 @@ export type DocumentsSlice = {
     pending: PendingDocument[]
     loading: boolean
     lastFetchedAt: number | null
+    // X1 library — deliberately separate state from `pending`. The two views answer
+    // different questions and are filtered differently; sharing one array would mean
+    // the library's "all" fetch silently widening the Activity review queue.
+    library: LibraryDocument[]
+    libraryLoading: boolean
+    libraryFilters: DocumentLibraryFilters
+    fetchLibrary: () => Promise<void>
+    setLibraryFilter: <K extends keyof DocumentLibraryFilters>(
+      key: K,
+      value: DocumentLibraryFilters[K],
+    ) => void
     fetchPendingDocuments: (opts?: { force?: boolean }) => Promise<void>
     reviewDocument: (id: number, payload: DocumentReviewPayload) => Promise<DocumentReviewResult>
     rejectDocument: (id: number) => Promise<void>
@@ -98,6 +142,10 @@ export type DocumentsSlice = {
     // already-uploaded file under the forced kind and replaces its queue entry in
     // place, so the review dialog re-renders with the corrected extraction.
     reclassifyDocument: (id: number, kind: 'receipt' | 'statement') => Promise<PendingDocument>
+    // X4: approve several high-confidence receipts at once. Still runs every one
+    // through the D3 dedup gate server-side — bulk never means unchecked.
+    bulkReviewDocuments: (ids: number[], accountId: number) => Promise<BulkReviewResult>
+    bulkRejectDocuments: (ids: number[]) => Promise<void>
     fetchStatementRows: (id: number, accountId: number) => Promise<StatementReview>
     importStatement: (
       id: number,
@@ -115,16 +163,48 @@ export const createDocumentsSlice = namespaceSlice('documents', (set, get) => ({
   pending: [] as PendingDocument[],
   loading: true,
   lastFetchedAt: null as number | null,
+  library: [] as LibraryDocument[],
+  libraryLoading: true,
+  libraryFilters: { status: 'all', kind: '', q: '' } as DocumentLibraryFilters,
 
   fetchPendingDocuments: async (opts?: { force?: boolean }) => {
     if (!opts?.force && isFresh(get().lastFetchedAt)) return
     set({ loading: true })
     try {
+      // No params — the endpoint still defaults to pending-only, so this call is
+      // byte-for-byte the pre-X1 request and the review queue is unaffected.
       const res = await api.get('/api/documents/')
       set({ pending: res.data, lastFetchedAt: Date.now() })
     } finally {
       set({ loading: false })
     }
+  },
+
+  // Deliberately not staleness-gated (unlike fetchPendingDocuments): this runs in
+  // response to a filter change, where returning cached rows for the *previous* filter
+  // would be a bug rather than an optimisation.
+  fetchLibrary: async () => {
+    const { status, kind, q } = get().libraryFilters
+    set({ libraryLoading: true })
+    try {
+      const res = await api.get('/api/documents/', {
+        // Empty strings mean "no filter" — omit them so the backend doesn't try to
+        // match a literal '' against kind, or ILIKE '%%' on a NULL filename.
+        params: { status, ...(kind ? { kind } : {}), ...(q.trim() ? { q: q.trim() } : {}) },
+      })
+      set({ library: res.data })
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Could not load documents'))
+    } finally {
+      set({ libraryLoading: false })
+    }
+  },
+
+  setLibraryFilter: <K extends keyof DocumentLibraryFilters>(
+    key: K,
+    value: DocumentLibraryFilters[K],
+  ) => {
+    set({ libraryFilters: { ...get().libraryFilters, [key]: value } })
   },
 
   reviewDocument: async (
@@ -147,6 +227,45 @@ export const createDocumentsSlice = namespaceSlice('documents', (set, get) => ({
       return result
     } catch (error) {
       toast.error(getErrorDetail(error, 'Failed to save transaction'))
+      throw error
+    }
+  },
+
+  bulkReviewDocuments: async (ids: number[], accountId: number): Promise<BulkReviewResult> => {
+    try {
+      const res = await api.post('/api/documents/bulk-review', {
+        document_ids: ids,
+        account_id: accountId,
+      })
+      const result = res.data as BulkReviewResult
+      // Only the documents the server actually resolved leave the queue; anything it
+      // pushed back as needs_review stays, so the count on screen stays honest.
+      const resolved = new Set(ids.filter((id) => !result.needs_review.includes(id)))
+      const pending: PendingDocument[] = get().pending
+      set({ pending: pending.filter((d) => !resolved.has(d.id)) })
+
+      const parts = [`${result.created} approved`]
+      if (result.duplicates > 0) parts.push(`${result.duplicates} already imported`)
+      if (result.needs_review.length > 0) {
+        parts.push(`${result.needs_review.length} still need a look`)
+      }
+      toast.success(parts.join(' · '))
+      return result
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Bulk approve failed'))
+      throw error
+    }
+  },
+
+  bulkRejectDocuments: async (ids: number[]) => {
+    const pending: PendingDocument[] = get().pending
+    set({ pending: pending.filter((d) => !ids.includes(d.id)) })
+    try {
+      await Promise.all(ids.map((id) => api.delete(`/api/documents/${id}`)))
+      toast.success(`Discarded ${ids.length} document${ids.length === 1 ? '' : 's'}`)
+    } catch (error) {
+      set({ pending })
+      toast.error(getErrorDetail(error, 'Failed to discard documents'))
       throw error
     }
   },
@@ -321,20 +440,60 @@ export const createDocumentReviewFormSlice = namespaceSlice('documentReviewForm'
 export interface DocumentUploadQueueItem {
   name: string
   size: number
-  status: 'pending' | 'uploading' | 'done' | 'failed'
+  // X2: 'skipped' covers both "you already uploaded this file" (content-hash match) and
+  // triage rejections. It is deliberately NOT 'failed' — a red row for a file the app
+  // correctly decided not to re-upload reads as a bug.
+  status: 'pending' | 'uploading' | 'done' | 'failed' | 'skipped'
   error?: string
+  /** 0-100 while uploading. Undefined until the first progress event. */
+  progress?: number
+  /** Folder-relative path, so two `receipt.pdf`s in different folders are tellable apart. */
+  path?: string
+  /** Why it was skipped, shown instead of a bare "Skipped". */
+  note?: string
+}
+
+// X2: files are hashed and triaged BEFORE anything uploads, and the user confirms the
+// plan. A 200-file folder that starts uploading the instant it is dropped is not a
+// feature, it is an accident waiting to happen.
+export type UploadPhase = 'idle' | 'scanning' | 'confirm' | 'uploading' | 'done'
+
+export interface TriageSummary {
+  document: number
+  spreadsheet: number
+  other: number
+  skipped: number
+  alreadyUploaded: number
+  truncated: boolean
 }
 
 export interface DocumentUploadDialogState {
+  // The dialog is rendered once by DesktopLayout, not by whichever page wants it, so
+  // its open flag has to be global: Activity's "Upload Receipt" and Quick Add's
+  // "Upload receipt" are two entry points into the same one dialog.
+  open: boolean
+  // W6 routes a dropped .csv/.xlsx to the structured-import wizard instead of the OCR
+  // pipeline, but that wizard's state lives in Activity's useCsvImport instance. The
+  // file is parked here for Activity to pick up, since the drop can now happen from
+  // any page.
+  spreadsheetFile: File | null
   dragActive: boolean
   queue: DocumentUploadQueueItem[]
+  phase: UploadPhase
+  summary: TriageSummary | null
 }
 
 export interface DocumentUploadDialogActions {
+  checkHashes: (sha256: string[]) => Promise<Set<string>>
+  setDocumentUploadOpen: (open: boolean) => void
+  setDocumentUploadSpreadsheetFile: (file: File | null) => void
   setDocumentUploadDragActive: (dragActive: boolean) => void
   setDocumentUploadQueue: (queue: DocumentUploadQueueItem[]) => void
   updateDocumentUploadQueueItem: (index: number, patch: Partial<DocumentUploadQueueItem>) => void
   clearDocumentUploadQueue: () => void
+  setUploadPhase: (phase: UploadPhase) => void
+  setTriageSummary: (summary: TriageSummary | null) => void
+  excludeQueueItem: (index: number) => void
 }
 
 export type DocumentUploadDialogSlice = {
@@ -344,9 +503,30 @@ export type DocumentUploadDialogSlice = {
 export const createDocumentUploadDialogSlice = namespaceSlice(
   'documentUploadDialog',
   (set, get) => ({
+    open: false,
+    spreadsheetFile: null as File | null,
     dragActive: false,
     queue: [] as DocumentUploadQueueItem[],
+    phase: 'idle' as UploadPhase,
+    summary: null as TriageSummary | null,
 
+    // V3: the last api call left in a component. Returns the subset the server has
+    // already stored, so the triage plan can mark those files "Already uploaded"
+    // before a single byte is sent. Fails *open* (empty set) rather than blocking the
+    // upload — the server's own dedup still catches repeats, so the worst case of a
+    // failed pre-check is a wasted upload, not a duplicate transaction.
+    checkHashes: async (sha256: string[]): Promise<Set<string>> => {
+      if (sha256.length === 0) return new Set<string>()
+      try {
+        const res = await api.post('/api/documents/check-hashes', { sha256 })
+        return new Set<string>((res.data?.already_uploaded ?? []) as string[])
+      } catch {
+        return new Set<string>()
+      }
+    },
+
+    setDocumentUploadOpen: (open: boolean) => set({ open }),
+    setDocumentUploadSpreadsheetFile: (file: File | null) => set({ spreadsheetFile: file }),
     setDocumentUploadDragActive: (dragActive: boolean) => set({ dragActive }),
     setDocumentUploadQueue: (queue: DocumentUploadQueueItem[]) => set({ queue }),
     updateDocumentUploadQueueItem: (index: number, patch: Partial<DocumentUploadQueueItem>) => {
@@ -356,9 +536,43 @@ export const createDocumentUploadDialogSlice = namespaceSlice(
       queue[index] = { ...current, ...patch }
       set({ queue })
     },
-    clearDocumentUploadQueue: () => set({ queue: [] }),
+    clearDocumentUploadQueue: () => set({ queue: [], phase: 'idle', summary: null }),
+    setUploadPhase: (phase: UploadPhase) => set({ phase }),
+    setTriageSummary: (summary: TriageSummary | null) => set({ summary }),
+    // Excludes a file from the batch WITHOUT removing its row.
+    //
+    // This used to `filter()` the entry out, which silently corrupted the batch: the
+    // queue is index-parallel with the dialog's `pendingFiles` ref holding the actual
+    // File objects, and that ref was never spliced to match. After removing one row,
+    // every later row's index pointed at the *previous* file — so "retry" re-uploaded
+    // the wrong document and progress was written onto the wrong line. Marking the row
+    // instead keeps the two arrays aligned by construction, and has the side benefit of
+    // showing you what you excluded rather than making it vanish.
+    excludeQueueItem: (index: number) => {
+      const queue: DocumentUploadQueueItem[] = get().queue
+      set({
+        queue: queue.map((item, i) =>
+          i === index ? { ...item, status: 'skipped' as const, note: 'Removed' } : item,
+        ),
+      })
+    },
   }),
 )
+
+// X1: which library row's document is open in the viewer. One piece of state, but it
+// lives here rather than in `useState` because the tab already reads five other things
+// from the store and rules/zustand.md puts the threshold at 2+.
+export type DocumentLibrarySlice = {
+  documentLibrary: {
+    viewingId: number | null
+    setDocumentLibraryViewingId: (viewingId: number | null) => void
+  }
+}
+
+export const createDocumentLibrarySlice = namespaceSlice('documentLibrary', (set) => ({
+  viewingId: null as number | null,
+  setDocumentLibraryViewingId: (viewingId: number | null) => set({ viewingId }),
+}))
 
 export interface DocumentViewerDialogState {
   imageUrl: string | null

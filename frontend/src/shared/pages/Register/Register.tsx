@@ -1,6 +1,16 @@
 import { useEffect, type JSX } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Box, Flex, Heading, Text, Button, TextField, Select, Callout } from '@radix-ui/themes'
+import {
+  Box,
+  Flex,
+  Heading,
+  Text,
+  Button,
+  Card,
+  TextField,
+  Select,
+  Callout,
+} from '@radix-ui/themes'
 import { Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -81,13 +91,13 @@ export const Register = (): JSX.Element => {
 
   return (
     <Box className={styles.page}>
-      <Box className={styles.card}>
+      <Card size="3" className={styles.card}>
         <Flex direction="column" gap="6">
           <Box className={styles.header}>
-            <Flex justify="center" mb="3">
+            <Flex justify="center" mb={{ initial: '3', sm: '4' }}>
               <Box className={styles.logo}>F</Box>
             </Flex>
-            <Heading size="6" align="center">
+            <Heading size={{ initial: '6', sm: '7' }} align="center">
               Create account
             </Heading>
             <Text size="2" color="gray" align="center" mt="1">
@@ -112,7 +122,7 @@ export const Register = (): JSX.Element => {
                 </Text>
                 <TextField.Root
                   color={errors.fullName ? 'red' : undefined}
-                  id="mob-fullName"
+                  id="fullName"
                   type="text"
                   placeholder="Jane Doe"
                   value={fullName}
@@ -136,7 +146,7 @@ export const Register = (): JSX.Element => {
                 </Text>
                 <TextField.Root
                   color={errors.username ? 'red' : undefined}
-                  id="mob-username"
+                  id="regUsername"
                   type="text"
                   placeholder="janedoe"
                   value={username}
@@ -160,7 +170,7 @@ export const Register = (): JSX.Element => {
                 </Text>
                 <TextField.Root
                   color={errors.email ? 'red' : undefined}
-                  id="mob-reEmail"
+                  id="regEmail"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
@@ -184,7 +194,7 @@ export const Register = (): JSX.Element => {
                 </Text>
                 <TextField.Root
                   color={errors.password ? 'red' : undefined}
-                  id="mob-rePassword"
+                  id="regPassword"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="At least 8 characters"
                   value={password}
@@ -220,7 +230,7 @@ export const Register = (): JSX.Element => {
                 </Text>
                 <TextField.Root
                   color={errors.confirmPassword ? 'red' : undefined}
-                  id="mob-reConfirmPassword"
+                  id="regConfirmPassword"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Re-enter password"
                   value={confirmPassword}
@@ -273,7 +283,7 @@ export const Register = (): JSX.Element => {
             </Link>
           </Text>
         </Flex>
-      </Box>
+      </Card>
     </Box>
   )
 }

@@ -12,7 +12,7 @@ interface CategoryNode {
   children: CategoryNode[]
 }
 
-interface FlatCategory {
+export interface FlatCategory {
   id: number
   name: string
   color: string

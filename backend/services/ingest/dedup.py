@@ -12,7 +12,7 @@ from typing import Literal
 
 import asyncpg
 
-from services.merchant_service import normalize_name
+from services.merchant_service import name_similarity, normalize_name
 
 FUZZY_DATE_WINDOW_DAYS = 3
 FUZZY_SIMILARITY_THRESHOLD = 0.5
@@ -61,17 +61,6 @@ class DedupResult:
     fuzzy_matches: list[FuzzyMatch] = field(default_factory=list)
 
 
-def _similarity(a: str, b: str) -> float:
-    """Jaccard word-overlap on normalized names — same heuristic
-    merchant_service.find_similar_merchants uses for merchant-vs-merchant matching,
-    applied here to merchant/description text on a candidate vs. an existing row."""
-    a_words = set(a.split())
-    b_words = set(b.split())
-    if not a_words or not b_words:
-        return 0.0
-    return len(a_words & b_words) / len(a_words | b_words)
-
-
 async def find_duplicates(candidate: DedupCandidate, conn: asyncpg.Connection) -> DedupResult:
     """Exact match on import_hash short-circuits and returns immediately. Otherwise:
     same profile + same amount (never fuzzy on amount) + date within
@@ -113,7 +102,7 @@ async def find_duplicates(candidate: DedupCandidate, conn: asyncpg.Connection) -
     matches: list[FuzzyMatch] = []
     for row in rows:
         row_normalized = normalize_name(row["merchant_name"] or row["description"])
-        score = _similarity(normalized_desc, row_normalized)
+        score = name_similarity(normalized_desc, row_normalized)
         if score >= FUZZY_SIMILARITY_THRESHOLD:
             matches.append(
                 FuzzyMatch(

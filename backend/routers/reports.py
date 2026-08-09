@@ -1,33 +1,42 @@
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import Literal
 
 import asyncpg
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
+from core.money import Money
 from database.models import Profile
 from database.session import get_db
 from routers.auth import get_current_profile
+from services.category_spend import CATEGORY_SPEND_SOURCE
 
 router = APIRouter()
 
 
 def _month_bounds(year: int, month: int) -> tuple[datetime, datetime]:
     start = datetime(year, month, 1)
-    end = (datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)) - timedelta(
-        days=1
-    )
+    last_day = (
+        datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+    ) - timedelta(days=1)
+    # End-of-day, not midnight — `transactions.date` is a TIMESTAMP, and every query
+    # against this bound uses an inclusive `<= end` filter (matching the days-based
+    # rolling-window branches elsewhere in this file, which already use
+    # `datetime.max.time()`). Midnight would silently exclude any transaction entered
+    # later in the day on the month's last calendar day.
+    end = datetime.combine(last_day.date(), datetime.max.time())
     return start, end
 
 
 class ComparisonEntry(BaseModel):
     label: str
-    current_income: float
-    current_expense: float
-    current_net: float
-    previous_income: float
-    previous_expense: float
-    previous_net: float
+    current_income: Money
+    current_expense: Money
+    current_net: Money
+    previous_income: Money
+    previous_expense: Money
+    previous_net: Money
     income_change_pct: float | None
     expense_change_pct: float | None
     net_change_pct: float | None
@@ -35,26 +44,26 @@ class ComparisonEntry(BaseModel):
 
 class MonthlyEntry(BaseModel):
     month: str
-    income: float
-    expense: float
-    net: float
+    income: Money
+    expense: Money
+    net: Money
 
 
 class SummaryResponse(BaseModel):
-    total_income: float
-    total_expense: float
-    net: float
+    total_income: Money
+    total_expense: Money
+    net: Money
     transaction_count: int
-    avg_daily_expense: float
+    avg_daily_expense: Money
     top_category: str | None
-    top_category_amount: float | None
+    top_category_amount: Money | None
 
 
 class CategoryTotal(BaseModel):
     category_id: int
     category_name: str
     category_color: str
-    total: float
+    total: Money
     percentage: float
     transaction_count: int
 
@@ -62,7 +71,7 @@ class CategoryTotal(BaseModel):
 class MerchantTotal(BaseModel):
     merchant_id: int
     merchant_name: str
-    total: float
+    total: Money
     percentage: float
     transaction_count: int
 
@@ -162,8 +171,8 @@ async def report_summary(
     avg_daily = round(total_expense / max(days, 1), 2)
 
     top_row = await conn.fetchrow(
-        """SELECT t.category_id, c.name AS category_name, SUM(t.amount) AS total
-           FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+        f"""SELECT t.category_id, c.name AS category_name, SUM(t.amount) AS total
+           FROM ({CATEGORY_SPEND_SOURCE}) t LEFT JOIN categories c ON c.id = t.category_id
            WHERE t.profile_id = $1 AND t.transaction_type = 'expense'
              AND t.category_id IS NOT NULL AND t.date >= $2
            GROUP BY t.category_id, c.name
@@ -204,9 +213,9 @@ async def report_categories(
         end = datetime.combine(date.today(), datetime.max.time())
 
     rows = await conn.fetch(
-        """SELECT t.category_id, c.name AS category_name, c.color AS category_color,
+        f"""SELECT t.category_id, c.name AS category_name, c.color AS category_color,
                   SUM(t.amount) AS total, COUNT(t.id) AS tx_count
-           FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+           FROM ({CATEGORY_SPEND_SOURCE}) t LEFT JOIN categories c ON c.id = t.category_id
            WHERE t.profile_id = $1 AND t.transaction_type = 'expense'
              AND t.category_id IS NOT NULL AND t.date >= $2 AND t.date <= $3
            GROUP BY t.category_id, c.name, c.color
@@ -216,7 +225,7 @@ async def report_categories(
         end,
     )
 
-    grand_total = sum(float(r["total"]) for r in rows) or 0
+    grand_total = float(sum((r["total"] for r in rows), Decimal("0")))
     return [
         CategoryTotal(
             category_id=r["category_id"],
@@ -259,7 +268,7 @@ async def report_merchants(
         end,
     )
 
-    grand_total = sum(float(r["total"]) for r in rows) or 0
+    grand_total = float(sum((r["total"] for r in rows), Decimal("0")))
     return [
         MerchantTotal(
             merchant_id=r["merchant_id"],
@@ -273,8 +282,12 @@ async def report_merchants(
 
 
 def _pct_change(current: float, previous: float) -> float | None:
+    # A 0 -> nonzero change has no defined percentage (mathematically infinite) — not
+    # "+100%", which understated arbitrarily large jumps and was flatly wrong for a
+    # 0 -> $1,500 change. None means "no prior baseline"; the frontend renders that as
+    # "New" instead of a specific (fabricated) number.
     if previous == 0:
-        return None if current == 0 else 100.0
+        return None
     return round(((current - previous) / abs(previous)) * 100, 1)
 
 

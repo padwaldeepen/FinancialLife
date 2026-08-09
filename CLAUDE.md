@@ -41,6 +41,13 @@ against actual code when in doubt), `docs/design-system.md` (3-color UI rules + 
 **Everything**: `docker compose up -d` (Postgres + backend + frontend). Frontend on
 `:3000`, backend + `/docs` (OpenAPI) on `:8080`.
 
+**Data safety** (`scripts/`): `backup.ps1` writes a verified `pg_dump -Fc` with count-based
+retention; `restore.ps1` restores one (newest by default) into a dropped-and-recreated
+database and verifies row counts afterwards. **Rehearse before trusting it** —
+`restore.ps1 -TargetDb restore_test -Confirm` proves a dump is restorable without
+touching live data. Once real data exists, take a backup immediately before any
+`alembic upgrade`: the restore, not the downgrade, is the rollback path.
+
 **Required after every change**: run the relevant lint/format/typecheck commands above,
 verify live (curl/fixtures for backend, Playwright against both viewports for any UI
 change), then self-review the diff — run the `/code-review` skill (`.claude/skills/code-review/`)
@@ -91,6 +98,17 @@ cross-imports between the two trees are banned. Both import freely from `shared/
 (hooks, api client, types, formatting) and `store/` (Zustand slices) — anything without
 JSX lives in one of those two, never inside `desktop/`/`mobile/`. Every component is
 `Name.tsx` + `Name.module.css`; no Tailwind, no inline styles.
+
+**One deliberate exception — `shared/pages/` may hold JSX** (added by ZC, 2026-08-08):
+`Login` and `Register` only. Auth is not device-role-differentiated — a login form is a
+login form — and the two copies had drifted to 248-vs-247 and 349-vs-339 near-identical
+lines. They are now one component each, with the small chrome differences (card border,
+padding, heading size) expressed responsively at the 768px boundary that already splits
+the two trees. **This exception does not generalise**: everything else with JSX still
+belongs to exactly one tree. The measured reason is in `backlog.md` ZA — `mobile/` is
+2,709 LOC to `desktop/`'s 8,107 across half the pages, so the trees are genuinely
+different apps, not copies, and merging further would force desktop-only pages onto a
+390px screen.
 
 **State is Zustand-only** — no React Query, no Context for global state. One bound store
 (`store/useBoundStore.ts`) combines every domain slice via the `namespaceSlice` helper

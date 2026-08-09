@@ -11,6 +11,7 @@ import {
   Dialog,
   TextField,
   Skeleton,
+  VisuallyHidden,
 } from '@radix-ui/themes'
 import { Link2, Unlink } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
@@ -176,7 +177,7 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
                     indexBy="month"
                     margin={{ top: 10, right: 20, bottom: 40, left: 60 }}
                     padding={0.3}
-                    colors={{ scheme: 'oranges' }}
+                    colors={['var(--chart-single)']}
                     axisBottom={{
                       tickSize: 5,
                       tickPadding: 5,
@@ -250,6 +251,11 @@ export const BillDetail = ({ bill }: BillDetailProps): JSX.Element => {
         <Dialog.Root open={linkOpen} onOpenChange={setLinkOpen}>
           <Dialog.Content maxWidth="420px">
             <Dialog.Title>Link Transaction</Dialog.Title>
+            <VisuallyHidden>
+              <Dialog.Description>
+                Attach an existing transaction to this bill as its payment
+              </Dialog.Description>
+            </VisuallyHidden>
             <TextField.Root
               placeholder="Search transactions..."
               value={linkSearch}

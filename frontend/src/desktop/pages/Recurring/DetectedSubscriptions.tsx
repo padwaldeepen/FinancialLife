@@ -3,7 +3,7 @@ import { Box, Flex, Text, Card, Badge, Button } from '@radix-ui/themes'
 import { TrendingUp } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
-import { formatCurrency } from '../../../shared/utils/format.ts'
+import { formatCurrency, formatCalendarDate } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import { frequencyLabel } from '../../../shared/utils/money.ts'
 import styles from './Recurring.module.css'
@@ -64,8 +64,7 @@ export const DetectedSubscriptions = (): JSX.Element | null => {
                   )}
                 </Flex>
                 <Text size="1" color="gray">
-                  {frequencyLabel(c.cadence)} · next{' '}
-                  {new Date(c.next_expected_date).toLocaleDateString()}
+                  {frequencyLabel(c.cadence)} · next {formatCalendarDate(c.next_expected_date)}
                 </Text>
               </Box>
               <Flex align="center" gap="3">

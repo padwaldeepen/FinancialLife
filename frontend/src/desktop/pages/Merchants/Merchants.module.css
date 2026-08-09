@@ -5,13 +5,14 @@
 
 .card {
   cursor: pointer;
-  transition: transform var(--duration-normal) var(--ease-out);
   padding: var(--space-3) var(--space-4);
 }
 
-.card:hover {
-  transform: translateY(-1px);
-}
+/* Hover lift removed (owner, 2026-08-08): a card that jumps 1px under the cursor
+   reads as jitter, especially down a long list where the pointer crosses many rows.
+   design-system.md section 2 already says motion is functional only, never
+   decorative - a decorative lift was always off-spec. Hover still responds via
+   colour; only the movement is gone. */
 
 .icon {
   width: 40px;

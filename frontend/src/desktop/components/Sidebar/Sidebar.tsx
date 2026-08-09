@@ -1,6 +1,6 @@
 import { type JSX } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Avatar, Box, Text, Button, Flex, Popover, Separator, Switch } from '@radix-ui/themes'
+import { Avatar, Box, Text, Button, Flex, IconButton, Popover, Separator } from '@radix-ui/themes'
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -47,14 +47,25 @@ export const Sidebar = (): JSX.Element => {
 
   return (
     <aside className={styles.sidebar}>
-      <Box className={styles.logo}>
-        <Text as="div" className={styles.logoIcon}>
-          F
-        </Text>
-        <Text as="span" className={styles.logoText}>
-          My Financial Life
-        </Text>
-      </Box>
+      <Flex className={styles.logo} align="center" justify="between">
+        <Flex align="center" gap="3">
+          <Text as="div" className={styles.logoIcon}>
+            F
+          </Text>
+          <Text as="span" className={styles.logoText}>
+            My Financial Life
+          </Text>
+        </Flex>
+        <IconButton
+          variant="ghost"
+          color="gray"
+          size="2"
+          onClick={toggle}
+          aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {dark ? <Sun size={16} /> : <Moon size={16} />}
+        </IconButton>
+      </Flex>
 
       <Button className={styles.addButton} onClick={openAddModal}>
         <Plus size={18} />
@@ -80,12 +91,12 @@ export const Sidebar = (): JSX.Element => {
       <Box className={styles.footer}>
         <Popover.Root>
           <Popover.Trigger>
-            <button className={styles.profileTrigger}>
+            <Button variant="ghost" color="gray" className={styles.profileTrigger}>
               <Avatar size="2" radius="full" fallback={initial} />
               <Text size="2" weight="medium" className={styles.profileTriggerName}>
                 {displayName}
               </Text>
-            </button>
+            </Button>
           </Popover.Trigger>
 
           <Popover.Content align="start" side="top" className={styles.popoverContent}>
@@ -132,16 +143,6 @@ export const Sidebar = (): JSX.Element => {
                   <Separator size="4" />
                 </>
               )}
-
-              <Flex align="center" justify="between" px="2" className={styles.themeRow}>
-                <Flex align="center" gap="2">
-                  {dark ? <Moon size={16} /> : <Sun size={16} />}
-                  <Text size="2">Dark mode</Text>
-                </Flex>
-                <Switch checked={dark} onCheckedChange={toggle} />
-              </Flex>
-
-              <Separator size="4" />
 
               <Button
                 variant="ghost"

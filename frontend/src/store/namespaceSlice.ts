@@ -54,12 +54,26 @@ export const refetchCollection = async <T = unknown>(
   set(transform ? transform(data) : { [key]: data })
 }
 
+// V5 (attempted and reverted, 2026-08-08): these `any`s were replaced with an
+// `unknown`-based `SliceShape` generic. It typechecked here but cascaded ~30 errors
+// across every slice — each one then had to narrow `unknown` back to its own state type
+// at every `set`/`get`, which is strictly more casting than it removes.
+//
+// The looseness is inherent to the factory, not laziness: it is generic over every slice
+// in the app and cannot know any individual slice's shape. Real per-slice type safety
+// already exists one level up, in `StoreState` (types.ts), which is where components
+// consume the store. Left as-is deliberately; the 8 lint warnings are the honest price.
+
 export const namespaceSlice = <N extends string>(
   name: N,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   creator: (set: (partial: any) => void, get: () => any) => any,
 ) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (set: any, get: any, _api: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nsSet = (partial: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       set((state: any) => ({
         [name]: { ...state[name], ...partial },
       }))

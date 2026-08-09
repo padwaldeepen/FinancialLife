@@ -22,6 +22,7 @@ import { useSafeToSpend } from '../../../shared/hooks/useSafeToSpend.ts'
 import { useProfileSwitch } from '../../../shared/hooks/useProfileSwitch.ts'
 import { COUNTRY_FLAG, COUNTRY_NAME } from '../../../shared/utils/countries.ts'
 import styles from './Home.module.css'
+import { NeedsAttention } from '../../components/NeedsAttention/NeedsAttention.tsx'
 
 const PULL_THRESHOLD = 80
 
@@ -147,6 +148,10 @@ export const Home = (): JSX.Element => {
       </Box>
 
       {/* Avatar row — profile switcher lives here on mobile (U3) */}
+      {/* Y3: above the fold, before the dashboard — the whole point is that it finds
+          you rather than waiting to be found. Renders nothing when all is well. */}
+      <NeedsAttention />
+
       <Flex align="center" justify="between" className={styles.avatarRow}>
         <Popover.Root>
           <Popover.Trigger>

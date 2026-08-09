@@ -1,6 +1,6 @@
 # My Financial Life — Plan
 
-> Last updated: 2026-07-29
+> Last updated: 2026-08-08
 > Localhost-only, privacy-first personal finance app. One primary user (admin), family later.
 > Countries: USA, India, Canada → **country profiles**: one login per person, 1–3 sealed
 > single-currency country worlds (USD/INR/CAD), switch at login or top bar. Profiles are
@@ -62,6 +62,15 @@ review → save, with duplicate protection).
    option — but only if it proves clearly worth it (revisit then); free tier is the default now.
 4. **Three-color minimalist UI.** One neutral scale, one accent, semantic money colors — nothing else. See `design-system.md`.
 5. **Device roles differ.** Mobile = capture (scan, quick-add, glance). Desktop = analyze + manage (reports, admin, bulk edit). Feature set is deliberately bigger on desktop.
+   **Re-validated by measurement 2026-08-08 (ZA)** after the owner asked whether to go
+   adaptive: the two-tree split is **kept**. `mobile/` is 2,709 LOC to `desktop/`'s 8,107
+   across half the pages — a genuinely smaller capture app, not a parallel copy, so a
+   wholesale merge would mean forcing 4,572 lines of desktop-only pages down to 390px and
+   producing the squeezed-desktop-on-a-phone this principle exists to prevent. Two
+   corrections do apply: **tablets get the desktop tree** (the `max-width: 1023px` switch
+   was a routing bug that stranded iPad portrait — ZB), and **auth is shared** (Login/
+   Register were 248-vs-247 and 349-vs-339 near-identical twins — ZC). `shared/` may hold
+   JSX for those two pages only.
 6. **Every phase ends with the app answering a money question it couldn't answer before.**
 7. **Docs stay honest.** `README.md` (plain-language pitch + setup) + `plan.md` (this file) + `backlog.md` (detailed tickets) + `architecture-and-goals.md` + `design-system.md` + `DEVELOPMENT.md` are the only docs. Anything stale gets deleted — git history is the archive. (`how-it-works.md` was folded into `README.md` 2026-08-05 — its "[coming soon]" tags had all shipped, making it a second, drifting copy of what the README should say.)
 
@@ -306,7 +315,11 @@ targeted. Detail + acceptance in [`backlog.md`](backlog.md) R1–R6.
   user-created one with 0 subcategories) — suspected cause is quick-add's category-name
   matching creating a new category instead of matching the existing system one; needs a
   categorizer/matching-logic look.
-- [ ] **Then: fresh-start DB wipe** (owner's call) so the clean DB runs the fixed code.
+- [x] **Fresh-start DB wipe** — done 2026-08-08 (owner's call). Backed up first, then
+  **consolidated migrations 8 → 5** (X1/Y7/E1's `ALTER TABLE`s folded into the table
+  definitions, since with no real data that's where they belong), dropped the volume,
+  rebuilt from empty, and smoke-tested register → quick-add → transfer → upload →
+  library on the clean DB. See backlog.md W9.
 
 **Code-health block (can run while in use — invisible to the user):**
 - [ ] **R4 — Backend DRY:** ~~all Gemini via `GeminiService`~~ done 2026-08-05 (shared
@@ -351,8 +364,10 @@ recovered and re-verified against live code. Detail + acceptance in
   `Dialog.Description`/a11y + inconsistent `Dialog.Root` ownership across the 6 dialog
   components; duplicated `.emptyState`/`.sectionHeader`/`.row` CSS classes; stale doc
   references in `rules/frontend.md` and `rules/zustand.md`.
-- [ ] **V5 — Lint cleanup:** one real `set-state-in-effect` bug in `BillFormDialog.tsx`,
-  2 `react-refresh` warnings, reduce `no-explicit-any` where reasonable.
+- [x] **V5 — Lint cleanup** — done 2026-08-08. `eslint src` is **0 errors, 0 warnings**.
+  The `no-explicit-any` cases in `namespaceSlice.ts` were **attempted and reverted**: an
+  `unknown`-based generic cascaded ~30 errors across every slice and added more casting
+  than it removed. Left deliberately, with the attempt documented so it isn't repeated.
 
 ### Phase W — Pre-merge polish & upload pipeline upgrade (planned 2026-08-06)
 
@@ -392,6 +407,210 @@ Detail + acceptance in [`backlog.md`](backlog.md) W0–W7.
   baseline — see backlog.md W7 Result.
 
 **Phase W complete** — all of W0–W7 done and verified live 2026-08-06.
+
+### Phase X — Bulk ingestion & the document library (planned 2026-08-08)
+
+From a QA pass driving the live app as the daily-use owner. Phase W made upload
+multi-file; Phase X makes it work at the owner's real scale (point at a folder of years
+of statements and receipts) and closes the honesty gap that **once a document is
+reviewed there is currently no way to ever see it again** — `GET /api/documents/` only
+returns `status='pending'`, and `documents` doesn't even store the original filename.
+Detail + acceptance in [`backlog.md`](backlog.md) X1–X4.
+
+- [x] **X1 — Document library:** `original_filename` + `content_sha256` columns; list
+  endpoint gains `status`/`kind`/search/date filters (default stays pending-only so
+  existing callers don't change); a **Documents** tab under Manage showing everything
+  ever uploaded, linked to the transaction it became. Done 2026-08-08 — also added
+  `linked_transaction_count` (a statement import yields many transactions from one
+  document, so a lone id would misrepresent it), and verified the filename is stored
+  display-only: `../../../etc/passwd.png` lands as `passwd.png` with the on-disk path
+  still the generated uuid. See backlog.md X1 Result.
+- [x] **X2 — Folder upload with real progress** (done 2026-08-08): `webkitdirectory` + recursive
+  `webkitGetAsEntry()` folder walk; a **triage summary shown before upload starts**
+  (receipts/statements · spreadsheets · other · skipped-with-reason); genuine
+  `onUploadProgress` bars, 3–5 concurrent uploads instead of the current sequential loop,
+  per-file retry/remove; a **stage indicator** (`queued → uploading → extracting → needs
+  review → saved`) and a persistent "38 uploaded · 12 still need review" summary, because
+  a batch isn't done when bytes land — it's done when the review queue is empty; content
+  hashing so re-dropping the same folder is a safe no-op.
+- [x] **X3 — Honest unparseable-file handling** (done 2026-08-08): new `kind='other'` — store, list, and
+  label files the app can't parse instead of showing a red "Failed" that reads like a bug.
+  **Tax documents stay out of scope** (owner's call 2026-08-08): a W-2/1099/Form 16/T4 is
+  just an `other` document — stored, never parsed, no tax-specific detection or fields.
+- [x] **X4 — Review queue at scale** (done 2026-08-08): paginate/virtualize; bulk approve-as-extracted for
+  high-confidence rows (still through the D3 dedup gate); sort by confidence so documents
+  needing a human decision surface first.
+
+### Phase Y — Gap closure (promoted to tickets 2026-08-08, owner's call)
+
+The QA pass produced a researched gap list (measured against Firefly III / Actual /
+ezBookkeeping and mainstream 2026 apps); the owner asked for it to become real work.
+Detail + acceptance in [`backlog.md`](backlog.md) Y1–Y7. **Y1 and Y2 come first.**
+
+- [x] **Y1 — Backups (hard gate):** done 2026-08-08. `scripts/backup.ps1` dumps inside the
+  container and `docker cp`s the bytes out (a PowerShell stdout redirect corrupts a
+  compressed dump), refuses to keep an implausibly small file, and only prunes old
+  backups after a verified-good new one. **Restore actually performed:** `pg_restore` into
+  a scratch DB matched all five table row counts and `SUM(amount)` to the cent (10302.69).
+  Task Scheduler setup + restore procedure documented in `DEVELOPMENT.md` §2.
+  **Caveat:** the admin "Backup now" button is structurally broken (backend container
+  can't see `scripts/` and has no `pwsh`) — left alone rather than widening the ticket,
+  recorded in backlog.md's Discovered list.
+- [x] **Y2 — Net worth over time** (done 2026-08-08): monthly balance snapshots per account, **per
+  profile**, never blended across countries; honesty-gated trendline on Insights. The
+  biggest missing *number* in an app pitched as "know where my money goes" — `grep
+  net_worth` currently returns zero hits.
+- [ ] **Y3 — Proactive "needs attention" on Home:** the rule engines already compute
+  bill-due, forecast crunch, and spend anomalies and then never tell anyone. In-app only
+  — **no push infrastructure** — reusing I6's evidence + dismiss card pattern.
+- [~] **Y4 — Tablet breakpoint — superseded by ZB** (2026-08-08): the fix belongs inside
+  the adaptive-architecture decision, not as a standalone breakpoint tweak. Don't work it.
+- [x] **Y5 — Mobile settings:** done 2026-08-08. The name bug was real and the root cause
+  was a **phantom `name?` field on the `User` type that nothing ever set** — deleted it so
+  the compiler catches the next reader, rather than adding a third fallback. **The nav-
+  clipping half was my error**: it came from a full-page screenshot rendering a sticky bar
+  mid-content. Measured in the DOM — 136px of clearance, nothing clipped. No change made.
+- [x] **Y6 — Two honesty fixes:** done 2026-08-08. Import dialog got a header X (footer
+  Cancel would still have stranded the upload step). Quick Add's missing date wasn't a
+  render bug — the backend always returned it, but the client type had no `date` field so
+  it was discarded on arrival; added and shown on both trees.
+- [x] **Y7 — Merchant → category learning:** done 2026-08-08. A `default_category_id` on
+  `merchants` (migration 0007) rather than a rules table — merchants are already
+  per-profile, are the unit the user already manages, and one-merchant-one-category stays
+  explainable. Precedence: this-transaction choice > learned rule > keyword table.
+  Clearing is a dedicated endpoint because `exclude_none=True` made a null unexpressible.
+  Verified: correct Chipotle once → the next parse *and* quick-add both use Dining Out;
+  clearing restores keyword behaviour. Known gap: typo'd input yields no merchant at all
+  upstream, so rules don't fire there (noted in Discovered).
+
+**Deliberately deferred, not ticketed:** PWA installability (pairs with the LAN/HTTPS item
+in Later — installing a localhost-only app to a phone home screen is near-pointless before
+that), and mobile auto-capture/batch scan (belongs with X2's bulk work).
+
+### Phase Z — Visual redesign: Dribbble-style repaint (owner's call, 2026-08-08)
+
+**This phase deliberately supersedes `design-system.md` §1/§2 and reverses R2's palette
+decision** (R2 removed purple/blue/amber to reach slate + one orange). The owner has
+decided the app should follow the modern fintech-dashboard look — dark-first, richer
+accent palette, gradients, bento grids. Recorded explicitly and dated so the docs don't
+quietly contradict themselves. Detail + acceptance in [`backlog.md`](backlog.md) Z0–Z5.
+
+**Objection on record:** Dribbble shots are portfolio pieces optimised to look good as a
+static JPEG — not to stay readable across 200 transaction rows at 2am on a phone in
+daylight. The risk isn't ugliness, it's legibility debt that only appears at real data
+volume. **Z5 is the gate that catches it** and can block the phase.
+
+**Non-negotiable through the repaint:** colour lives only in `design-tokens.css` +
+`theme.tsx` (no hex in any `.module.css` — this is the only reason a repaint is cheap and
+reversible); money keeps green/red semantics on amounts only; WCAG AA on all text in both
+themes; both trees get it.
+
+- [x] **ZA — Adaptive architecture: decided 2026-08-08.** Answers the owner's "should we do
+  adaptive design and flow?" — **the app is already adaptive in the strongest form**: two
+  separate UI trees switched by one hard `max-width: 1023px` query at `main.tsx:23`.
+  **Measuring the trees overturned the initial "merge it all" instinct.** `mobile/` is
+  2,709 LOC vs `desktop/`'s 8,107 across half the pages, and 4,572 LOC of desktop-only
+  pages (Manage, Recurring, Merchants, Goals, Insights, Categories) have no mobile
+  counterpart — a merge would force those down to 390px and produce exactly the
+  squeezed-desktop-on-a-phone the split prevents. **Decision: keep the two trees, fix two
+  things** — tablets routed to the desktop tree (**ZB**, supersedes Y4) and auth shared
+  (**ZC**: Login 248-vs-247, Register 349-vs-339 near-identical twins). Both land before
+  Z1, never inside the repaint.
+- [x] **ZB — Route tablets to the desktop tree** (supersedes Y4): done 2026-08-08 at a
+  **767px** threshold. Took four changes, not one — the old 1024 boundary was encoded in
+  three places (`main.tsx`, the sidebar's `display: none`, and the layout's 240px gutter)
+  that all had to move together, or tablets would have got the desktop tree with its only
+  navigation hidden. The real blocker was a flexbox default: `.main` had `min-width: auto`
+  so it refused to shrink below Manage's 624px tab strip — fixed with `min-width: 0` plus
+  a scrolling tab strip. All 5 destinations verified at 768 with no horizontal scroll.
+- [x] **ZC — Login + Register into `shared/`**: done 2026-08-08. Four page dirs became two;
+  the only real differences were card chrome, heading size and `id` prefixes that existed
+  just to avoid duplicate DOM ids. Kept behind responsive values at Radix's `sm` (768px) —
+  the same boundary as ZB's router split, so they can't drift apart. Caught a real bug in
+  verification: Radix Card paints in **two** pseudo layers (`::before` fill, `::after`
+  border) and hiding only `::after` left a white panel on mobile. `shared/` may hold JSX
+  for these two pages only — documented in `CLAUDE.md`.
+- [ ] **Z0 — Define the language first** (rewrite design-system.md §1/§2, one approved
+  dark Home mock with realistic data volume). Also settles **Radix Themes vs. Radix
+  Primitives**: the app uses 24 Themes components; Primitives (accessible behaviour) are
+  worth keeping, the *styled* layer is what fights a custom aesthetic. Mantine/Chakra/MUI
+  just swap one opinionated look for another; shadcn/ui needs Tailwind, which is banned.
+  If the styled layer goes, it's **its own migration ticket before Z2** — never bundled
+  with the repaint, or Z5 can't attribute a regression.
+- [x] **Z1 — Token layer + theme:** done 2026-08-08, and the proof point held — the whole
+  app went dark with **zero component edits**. The contrast gate caught a real
+  pre-existing bug: dark mode was rendering the *light* theme's red for every money
+  amount (3.73:1, under AA) because `--money-negative` was declared on `:root`, outside
+  `.radix-themes` — a `var()` inside a custom property resolves where it's declared.
+  Zero AA failures now across all 5 pages in both themes.
+- [x] **Z2 — Home as a bento grid** — done 2026-08-08. Only the container and tile spans
+  changed; all content/logic identical. Key lesson: group tiles by *natural height* per
+  row, or a short tile beside a tall one leaves a hole. **The hero gradient took three
+  attempts** — the contrast gate rejected a saturated orange fill twice (2.02:1 then
+  2.51:1; white-on-orange can't clear AA at body sizes) before landing on an
+  accent-*tinted* tile at 6.82:1 that keeps the focal point and stays readable.
+- [x] **Z3 — Insights + charts** — done 2026-08-08. The finding: **3 of 4 charts didn't
+  need a categorical palette, they needed the right form** — one was colouring by *rank*,
+  two were using a *sequential* ramp on a single series (colour encoding nothing). Those
+  are now one hue each. The one genuinely categorical chart (Merchants' pie) moved off
+  unvalidated DB hexes onto a fixed slot order, **validated with the dataviz script**
+  against our real surfaces (CVD ΔE 9.1 light / 8.4 dark — PASS). `--chart-1..8` is a
+  bounded exception to the 3-colour rule: chart marks only.
+- [x] **Z4 — Activity, Manage, dialogs sweep** — done 2026-08-08. Z1's token layer had
+  already carried every surface (raw-colour audit: zero hits), so the real work was the
+  a11y gap V4 flagged: **14 dialogs emitted `aria-describedby` pointing at an element
+  that was never rendered** — a dangling reference, worse than none. All now described.
+- [x] **Z5 — Legibility gate: PASSED 2026-08-08** at 562 transactions / 14 categories /
+  9 months. **Zero AA failures** across both themes, both viewports, all pages. It
+  blocked three times first and caught four real defects invisible to tsc/eslint/e2e/
+  screenshots — including dark mode rendering the *light* theme's red for every money
+  amount. Recurring root cause worth remembering: **Radix steps 9–10 are surfaces,
+  11–12 are text**; a surface step used as text passes every automated check and
+  quietly fails readers.
+
+**Phase Z complete** — Z0–Z5 done and verified 2026-08-08.
+
+### Phase E — Edge cases real users hit (researched 2026-08-08)
+
+The owner asked for an app that "should not be complicated but should cover all the edge
+cases the user has problems with". Researched against what people actually complain about
+in 2026 finance apps and receipt scanners. Detail in [`backlog.md`](backlog.md) E1–E5,
+**ordered by how badly the failure corrupts the numbers**.
+
+**Already ahead of the market — do not re-solve:** duplicate transactions are the #1
+complaint about mainstream apps and D3's dedup gate already covers every import path;
+miscategorisation is #2 and Y7 now learns corrections; bank-sync breakage is #3 and
+doesn't apply here by design.
+
+- [x] **E1 — Transfers: done 2026-08-08.** Migration 0008 adds `to_account_id`; balance maths rewritten as a UNION of per-account deltas (FILTERed income/expense sums moved *neither* balance for a transfer). Verified: a 500 transfer moved Checking −500 and Savings +500 with expense totals unchanged; invalid cases 422. Entry point: **quick-add learned the pattern** rather than adding a form surface — `"transfer 500 to savings"` works, requires both a verb and a destination ("moved house" stays an expense), takes no category or merchant, and **refuses** an unresolvable or ambiguous destination instead of falling back to an expense. Measuring inverted
+  the assumption: the aggregates are already correct (reports filter on explicit
+  `income`/`expense`, so `transfer` is excluded by construction), but
+  `grep -rn "'transfer'" frontend/src` returns **zero hits** — the backend supports the
+  type and **no UI exposes it**, pushing users to record transfers as expenses and
+  double-count.
+- [ ] **E2 — Refunds treated as income.** A returned jacket should reduce Shopping, not
+  add to salary. The statement parser already reads `CR`/trailing-minus; the gap is
+  downstream.
+- [ ] **E3 — Split transactions.** One supermarket receipt is groceries + household +
+  wine. `grep split` finds nothing in the money path, so every category total is
+  approximate.
+- [x] **E4 — Wrong-currency receipts: done 2026-08-08.** Scanning an INR
+  receipt under the US profile currently has no defined behaviour and would store it as
+  USD — an ~85x silent corruption. Detect and refuse; **never convert**.
+- [ ] **E5 — Multi-page and awkward statements.** Verify against a real multi-page PDF
+  before changing anything; likely gaps are rows split across page breaks and repeated
+  headers parsing as transactions.
+
+**Z0 now has a proposed answer** (in `backlog.md` under Z0) rather than being blocked:
+dark-first keeping orange, depth via elevation instead of glassmorphism, exactly one
+gradient on the Safe-to-Spend hero, bento Home, squircles, motion stays functional-only,
+Radix Themes stays. It adds no screen, setting or step — complexity is spent on Phase E
+instead, where it buys the user something. **Awaiting sign-off.**
+
+**Strategic flag raised with it:** "attractive to sell" conflicts with this repo's
+localhost-only, one-login-per-person premise. Looking sellable is cheap; *being* sellable
+means multi-tenancy, hosting, onboarding, billing and support — a different product.
+Decide that separately from the visual work.
 
 ### Later (only after the above is real and used daily)
 

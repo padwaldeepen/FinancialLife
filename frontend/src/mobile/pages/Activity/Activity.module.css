@@ -9,16 +9,6 @@
   margin-bottom: var(--space-3);
 }
 
-.filterBar {
-  padding: var(--space-2);
-  border-radius: var(--radius-card);
-  background: var(--gray-3);
-  gap: var(--space-2);
-  align-items: center;
-  flex-wrap: wrap;
-  margin-bottom: var(--space-3);
-}
-
 .description {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -62,14 +52,6 @@
   background: var(--accent-3);
 }
 
-.emptyState {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-8) var(--space-4);
-}
-
 .filterSelect {
   min-width: 100px;
 }
@@ -96,33 +78,7 @@
   font-size: var(--font-size-4);
 }
 
-.checkboxLabel {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 .dialogButton {
-  flex: 1;
-}
-
-.scrollableList {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.billItem {
-  cursor: pointer;
-  padding: var(--space-2);
-  border-radius: var(--radius-2);
-}
-
-.importFieldLabel {
-  width: 90px;
-  flex-shrink: 0;
-}
-
-.importFieldSelect {
   flex: 1;
 }
 

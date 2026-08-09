@@ -1,8 +1,20 @@
+# Containers default to UTC, but this app is self-hosted and single-user: "today" means
+# the day it is where the person is sitting, not in Greenwich. With the default, a
+# transaction added at 10pm EDT was stamped tomorrow's date and showed as "Aug 9" instead
+# of "Today". Both services need it — the backend stamps dates with a naive
+# `datetime.now()`, and the insights queries use Postgres' own `NOW()`.
+#
+# Override for your own zone with a `TZ=Europe/London` line in a `.env` file next to this
+# one, or `TZ=... docker compose up`. The frontend container is deliberately left alone:
+# its dates are rendered by your browser, which already knows your timezone.
 services:
   postgres:
     image: postgres:17-alpine
     container_name: myfinanciallife-postgres
     env_file: ./backend/.env
+    environment:
+      TZ: ${TZ:-America/New_York}
+      PGTZ: ${TZ:-America/New_York}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -21,6 +33,8 @@ services:
       dockerfile: Dockerfile
     container_name: myfinanciallife-backend
     env_file: ./backend/.env
+    environment:
+      TZ: ${TZ:-America/New_York}
     ports:
       - "8080:8080"
     depends_on:

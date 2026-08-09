@@ -15,9 +15,6 @@
 .logo {
   padding: var(--space-4) var(--space-4);
   border-bottom: 1px solid var(--gray-4);
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
 }
 
 .logoIcon {
@@ -58,18 +55,14 @@
   font-family: inherit;
   cursor: pointer;
   letter-spacing: 0.01em;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
-.addButton:hover {
-  transform: translateY(-1px);
-}
-
-.addButton:active {
-  transform: translateY(0);
-}
+/* Hover lift removed (owner, 2026-08-08): a card that jumps 1px under the cursor
+   reads as jitter, especially down a long list where the pointer crosses many rows.
+   design-system.md section 2 already says motion is functional only, never
+   decorative - a decorative lift was always off-spec. Hover still responds via
+   colour; only the movement is gone. */
 
 .nav {
   flex: 1;
@@ -102,13 +95,23 @@
 
 .navItemActive {
   background-color: var(--accent-3);
-  color: var(--accent-11);
+  /* Z5: accent-11 on accent-3 measured 3.99:1 — just under the 4.5:1 AA floor for a
+     14px label. accent-12 is the high-contrast step of the same hue, so it stays
+     unmistakably orange while clearing the floor. */
+  color: var(--accent-12);
   font-weight: 600;
+  /* A pure background tint reads crisp in light mode but muddy/brownish in dark mode
+     (accent-3 is very desaturated against a near-black page there) — the left-border
+     indicator gives an unambiguous "active" signal in both themes regardless of how
+     the tint itself renders. Padding-left is reduced by the border width so content
+     doesn't shift relative to inactive items. */
+  border-left: 3px solid var(--accent-9);
+  padding-left: calc(var(--space-3) - 3px);
 }
 
 .navItemActive:hover {
   background-color: var(--accent-4);
-  color: var(--accent-11);
+  color: var(--accent-12);
 }
 
 .footer {
@@ -142,18 +145,6 @@
   min-width: 220px;
 }
 
-.themeRow {
-  cursor: pointer;
-  border-radius: var(--radius-2);
-  transition: background-color var(--duration-fast) var(--ease-out);
-  padding-top: var(--space-1);
-  padding-bottom: var(--space-1);
-}
-
-.themeRow:hover {
-  background-color: var(--gray-3);
-}
-
 .logoutButton {
   width: 100%;
   justify-content: flex-start;
@@ -174,7 +165,11 @@
   background-color: var(--accent-3);
 }
 
-@media (max-width: 1024px) {
+/* ZB: must stay in step with main.tsx's `max-width: 767px` breakpoint. This rule used to
+   hide the sidebar at <=1024px, which was harmless only because the mobile tree rendered
+   below that anyway and never mounts Sidebar. Once tablets started getting the desktop
+   tree, that stale 1024 would have hidden the only navigation on an iPad. */
+@media (max-width: 767px) {
   .sidebar {
     display: none;
   }

@@ -20,7 +20,12 @@ import { ToastHost } from './shared/components/ToastHost/ToastHost.tsx'
 const AppRouter = (): JSX.Element => {
   useAuthBootstrap()
   const loading = useBoundStore((s) => s.auth.loading)
-  const isMobile = useMediaQuery('(max-width: 1023px)')
+  // ZB: tablets get the desktop tree. The old boundary (1023px) sent everything below a
+  // laptop to the mobile tree, so an iPad in portrait (768) lost Recurring, Insights and
+  // Manage entirely — they have no mobile counterpart. 768 is the standard tablet floor
+  // and the desktop tree was verified to hold up there (see Sidebar.module.css's matching
+  // media query, which must stay in step with this number or tablets lose all navigation).
+  const isMobile = useMediaQuery('(max-width: 767px)')
 
   if (loading) {
     return (

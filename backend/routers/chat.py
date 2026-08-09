@@ -10,6 +10,7 @@ from core.logging import get_logger
 from database.models import Profile
 from database.session import get_db
 from routers.auth import get_current_profile
+from services.ai.consent import cloud_enabled
 from services.ai.gemini import call_gemini
 from services.transaction_service import parse_transaction
 
@@ -247,11 +248,11 @@ async def chat(
             )
 
     summary = await _get_profile_summary(conn, profile.id, profile.currency)
-    user_row = await conn.fetchrow(
-        "SELECT ai_cloud_enabled FROM users WHERE id = $1", profile.user_id
-    )
     reply = await _ask_llm(
-        text, summary, cloud_enabled=user_row["ai_cloud_enabled"], currency=profile.currency
+        text,
+        summary,
+        cloud_enabled=await cloud_enabled(profile, conn),
+        currency=profile.currency,
     )
 
     return ChatResponse(reply=reply)

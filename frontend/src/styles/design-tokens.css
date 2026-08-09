@@ -25,9 +25,151 @@
   --card-padding: var(--space-4);
   --card-padding-lg: var(--space-5);
 
-  /* ---- Money Semantics ---- */
+  /* Radix's own Card "surface" border is a 1px ring at --gray-a5 — too faint to read
+     as a real edge against the page background in either theme, especially light
+     mode. Not a new shadow (U1 banned decorative box-shadow, this is Radix's own
+     hairline-border mechanism) — just strengthening the existing ring from a5 to the
+     solid gray-6 step, still a single 1px line, no blur/spread/depth. */
+  --base-card-surface-box-shadow: 0 0 0 1px var(--gray-6);
+
+  /* Money semantics live on .radix-themes — see the block below for why. */
+  /* Step 11 verified against the real painted surfaces in BOTH themes (Z5): dark
+     9.23:1, light 5.21:1 red / 4.72:1 green — all above the 4.5:1 AA floor. An earlier
+     pass "fixed" these to step 12 based on a measurement that had silently been taken
+     in the wrong theme; step 12 in dark rendered a pale salmon that read as washed-out
+     rather than as money out. Measure the theme you think you're measuring. */
+}
+
+/* ---- Money semantics (Z1/Z5, 2026-08-08) ----
+   **Declared on `.radix-themes`, not `:root` — this is a correctness fix, not style.**
+   A custom property whose value contains `var()` is substituted where it is *declared*.
+   Declared at `:root`, `--money-negative: var(--red-11)` resolves `--red-11` in the
+   `:root` context — which is outside `.radix-themes`, where only the LIGHT palette
+   exists — and then inherits that baked-in light red into the dark theme.
+
+   Symptom: in dark mode every amount rendered `rgb(206,44,49)` (light red-11) against a
+   near-black surface, measuring 3.73:1 — under the AA floor, on the most important text
+   in a finance app. It looked "red enough" to pass a glance, which is why it survived
+   this long. Declaring here puts the substitution inside the theme scope, so dark gets
+   dark red-11. Same trap as the `--shadow-*` block above. */
+.radix-themes {
   --money-positive: var(--green-11);
   --money-negative: var(--red-11);
+}
+
+/* ---- Elevation: flattened to hairline borders (owner, 2026-08-08) ----
+   Radix's `--shadow-1..6` are real blurred drop shadows. A dialog was painting THREE
+   blurred layers at once (60px, 64px, 36px), which is the heavy floating look the flat
+   brief rejects. Grepping our own `.module.css` for `box-shadow` found nothing and was
+   misleading — the shadows come from Radix's components, not our CSS.
+
+   **This must be declared on `.radix-themes`, not `:root`.** Radix defines these on
+   `:where(.radix-themes)`, and a custom property resolves from the *nearest ancestor*
+   that defines it — inheritance proximity, not selector specificity. `.radix-themes`
+   sits below `<html>`, so a `:root` override is simply never consulted. (Confirmed the
+   hard way: the `:root` version left all three blurred layers intact.)
+
+   Flattened to a 1px ring rather than `none`: with no edge at all, a dialog or popover
+   loses its boundary against the page and reads as content that escaped its container.
+   Zero blur, zero offset — an outline, not depth. Modal separation still comes from the
+   overlay dim. */
+.radix-themes {
+  --shadow-1: inset 0 0 0 1px var(--gray-a5);
+  --shadow-2: 0 0 0 1px var(--gray-a6);
+  --shadow-3: 0 0 0 1px var(--gray-a6);
+  --shadow-4: 0 0 0 1px var(--gray-a7);
+  --shadow-5: 0 0 0 1px var(--gray-a7);
+  --shadow-6: 0 0 0 1px var(--gray-a8);
+}
+
+/* ---- Z1: dark-first ground (2026-08-08) ----
+   Radix's default dark `--gray-1/2` are quite light for a finance dashboard; the look
+   the owner asked for reads as a deeper, more deliberate ground with the accent doing
+   all the work. Deepening only the two *page-level* steps keeps every higher gray step
+   (borders, muted text, hover fills) exactly where Radix calibrated it, so contrast
+   ratios up the scale are untouched — the alternative, hand-rolling a full 12-step
+   ramp, is how palettes end up failing WCAG in the middle.
+
+   Declared on `.radix-themes` for the same inheritance-proximity reason as the shadow
+   block above: a `:root` override would never be consulted. */
+.radix-themes:where(.dark, .dark-theme) {
+  --gray-1: #0b0d10;
+  --gray-2: #101317;
+  --color-background: #0b0d10;
+  --color-panel-solid: #14181d;
+}
+
+/* Light stays a soft off-white rather than pure white — pure white next to a dark
+   sidebar is the single most fatiguing combination in daylight, and Z5 checks this
+   theme just as hard as dark. */
+.radix-themes:where(.light, .light-theme) {
+  --color-panel-solid: #ffffff;
+}
+
+/* ---- Z1: the one gradient ----
+   Exactly one, on the Safe-to-Spend hero tile. One deliberate focal point reads as
+   designed; gradients everywhere read as a template, and they wreck legibility behind
+   dense rows. Everything else stays flat neutral. */
+.radix-themes {
+  /* An accent-TINTED gradient, not a saturated accent fill.
+     Measured, twice: white on vivid orange-9 is 2.51:1 and on orange-11 it's 2.02:1 —
+     both far under AA. That isn't a step-picking mistake, it's inherent to orange:
+     Radix's `--accent-contrast` for warm hues is white, which only clears AA on large
+     text. A hero whose headline number can't be read is a worse outcome than a less
+     saturated hero.
+     Steps 2-4 are the tinted *background* steps, so this keeps an unmistakably orange
+     focal point while normal foreground text (gray-12/11) stays fully legible — and it
+     works in both themes, since those steps track the theme. */
+  --hero-gradient: linear-gradient(135deg, var(--accent-4), var(--accent-2));
+}
+
+/* ---- Z3: chart colour ----
+   **A scoped exception to the three-colour rule, and the only one.** UI chrome stays
+   slate + orange; a chart that must distinguish N categories cannot, and inventing hues
+   ad hoc at each call site is how you end up with unreadable output. So the exception is
+   bounded: these tokens are for chart marks only, never for UI surfaces, badges or text.
+
+   Two jobs, deliberately separated:
+
+   1. **--chart-single** — one hue for one measure. Most charts here plot a single series
+      (spending per month, spend per category on a labelled bar chart) where colour
+      encodes NOTHING; the axis label already carries identity. Those get one hue.
+   2. **--chart-1..8** — a fixed categorical order for the genuinely categorical case (a
+      pie of category share). Assigned by slot, never cycled and never by rank, so a
+      filter that drops a series cannot repaint the survivors.
+
+   Validated, not eyeballed — `dataviz/scripts/validate_palette.js` against this app's
+   real surfaces (light #ffffff, dark panel #14181d):
+     light: worst adjacent CVD ΔE 9.1, normal-vision ΔE 19.6 — PASS
+     dark:  worst adjacent CVD ΔE 8.4, normal-vision ΔE 19.3, contrast >=3:1 — PASS
+   Light mode raises a contrast WARN on three slots, which obligates visible labels: the
+   only categorical chart (Merchants' pie) ships a name+value legend beside it, so
+   identity is never colour-alone. Adding a 9th category folds into "Other" rather than
+   generating a hue. */
+.radix-themes {
+  --chart-single: var(--accent-9);
+  --chart-grid: var(--gray-a4);
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
+  --chart-7: #4a3aa7;
+  --chart-8: #e34948;
+}
+
+/* The same eight hues re-stepped for the dark surface — a selected dark palette, not an
+   automatic flip of the light one. */
+.radix-themes:where(.dark, .dark-theme) {
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #9085e9;
+  --chart-8: #e66767;
 }
 
 /* ---- Fade-in entrance ---- */

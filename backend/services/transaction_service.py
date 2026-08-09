@@ -1,5 +1,5 @@
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import asyncpg
@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from database.models import Profile
 from services.account_service import get_account
 from services.bill_service import get_bill
+from services.category_spend import CATEGORY_SPEND_SOURCE
 from services.goal_service import get_goal
 from services.merchant_service import get_merchant
 
@@ -255,6 +256,28 @@ def _extract_description(text: str, amount: Decimal | None) -> str:
     return cleaned if cleaned else text.strip()
 
 
+# E1: "transfer 500 to savings" / "move 200 into emergency fund". Deliberately requires
+# an explicit verb *and* a destination — "moved house" or "transferred jobs" must not
+# become a transfer, and a transfer with nowhere to go isn't one. The destination is
+# captured as free text here; resolving it to a real account (and rejecting it if no
+# account matches) is the router's job, because only it has the DB.
+_TRANSFER_RE = re.compile(
+    r"\b(?:transfer(?:red)?|move[d]?)\b.*?\b(?:to|into)\b\s+(?P<dest>.+?)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _extract_transfer_destination(text: str) -> str | None:
+    match = _TRANSFER_RE.search(text)
+    if not match:
+        return None
+    dest = match.group("dest").strip(" .,")
+    # A bare "to" with nothing after it, or a number, isn't an account name.
+    if not dest or not re.search(r"[a-zA-Z]", dest):
+        return None
+    return dest
+
+
 def _determine_type(description: str) -> str:
     income_keywords = ["salary", "received", "earned", "income", "deposit", "refund", "freelance"]
     for kw in income_keywords:
@@ -307,8 +330,18 @@ def parse_transaction(text: str, today: date | None = None) -> dict:
 
     amount = _extract_amount(remaining)
     description = _extract_description(remaining, amount)
-    transaction_type = _determine_type(description)
-    category = categorize(description, transaction_type)
+
+    # E1: a transfer is recognised from the original text, not the stripped description
+    # — `_extract_description` removes the amount and can eat the "to <account>" tail.
+    transfer_to = _extract_transfer_destination(text)
+    if transfer_to:
+        transaction_type = "transfer"
+        # A transfer has no category by definition: it isn't spending, so putting it in
+        # a spending bucket would corrupt exactly the totals E1 exists to protect.
+        category = None
+    else:
+        transaction_type = _determine_type(description)
+        category = categorize(description, transaction_type)
 
     missing: list[str] = []
     if amount is None:
@@ -325,6 +358,8 @@ def parse_transaction(text: str, today: date | None = None) -> dict:
         "date_explicit": date_explicit,
         "missing": missing,
         "raw_text": text,
+        # Free text; the router resolves it against real accounts (E1).
+        "transfer_to": transfer_to,
     }
 
 
@@ -363,3 +398,49 @@ async def check_related_ids_owned(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found")
     if merchant_id is not None and await get_merchant(merchant_id, profile.id, conn) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Merchant not found")
+
+
+async def spent_in_period(
+    profile_id: int,
+    start: datetime,
+    end: datetime,
+    conn: asyncpg.Connection,
+    category_id: int | None = None,
+) -> Decimal:
+    """Total expense for a profile over [start, end). The one definition of "spent".
+
+    Budgets and the insights budget-status cards each had their own copy of this query,
+    so "what counts as spent" could quietly diverge between the number on the Budgets
+    screen and the number in the advice card about that same budget.
+
+    `category_id` scopes the total to that category **and its subcategories** — a budget
+    for "Food & Dining" should count the "Coffee" child under it. Both copies of this
+    query ignored the budget's category entirely, so a $300 Food budget reported every
+    expense in the profile against itself ($1,252 of a $288 category) and showed as
+    massively overspent from the moment it was created.
+    """
+    if category_id is None:
+        total = await conn.fetchval(
+            """SELECT COALESCE(SUM(amount), 0) FROM transactions
+               WHERE profile_id = $1 AND transaction_type = 'expense'
+                 AND date >= $2 AND date < $3""",
+            profile_id,
+            start,
+            end,
+        )
+    else:
+        # E3: a category budget must count the *parts* of a split that belong to it,
+        # not the whole supermarket trip and not nothing at all.
+        total = await conn.fetchval(
+            f"""SELECT COALESCE(SUM(t.amount), 0) FROM ({CATEGORY_SPEND_SOURCE}) t
+               WHERE t.profile_id = $1 AND t.transaction_type = 'expense'
+                 AND t.date >= $2 AND t.date < $3
+                 AND t.category_id IN (
+                       SELECT id FROM categories WHERE id = $4 OR parent_id = $4
+                     )""",
+            profile_id,
+            start,
+            end,
+            category_id,
+        )
+    return total

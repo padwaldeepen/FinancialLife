@@ -10,15 +10,18 @@ import {
   Card,
   Badge,
   Skeleton,
+  Callout,
 } from '@radix-ui/themes'
+import { AlertTriangle } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import api from '../../../shared/api/client.ts'
 import toast from '../../../shared/utils/toast.ts'
-import { formatCurrency } from '../../../shared/utils/format.ts'
+import { formatCurrency, formatCalendarDate } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import type { PendingDocument } from '../../../store/slices/documentsSlice.ts'
 import styles from './Activity.module.css'
+import { refreshAfterMoneyChange } from '../../../store/refreshAfterMoneyChange.ts'
 
 interface Props {
   document: PendingDocument
@@ -38,27 +41,16 @@ export const DocumentReviewDialog = ({
 }: Props): JSX.Element => {
   const currency = useActiveCurrency()
   const ex = doc.extracted_json
-  const {
-    accounts,
-    categories,
-    reviewDocument,
-    rejectDocument,
-    reclassifyDocument,
-    fetchTransactions,
-    fetchAccounts,
-    fetchReports,
-  } = useBoundStore(
-    useShallow((s) => ({
-      accounts: s.accounts.items,
-      categories: s.categories.flat,
-      reviewDocument: s.documents.reviewDocument,
-      rejectDocument: s.documents.rejectDocument,
-      reclassifyDocument: s.documents.reclassifyDocument,
-      fetchTransactions: s.transactions.fetchTransactions,
-      fetchAccounts: s.accounts.fetchAccounts,
-      fetchReports: s.reports.fetchReports,
-    })),
-  )
+  const { accounts, categories, reviewDocument, rejectDocument, reclassifyDocument } =
+    useBoundStore(
+      useShallow((s) => ({
+        accounts: s.accounts.items,
+        categories: s.categories.flat,
+        reviewDocument: s.documents.reviewDocument,
+        rejectDocument: s.documents.rejectDocument,
+        reclassifyDocument: s.documents.reclassifyDocument,
+      })),
+    )
 
   const {
     imageUrl,
@@ -125,9 +117,7 @@ export const DocumentReviewDialog = ({
     try {
       const result = await reviewDocument(doc.id, buildPayload(skipDedup))
       if (result.status === 'created') {
-        fetchTransactions({ reset: true, force: true })
-        fetchAccounts({ force: true })
-        fetchReports()
+        refreshAfterMoneyChange()
         onClose()
       } else if (result.status === 'exact_duplicate') {
         onClose()
@@ -169,6 +159,25 @@ export const DocumentReviewDialog = ({
         <Dialog.Description size="2" color="gray">
           Confirm the extracted details before saving this as a transaction
         </Dialog.Description>
+
+        {/* E4: a profile is a sealed single-currency world and the app never converts,
+            so filing an INR receipt into a USD profile would corrupt the amount by ~85x
+            with no visible symptom. Warn loudly and make the user decide; saving is
+            still allowed (they may have typed the right amount by hand) but it can no
+            longer happen unknowingly. Only fires when the document says something
+            definite — an unmarked receipt is never flagged. */}
+        {ex?.currency_mismatch && (
+          <Callout.Root color="red" size="1" mt="3">
+            <Callout.Icon>
+              <AlertTriangle size={14} />
+            </Callout.Icon>
+            <Callout.Text>
+              This document looks like it is in <strong>{ex.currency}</strong>, but this profile
+              records <strong>{ex.profile_currency}</strong>. Amounts are never converted — save it
+              in your {ex.currency} profile instead, or correct the amount by hand before saving.
+            </Callout.Text>
+          </Callout.Root>
+        )}
 
         <Flex gap="4" mt="3">
           <Box className={styles.flex1}>
@@ -304,7 +313,7 @@ export const DocumentReviewDialog = ({
               <Flex key={m.transaction_id} align="center" justify="between" mb="2">
                 <Text size="2" color="gray">
                   {m.description} — {formatCurrency(m.amount, currency)} on{' '}
-                  {new Date(m.date).toLocaleDateString()}
+                  {formatCalendarDate(m.date)}
                   {'  '}
                   <Badge size="1">{Math.round(m.similarity * 100)}% match</Badge>
                 </Text>

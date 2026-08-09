@@ -1,3 +1,8 @@
+/* ZC: one Login for both trees. The desktop and mobile copies differed only in chrome
+   (card border, padding, heading size, logo spacing), so those differences are expressed
+   responsively here instead of by maintaining two components. The 768px boundary matches
+   both Radix's `sm` breakpoint and main.tsx's desktop/mobile split, so "below this" is
+   exactly "the phone tree". */
 .page {
   min-height: 100dvh;
   display: flex;
@@ -10,8 +15,38 @@
 .card {
   width: 100%;
   max-width: 400px;
+  margin: 0 auto;
   border: 1px solid var(--gray-4);
   animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
+}
+
+/* Phone: the card sheds its chrome and becomes a plain full-width panel, which is what
+   the old mobile-only copy did with a <Box> instead of a <Card>. */
+@media (max-width: 767px) {
+  .page {
+    flex-direction: column;
+    padding: var(--space-4);
+  }
+
+  .card {
+    border: none;
+    background: none;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  /* Radix Card paints in two pseudo-element layers - ::before is the surface fill
+     (rgba(255,255,255,.7)) and ::after carries the 1px border/shadow. Clearing the
+     element's own `background` hides neither, so both layers have to go for the card
+     to read as a plain panel. Verified via getComputedStyle on both pseudos. */
+  .card::before,
+  .card::after {
+    display: none;
+  }
+
+  .header {
+    margin-bottom: var(--space-5);
+  }
 }
 
 .header {

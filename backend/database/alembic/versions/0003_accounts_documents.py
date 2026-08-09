@@ -39,9 +39,18 @@ UPGRADE_STATEMENTS = [
         mime_type VARCHAR NOT NULL,
         status VARCHAR NOT NULL DEFAULT 'pending',
         extracted_json JSONB,
+        -- X1: display-only name the file arrived with. NEVER part of a filesystem path -
+        -- `file_path` above is the only path, and it is always the uuid we generate.
+        original_filename VARCHAR,
+        -- X2: hash of the stored bytes, so re-dropping the same folder is a safe no-op
+        -- rather than creating a second copy of everything.
+        content_sha256 CHAR(64),
         uploaded_at TIMESTAMP NOT NULL DEFAULT NOW()
     )""",
     "CREATE INDEX ix_documents_profile_id ON documents (profile_id)",
+    # Deliberately NOT unique: the same file legitimately exists in two country
+    # profiles, and the question X2 asks is "have I seen this in *this* profile".
+    "CREATE INDEX ix_documents_profile_sha256 ON documents (profile_id, content_sha256)",
 ]
 
 DOWNGRADE_STATEMENTS = [

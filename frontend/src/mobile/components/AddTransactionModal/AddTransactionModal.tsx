@@ -16,11 +16,9 @@ import { Sparkles, Check, Camera, X } from 'lucide-react'
 import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
-import { formatCurrency, getCurrencySymbol } from '../../../shared/utils/format.ts'
+import { formatCurrency, formatDate, getCurrencySymbol } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
-import api from '../../../shared/api/client.ts'
 import { useDocumentUpload } from '../../../shared/hooks/useDocumentUpload.ts'
-import { getErrorDetail } from '../../../store/namespaceSlice.ts'
 import styles from './AddTransactionModal.module.css'
 
 export const AddTransactionModal = (): JSX.Element => {
@@ -38,18 +36,14 @@ export const AddTransactionModal = (): JSX.Element => {
     selectedCategoryId,
     manualAmount,
     setInput,
-    setLoading,
     setParsed,
-    setSaving,
+    parseQuickAdd,
+    saveQuickAdd,
     setScanning,
     setSelectedCategoryId,
     setManualAmount,
     resetQuickAdd,
-    fetchAccounts,
-    fetchTransactions,
-    fetchUpcomingBills,
     fetchPendingDocuments,
-    fetchReports,
   } = useBoundStore(
     useShallow((s) => ({
       addModalOpen: s.ui.addModalOpen,
@@ -64,18 +58,14 @@ export const AddTransactionModal = (): JSX.Element => {
       selectedCategoryId: s.quickAddModal.selectedCategoryId,
       manualAmount: s.quickAddModal.manualAmount,
       setInput: s.quickAddModal.setQuickAddInput,
-      setLoading: s.quickAddModal.setQuickAddLoading,
       setParsed: s.quickAddModal.setQuickAddParsed,
-      setSaving: s.quickAddModal.setQuickAddSaving,
+      parseQuickAdd: s.quickAddModal.parseQuickAdd,
+      saveQuickAdd: s.quickAddModal.saveQuickAdd,
       setScanning: s.quickAddModal.setQuickAddScanning,
       setSelectedCategoryId: s.quickAddModal.setQuickAddSelectedCategoryId,
       setManualAmount: s.quickAddModal.setQuickAddManualAmount,
       resetQuickAdd: s.quickAddModal.resetQuickAddModal,
-      fetchAccounts: s.accounts.fetchAccounts,
-      fetchTransactions: s.transactions.fetchTransactions,
-      fetchUpcomingBills: s.bills.fetchUpcomingBills,
       fetchPendingDocuments: s.documents.fetchPendingDocuments,
-      fetchReports: s.reports.fetchReports,
     })),
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -87,46 +77,6 @@ export const AddTransactionModal = (): JSX.Element => {
       fetchCategories()
     }
   }, [addModalOpen, fetchCategories])
-
-  const handleParse = async () => {
-    if (!input.trim()) return
-    setLoading(true)
-    try {
-      const response = await api.post('/api/transactions/parse', { text: input })
-      setParsed(response.data)
-    } catch (error) {
-      toast.error(getErrorDetail(error, 'Could not parse that text'))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleSave = async () => {
-    if (!parsed) return
-    if (amountMissing && !manualAmount) return
-    setSaving(true)
-    try {
-      await api.post('/api/transactions/quick-add', {
-        text: input,
-        category_id: selectedCategoryId ?? undefined,
-        amount: amountMissing ? parseFloat(manualAmount) : undefined,
-      })
-      toast.success('Transaction added!')
-      resetQuickAdd()
-      closeAddModal()
-      // Home's accounts/transactions/bills slices don't otherwise know a save just
-      // happened — force past the 30s staleness window so balance and recent
-      // activity aren't stale until the next unrelated navigation (U3).
-      fetchAccounts({ force: true })
-      fetchTransactions({ reset: true, force: true })
-      fetchUpcomingBills(30, { force: true })
-      fetchReports()
-    } catch (error) {
-      toast.error(getErrorDetail(error, 'Failed to save transaction'))
-    } finally {
-      setSaving(false)
-    }
-  }
 
   // Same upload pipeline as Activity's "Upload Receipt" / desktop's quick-add —
   // every file (image, PDF, receipt, or statement) lands in the pending-documents
@@ -140,7 +90,10 @@ export const AddTransactionModal = (): JSX.Element => {
     }
     setScanning(true)
     try {
-      const docId = await uploadDocument(file, 'receipt')
+      // No forced `kind`: passing 'receipt' skipped W6's server-side receipt-vs-
+      // statement detection, so photographing a multi-row statement filed it as a
+      // single receipt. Same fix already applied on desktop.
+      const docId = await uploadDocument(file)
       if (docId) {
         fetchPendingDocuments({ force: true })
         toast.success('Document uploaded! Review it in Activity.')
@@ -199,7 +152,7 @@ export const AddTransactionModal = (): JSX.Element => {
                   setParsed(null)
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleParse()
+                  if (e.key === 'Enter') parseQuickAdd()
                 }}
               >
                 <TextField.Slot side="left">
@@ -232,7 +185,7 @@ export const AddTransactionModal = (): JSX.Element => {
               </Text>
             </Flex>
 
-            <Button onClick={handleParse} loading={loading} size="3">
+            <Button onClick={parseQuickAdd} loading={loading} size="3">
               {parsed ? 'Re-parse' : 'Parse'}
             </Button>
 
@@ -267,6 +220,13 @@ export const AddTransactionModal = (): JSX.Element => {
                     <Badge color={parsed.type === 'income' ? 'green' : 'orange'}>
                       {parsed.type}
                     </Badge>
+                    {/* Y6: see the desktop tree's matching badge - the resolved date was
+                        the one parsed field never shown before saving. */}
+                    {parsed.date && (
+                      <Badge color="gray" variant="soft" title="Date this will be recorded on">
+                        {formatDate(parsed.date)}
+                      </Badge>
+                    )}
                     {parsed.merchant && (
                       <Badge
                         color="gray"
@@ -320,7 +280,7 @@ export const AddTransactionModal = (): JSX.Element => {
                   </Flex>
 
                   <Button
-                    onClick={handleSave}
+                    onClick={saveQuickAdd}
                     loading={saving}
                     disabled={amountMissing && !manualAmount}
                     size="3"

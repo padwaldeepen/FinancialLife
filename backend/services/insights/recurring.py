@@ -125,7 +125,11 @@ def _amount_pattern(
             if leading_mean != 0
             else True
         )
-        hiked = abs(leading_mean - trailing_value) / leading_mean > EXACT_AMOUNT_TOLERANCE if leading_mean != 0 else False
+        hiked = (
+            abs(leading_mean - trailing_value) / leading_mean > EXACT_AMOUNT_TOLERANCE
+            if leading_mean != 0
+            else False
+        )
         if leading_consistent and hiked:
             return (True, True, trailing_value)
 

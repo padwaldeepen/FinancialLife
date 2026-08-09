@@ -2,6 +2,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from core.money import Money
 from database.models import Profile
 from database.session import get_db
 from routers.auth import get_current_profile
@@ -25,7 +26,11 @@ class MerchantResponse(BaseModel):
     aliases: list[str] | None
     is_hidden: bool
     transaction_count: int
-    total_spent: float
+    total_spent: Money
+    # Y7: the remembered category for this merchant, so the learned rule is visible
+    # where the user already manages merchants. Both None means nothing learned yet.
+    default_category_id: int | None = None
+    default_category_name: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -49,6 +54,10 @@ def _to_response(row: dict) -> MerchantResponse:
         is_hidden=row["is_hidden"],
         transaction_count=row["transaction_count"],
         total_spent=float(row["total_spent"]),
+        default_category_id=row.get("default_category_id"),
+        # Only the list query joins the category name; single-merchant rows from
+        # `update_merchant` don't, so this stays optional rather than a KeyError.
+        default_category_name=row.get("default_category_name"),
     )
 
 
@@ -88,6 +97,29 @@ async def update_merchant_endpoint(
     if not merchant:
         raise HTTPException(status_code=404, detail="Merchant not found")
     return _to_response(merchant)
+
+
+@router.delete("/{merchant_id}/default-category", status_code=204)
+async def clear_merchant_default_category(
+    merchant_id: int,
+    profile: Profile = Depends(get_current_profile),
+    conn: asyncpg.Connection = Depends(get_db),
+):
+    """Y7: forget the learned category for this merchant, restoring keyword matching.
+
+    A dedicated endpoint rather than `PUT` with `default_category_id: null`, because
+    `MerchantUpdate` uses `exclude_none=True` — an explicit null is indistinguishable
+    from an omitted field there, so "clear it" could never be expressed. A learned rule
+    the user can't undo would be worse than no learning at all.
+    """
+    result = await conn.execute(
+        """UPDATE merchants SET default_category_id = NULL
+           WHERE id = $1 AND profile_id = $2""",
+        merchant_id,
+        profile.id,
+    )
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Merchant not found")
 
 
 @router.post("/merge")

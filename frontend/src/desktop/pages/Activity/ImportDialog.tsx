@@ -7,10 +7,11 @@ import {
   Badge,
   Dialog,
   Button,
+  IconButton,
   Table,
   VisuallyHidden,
 } from '@radix-ui/themes'
-import { Upload } from 'lucide-react'
+import { Upload, X } from 'lucide-react'
 import { formatCurrency } from '../../../shared/utils/format.ts'
 import { classifyImportType, type useCsvImport } from '../../../shared/hooks/useCsvImport.ts'
 import styles from './Activity.module.css'
@@ -60,7 +61,24 @@ export const ImportDialog = ({ currency, csv }: Props): JSX.Element => {
       }}
     >
       <Dialog.Content maxWidth="680px">
-        <Dialog.Title>Import Transactions</Dialog.Title>
+        {/* Y6: this dialog previously had no visible dismiss at all on its first step -
+            Escape was the only way out, which leaves a touchscreen user stuck. Matches
+            AddTransactionModal's header-X pattern, and sits in the header so every step
+            of the wizard is escapable, not just the ones with a Back button. */}
+        <Flex align="center" justify="between" mb="2">
+          <Dialog.Title mb="0">Import Transactions</Dialog.Title>
+          <IconButton
+            variant="ghost"
+            size="2"
+            onClick={() => {
+              setImportOpen(false)
+              resetImport()
+            }}
+            aria-label="Close"
+          >
+            <X size={20} />
+          </IconButton>
+        </Flex>
         <VisuallyHidden>
           <Dialog.Description>
             Upload, map, and review a CSV or Excel file of transactions to import

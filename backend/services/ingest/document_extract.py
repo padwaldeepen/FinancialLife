@@ -13,6 +13,7 @@ dependency and is independently fixture-testable; the router does the file I/O, 
 Gemini call, and the D5 merchant/category enrichment that needs a connection.
 """
 
+import asyncio
 import re
 from dataclasses import dataclass
 from datetime import date as date_type
@@ -37,6 +38,12 @@ class ExtractedDocument:
     total: Decimal | None
     line_items: list[dict] | None
     category_hint: str | None
+    # E4: the currency the *document* appears to be in, when it says so unambiguously.
+    # None means "no marker found" — which is the common case for a plain "12.34" and
+    # must never be treated as a mismatch. Compared against the active profile's
+    # currency by the router; the app never converts, so a mismatch is a question for
+    # the user, not something to silently resolve.
+    currency: str | None = None
 
 
 @dataclass
@@ -64,22 +71,37 @@ class ExtractedStatement:
 # match so both styles normalize the same way. Optional currency marker up front
 # (₹ / Rs / INR / $ / C$) so Indian and Canadian documents are recognized, not just US.
 _CURRENCY = r"(?:₹|rs\.?\s?|inr\s?|c\$|\$)?"
-_AMOUNT_RE = re.compile(_CURRENCY + r"\s?(\d{1,3}(?:,\d{2,3})*\.\d{2})", re.IGNORECASE)
+# Either comma-grouped (US "1,234.56" / Indian "1,23,456.78") **or** plain digits.
+# The old pattern only allowed the grouped form, and because `re.search` scans forward
+# it silently matched a *suffix* of an ungrouped number: "2500.00" matched as "500.00",
+# so an unpunctuated $2,500 payroll deposit imported as $500 and took two characters of
+# its own description with it. Alternation order matters — the grouped branch must be
+# tried first, or "1,234.56" matches just "234.56".
+_NUMBER = r"(\d{1,3}(?:,\d{2,3})+\.\d{2}|\d+\.\d{2})"
+_AMOUNT_RE = re.compile(_CURRENCY + r"\s?" + _NUMBER, re.IGNORECASE)
 # "amount due" covers utility/rent bills that never say "total" anywhere near the
 # actual charge (power/water/rent, per the S2 ticket's original receipt-only scope
 # generalized to bills at the user's request) — "previous" excludes a prior balance
 # line ("Previous Amount Due") from winning over the current one.
-_SKIP_TOTAL_LINE_RE = re.compile(
-    r"sub[\s-]?total|tax|change|cash|tender|previous", re.IGNORECASE
-)
+_SKIP_TOTAL_LINE_RE = re.compile(r"sub[\s-]?total|tax|change|cash|tender|previous", re.IGNORECASE)
 _TOTAL_LINE_RE = re.compile(r"\btotal\b|amount\s+due", re.IGNORECASE)
 
 _MONTHS = {
     m: i
     for i, m in enumerate(
         [
-            "january", "february", "march", "april", "may", "june",
-            "july", "august", "september", "october", "november", "december",
+            "january",
+            "february",
+            "march",
+            "april",
+            "may",
+            "june",
+            "july",
+            "august",
+            "september",
+            "october",
+            "november",
+            "december",
         ],
         start=1,
     )
@@ -115,6 +137,33 @@ def _resolve_ambiguous_date(a: int, b: int, year: int, day_first: bool) -> date_
         except ValueError:
             continue
     return None
+
+
+# E4: currency markers that identify a document unambiguously. Deliberately excludes a
+# bare "$" — it is used by USD, CAD, AUD, SGD and more, so seeing it proves nothing about
+# which of them this is. "C$" and "CAD" are specific; "$" alone is not, and guessing from
+# it would produce false mismatches on every US receipt.
+_CURRENCY_MARKERS: list[tuple[str, str]] = [
+    (r"₹|\brs\.?\b|\binr\b|\brupees?\b", "INR"),
+    (r"c\$|\bcad\b", "CAD"),
+    (r"\busd\b", "USD"),
+]
+_CURRENCY_MARKER_RES = [(re.compile(p, re.IGNORECASE), code) for p, code in _CURRENCY_MARKERS]
+
+
+def detect_currency(raw_text: str) -> str | None:
+    """Which currency does this document claim to be in?
+
+    Returns None when nothing definitive is found, which is the normal case — most
+    receipts print "12.34" with at most a bare "$". None means "don't know", and the
+    caller must treat that as "no mismatch", never as a mismatch.
+
+    If two different currencies appear (a rupee receipt quoting a USD conversion, say),
+    return None too: an ambiguous document is exactly the case where guessing is
+    dangerous, since acting on the wrong one corrupts the amount by ~85x.
+    """
+    found = {code for pattern, code in _CURRENCY_MARKER_RES if pattern.search(raw_text)}
+    return found.pop() if len(found) == 1 else None
 
 
 def _extract_total(lines: list[str]) -> Decimal | None:
@@ -197,21 +246,150 @@ def _extract_merchant(lines: list[str]) -> str | None:
 _CATEGORY_KEYWORDS: list[tuple[tuple[str, ...], str]] = [
     # N2: money sent home — checked first so a "WISE/REMITLY" transfer lands here rather
     # than being mis-tagged by an incidental keyword elsewhere in the line.
-    (("wise", "transferwise", "remitly", "xoom", "western union", "moneygram", "worldremit", "ria money", "remittance"), "Money Sent Home"),
-    (("electric", "energy", "kwh", "kilowatt", "power company", "teco", "duke energy", "hydro", "bescom", "adani electric", "tata power"), "Electric"),
+    (
+        (
+            "wise",
+            "transferwise",
+            "remitly",
+            "xoom",
+            "western union",
+            "moneygram",
+            "worldremit",
+            "ria money",
+            "remittance",
+        ),
+        "Money Sent Home",
+    ),
+    (
+        (
+            "electric",
+            "energy",
+            "kwh",
+            "kilowatt",
+            "power company",
+            "teco",
+            "duke energy",
+            "hydro",
+            "bescom",
+            "adani electric",
+            "tata power",
+        ),
+        "Electric",
+    ),
     (("water", "sewer", "aqua", "utilit"), "Water"),
-    (("internet", "comcast", "xfinity", "spectrum", "broadband", "fiber", "jiofiber", "act fibernet"), "Internet"),
-    (("wireless", "verizon", "t-mobile", "at&t", "cellular", "phone bill", "airtel", "jio", "vodafone", "bsnl", "recharge"), "Phone"),
+    (
+        (
+            "internet",
+            "comcast",
+            "xfinity",
+            "spectrum",
+            "broadband",
+            "fiber",
+            "jiofiber",
+            "act fibernet",
+        ),
+        "Internet",
+    ),
+    (
+        (
+            "wireless",
+            "verizon",
+            "t-mobile",
+            "at&t",
+            "cellular",
+            "phone bill",
+            "airtel",
+            "jio",
+            "vodafone",
+            "bsnl",
+            "recharge",
+        ),
+        "Phone",
+    ),
     (("mortgage",), "Mortgage"),
     (("rent ", "lease", "apartment", "landlord", "property manage"), "Rent"),
-    (("netflix", "spotify", "hulu", "disney+", "hbo", "streaming", "hotstar", "jiocinema", "sonyliv"), "Streaming"),
+    (
+        (
+            "netflix",
+            "spotify",
+            "hulu",
+            "disney+",
+            "hbo",
+            "streaming",
+            "hotstar",
+            "jiocinema",
+            "sonyliv",
+        ),
+        "Streaming",
+    ),
     (("starbucks", "dunkin", "coffee", "chai", "tim hortons"), "Coffee Shops"),
-    (("costco", "walmart", "kroger", "safeway", "aldi", "whole foods", "trader joe", "grocery", "groceries", "bigbasket", "blinkit", "zepto", "dmart", "reliance fresh", "loblaws", "sobeys"), "Groceries"),
-    (("restaurant", "cafe", "grill", "pizza", "mcdonald", "chipotle", "diner", "dining", "zomato", "swiggy", "dominos"), "Dining Out"),
+    (
+        (
+            "costco",
+            "walmart",
+            "kroger",
+            "safeway",
+            "aldi",
+            "whole foods",
+            "trader joe",
+            "grocery",
+            "groceries",
+            "bigbasket",
+            "blinkit",
+            "zepto",
+            "dmart",
+            "reliance fresh",
+            "loblaws",
+            "sobeys",
+        ),
+        "Groceries",
+    ),
+    (
+        (
+            "restaurant",
+            "cafe",
+            "grill",
+            "pizza",
+            "mcdonald",
+            "chipotle",
+            "diner",
+            "dining",
+            "zomato",
+            "swiggy",
+            "dominos",
+        ),
+        "Dining Out",
+    ),
     (("uber", "lyft", "rideshare", "ola", "rapido"), "Rideshare"),
-    (("shell", "chevron", "exxon", "mobil", "gas station", "fuel", "petrol", "indian oil", "hpcl", "bharat petroleum"), "Gas"),
+    (
+        (
+            "shell",
+            "chevron",
+            "exxon",
+            "mobil",
+            "gas station",
+            "fuel",
+            "petrol",
+            "indian oil",
+            "hpcl",
+            "bharat petroleum",
+        ),
+        "Gas",
+    ),
     (("parking", "fastag", "toll"), "Parking"),
-    (("pharmacy", "cvs", "walgreens", "rite aid", "apollo pharmacy", "1mg", "pharmeasy", "shoppers drug"), "Pharmacy"),
+    (
+        (
+            "pharmacy",
+            "cvs",
+            "walgreens",
+            "rite aid",
+            "apollo pharmacy",
+            "1mg",
+            "pharmeasy",
+            "shoppers drug",
+        ),
+        "Pharmacy",
+    ),
     (("gym", "fitness", "planet fitness", "cult.fit", "cultfit"), "Gym"),
     (("doctor", "clinic", "medical", "hospital", "dental"), "Doctor"),
     (("amazon", "target", "ebay", "best buy", "flipkart", "myntra", "ajio", "meesho"), "Online"),
@@ -255,6 +433,7 @@ def parse_receipt_text(
         total=total,
         line_items=None,  # Flat text has no reliable per-item structure in either tier.
         category_hint=infer_category_hint(raw_text),  # keyword rules, no LLM (S2 follow-up)
+        currency=detect_currency(raw_text),  # E4
     )
 
 
@@ -291,9 +470,7 @@ def guess_document_kind(raw_text: str) -> Literal["receipt", "statement"]:
     return "receipt"
 
 
-def extract_local(
-    file_path: Path, mime_type: str, country: str | None = None
-) -> ExtractedDocument:
+def extract_local(file_path: Path, mime_type: str, country: str | None = None) -> ExtractedDocument:
     raw_text, tier = extract_raw_text(file_path, mime_type)
 
     if not raw_text.strip():
@@ -373,7 +550,12 @@ async def extract(
             if parsed is not None:
                 return parsed
 
-    return extract_local(file_path, mime_type, country)
+    # pdfplumber and Tesseract are synchronous and CPU-bound — running them inline in an
+    # `async def` blocks the whole event loop, freezing every other in-flight request for
+    # the duration of the OCR. That was survivable when uploads were one-at-a-time; the
+    # folder uploader runs 4 concurrently, so a 200-file drop would otherwise serialise
+    # 200 OCR runs with the entire API frozen behind them.
+    return await asyncio.to_thread(extract_local, file_path, mime_type, country)
 
 
 # --- Statement mode (S4) -------------------------------------------------------------
@@ -388,7 +570,7 @@ _STMT_ROW_DATE = re.compile(r"^\s*(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\s+(.+
 # Locale-tolerant like _AMOUNT_RE (₹/Rs/INR/$/C$ + US or Indian grouping). A trailing
 # "CR" marks a credit/payment (income); "DR"/plain/leading-"-" is a debit (expense).
 _STMT_ROW_AMOUNT = re.compile(
-    r"(-)?" + _CURRENCY + r"\s?(\d{1,3}(?:,\d{2,3})*\.\d{2})(-|\s?cr|\s?dr)?",
+    r"(-)?" + _CURRENCY + r"\s?" + _NUMBER + r"(-|\s?cr|\s?dr)?",
     re.IGNORECASE,
 )
 _STMT_SKIP_LINE = re.compile(
@@ -414,13 +596,39 @@ def parse_statement_text(
     day_first = _is_day_first(country)
     rows: list[StatementRow] = []
 
-    for line in raw_text.splitlines():
+    # E5: a transaction is not always one line. Banks wrap a long merchant name onto a
+    # continuation line and put the amount there ("07/06  WHOLE FOODS MKT #123" /
+    # "         SAN FRANCISCO CA    88.10"), and a page break lands in the same place.
+    # Measured before changing anything (as the ticket required): a clean 3-page
+    # statement already imported all 6 rows exactly once with no header/footer noise,
+    # but every wrapped row was **silently dropped** — the date line had no amount, the
+    # amount line had no date, so neither half parsed and the money just vanished.
+    # `pending` holds a dated line that had no amount, so the next line can complete it.
+    pending: tuple[str, str, str | None, str] | None = None
+
+    for raw_line in raw_text.splitlines():
+        line = raw_line
         if not line.strip() or _STMT_SKIP_LINE.search(line):
+            pending = None
             continue
         date_match = _STMT_ROW_DATE.match(line)
+
         if not date_match:
-            continue
-        date_a, date_b, yy, rest = date_match.groups()
+            # A continuation only counts if we're mid-row and it carries the amount.
+            if pending is not None and _STMT_ROW_AMOUNT.search(line):
+                date_a, date_b, yy, head = pending
+                rest = f"{head} {line.strip()}"
+                pending = None
+                date_match = None
+            else:
+                continue
+        else:
+            date_a, date_b, yy, rest = date_match.groups()
+            if not _STMT_ROW_AMOUNT.search(rest):
+                # Dated but amount-less: hold it and look at the next line.
+                pending = (date_a, date_b, yy, rest.strip())
+                continue
+            pending = None
 
         amt_match = _STMT_ROW_AMOUNT.search(rest)
         if not amt_match:
@@ -524,4 +732,5 @@ async def extract_statement(
             if parsed is not None and parsed.transactions:
                 return parsed
 
-    return extract_statement_local(file_path, mime_type, country)
+    # Same reason as `extract`: keep blocking pdfplumber/Tesseract off the event loop.
+    return await asyncio.to_thread(extract_statement_local, file_path, mime_type, country)

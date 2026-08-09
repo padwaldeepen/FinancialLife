@@ -1,4 +1,5 @@
 import re
+from decimal import Decimal
 
 import asyncpg
 
@@ -183,14 +184,19 @@ async def get_merchants(
     """Returns dicts with transaction_count/total_spent joined in — not bare
     Merchant rows (rules/database.md: related data via JOIN, not attribute access)."""
     hidden_clause = "" if include_hidden else "AND m.is_hidden = FALSE"
+    # Y7: the learned category is joined in by name so Manage -> Merchants can show the
+    # rule in plain language ("Chipotle -> Dining Out") instead of an opaque id. Grouped
+    # by c.name as well as m.id because it's a non-aggregated selected column.
     rows = await conn.fetch(
         f"""SELECT m.*,
+               c.name AS default_category_name,
                COUNT(t.id) AS transaction_count,
                COALESCE(SUM(t.amount) FILTER (WHERE t.transaction_type = 'expense'), 0) AS total_spent
             FROM merchants m
             LEFT JOIN transactions t ON t.merchant_id = m.id
+            LEFT JOIN categories c ON c.id = m.default_category_id
             WHERE m.profile_id = $1 {hidden_clause}
-            GROUP BY m.id
+            GROUP BY m.id, c.name
             ORDER BY m.name""",
         profile_id,
     )
@@ -267,12 +273,20 @@ async def merge_merchants(
             if source.aliases:
                 aliases.extend(source.aliases)
 
+            # `source` was already fetched via get_merchant(sid, profile_id, ...) above,
+            # so this profile_id filter is currently redundant — added anyway to match
+            # the "every financial write filters by profile_id" pattern used everywhere
+            # else, so a future refactor that drops the pre-check can't silently reopen
+            # a cross-profile write.
             await conn.execute(
-                "UPDATE transactions SET merchant_id = $1 WHERE merchant_id = $2",
+                "UPDATE transactions SET merchant_id = $1 WHERE merchant_id = $2 AND profile_id = $3",
                 target_id,
                 sid,
+                profile_id,
             )
-            await conn.execute("DELETE FROM merchants WHERE id = $1", sid)
+            await conn.execute(
+                "DELETE FROM merchants WHERE id = $1 AND profile_id = $2", sid, profile_id
+            )
 
         await conn.execute(
             "UPDATE merchants SET aliases = $1 WHERE id = $2",
@@ -327,9 +341,14 @@ async def get_merchant_summary(
         merchant_id,
     )
 
+    # Sum as Decimal throughout (matches the NUMERIC(12,2) columns), cast to float only
+    # at the response boundary — repeated float(...) casts before summing/adding
+    # reintroduce binary floating-point error (rules/database.md).
     expense_txs = [t for t in txs if t["transaction_type"] == "expense"]
-    total_spent = sum(float(t["amount"]) for t in expense_txs)
-    total_income = sum(float(t["amount"]) for t in txs if t["transaction_type"] == "income")
+    total_spent = float(sum((t["amount"] for t in expense_txs), Decimal("0")))
+    total_income = float(
+        sum((t["amount"] for t in txs if t["transaction_type"] == "income"), Decimal("0"))
+    )
 
     dates = [t["date"] for t in txs]
     first_date = min(dates) if dates else None
@@ -343,19 +362,21 @@ async def get_merchant_summary(
             category_breakdown[cat_name] = {
                 "category_name": cat_name,
                 "color": cat_color,
-                "total": 0.0,
+                "total": Decimal("0"),
                 "count": 0,
             }
-        category_breakdown[cat_name]["total"] += float(t["amount"])
+        category_breakdown[cat_name]["total"] += t["amount"]
         category_breakdown[cat_name]["count"] += 1
+    for entry in category_breakdown.values():
+        entry["total"] = float(entry["total"])
 
-    monthly_spending: dict[str, float] = {}
+    monthly_spending: dict[str, Decimal] = {}
     for t in expense_txs:
         key = t["date"].strftime("%Y-%m")
-        monthly_spending[key] = monthly_spending.get(key, 0.0) + float(t["amount"])
+        monthly_spending[key] = monthly_spending.get(key, Decimal("0")) + t["amount"]
 
     monthly_chart = [
-        {"month": k, "amount": round(v, 2)} for k, v in sorted(monthly_spending.items())
+        {"month": k, "amount": float(round(v, 2))} for k, v in sorted(monthly_spending.items())
     ]
 
     recent_transactions = [
@@ -386,16 +407,18 @@ async def get_merchant_summary(
     }
 
 
-def _name_similarity(a: str, b: str) -> float:
-    if not a or not b:
-        return 0.0
+def name_similarity(a: str, b: str) -> float:
+    """Jaccard word-overlap on normalized names, 0.0-1.0.
+
+    The one implementation: merchant-vs-merchant matching (find_similar_merchants)
+    and the import dedup gate (ingest/dedup.py) scored candidates with byte-identical
+    copies of this, so a change to the heuristic only ever landed in one of them.
+    """
     a_words = set(a.split())
     b_words = set(b.split())
     if not a_words or not b_words:
         return 0.0
-    intersection = a_words & b_words
-    union = a_words | b_words
-    return len(intersection) / len(union)
+    return len(a_words & b_words) / len(a_words | b_words)
 
 
 async def find_similar_merchants(
@@ -415,7 +438,7 @@ async def find_similar_merchants(
     for i in range(len(merchants)):
         for j in range(i + 1, len(merchants)):
             a, b = merchants[i], merchants[j]
-            similarity = _name_similarity(a["normalized_name"], b["normalized_name"])
+            similarity = name_similarity(a["normalized_name"], b["normalized_name"])
             if similarity >= threshold:
                 pairs.append(
                     {

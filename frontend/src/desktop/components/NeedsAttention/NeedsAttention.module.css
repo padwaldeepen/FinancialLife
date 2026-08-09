@@ -1,0 +1,66 @@
+/* Y3. Severity is deliberately NOT a red or amber card.
+   design-system.md reserves green/red for transaction amounts and nothing else — a red
+   alert panel would be the first container in the app to break that, and once one
+   surface uses colour for status the amounts stop reading as the only place colour
+   means money. Urgency is carried by order (server sorts urgent first), the icon, and a
+   single accent hairline on the left of urgent rows.
+   No shadows and no transform on hover, per the owner's standing note that both look
+   bad here — hover is a background shift only. */
+
+.block {
+  margin-bottom: var(--space-4);
+}
+
+.heading {
+  font-size: var(--font-size-1);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gray-11);
+  margin-bottom: var(--space-2);
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--gray-5);
+  border-left: 3px solid var(--gray-6);
+  border-radius: var(--radius-3);
+  background-color: var(--color-panel-solid);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.item[role='button'] {
+  cursor: pointer;
+}
+
+.item[role='button']:hover {
+  background-color: var(--gray-3);
+}
+
+.item[role='button']:focus-visible {
+  outline: 2px solid var(--accent-8);
+  outline-offset: 2px;
+}
+
+/* The one colour cue, and only on the most actionable tier. */
+.item[data-severity='urgent'] {
+  border-left-color: var(--accent-9);
+}
+
+.icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--gray-11);
+}
+
+.item[data-severity='urgent'] .icon {
+  color: var(--accent-11);
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}

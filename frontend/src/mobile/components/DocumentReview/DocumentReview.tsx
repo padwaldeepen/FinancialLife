@@ -8,6 +8,8 @@ import { formatCurrency } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import type { PendingDocument } from '../../../store/slices/documentsSlice.ts'
 import styles from './DocumentReview.module.css'
+import { refreshAfterMoneyChange } from '../../../store/refreshAfterMoneyChange.ts'
+import { getErrorDetail } from '../../../store/namespaceSlice.ts'
 
 // S6: mobile review sheet for a just-scanned receipt. Mobile-tree twin of desktop's
 // DocumentReviewDialog (trees never share layout, rules/frontend.md) — same store slice
@@ -53,23 +55,13 @@ const ReviewSheet = ({
   onClose: () => void
 }): JSX.Element => {
   const currency = useActiveCurrency()
-  const {
-    accounts,
-    categories,
-    reviewDocument,
-    rejectDocument,
-    fetchTransactions,
-    fetchAccounts,
-    fetchReports,
-  } = useBoundStore(
+  const { accounts, categories, reviewDocument, rejectDocument } = useBoundStore(
     useShallow((s) => ({
       accounts: s.accounts.items,
       categories: s.categories.flat,
       reviewDocument: s.documents.reviewDocument,
       rejectDocument: s.documents.rejectDocument,
-      fetchTransactions: s.transactions.fetchTransactions,
       fetchAccounts: s.accounts.fetchAccounts,
-      fetchReports: s.reports.fetchReports,
     })),
   )
   const ex = doc.extracted_json
@@ -142,9 +134,7 @@ const ReviewSheet = ({
       })
       if (result.status === 'created') {
         toast.success('Transaction added')
-        fetchTransactions({ reset: true, force: true })
-        fetchAccounts({ force: true })
-        fetchReports()
+        refreshAfterMoneyChange()
         onClose()
       } else if (result.status === 'exact_duplicate') {
         toast.success('Already added — nothing new')
@@ -152,10 +142,8 @@ const ReviewSheet = ({
       } else {
         setDocumentReviewFuzzyMatches(result.fuzzy_matches)
       }
-    } catch (error: unknown) {
-      const detail = (error as { response?: { data?: { detail?: unknown } } }).response?.data
-        ?.detail
-      toast.error(typeof detail === 'string' ? detail : 'Failed to save')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to save'))
     } finally {
       setDocumentReviewSaving(false)
     }

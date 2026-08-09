@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Literal
 
 import asyncpg
@@ -6,9 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from core.logging import get_logger
-from database.models import Profile
+from core.money import Money
+from database.models import MAX_MONEY_AMOUNT, Profile
 from database.session import get_db
 from routers.auth import get_current_profile
+from services.transaction_service import check_category_owned, spent_in_period
 
 log = get_logger(__name__)
 
@@ -17,14 +20,14 @@ router = APIRouter(deprecated=True)
 
 class BudgetCreate(BaseModel):
     name: str
-    amount: float = Field(gt=0)
+    amount: Decimal = Field(gt=0, le=MAX_MONEY_AMOUNT)
     period: Literal["monthly", "weekly", "yearly"]
     category_id: int | None = None
 
 
 class BudgetUpdate(BaseModel):
     name: str | None = None
-    amount: float | None = Field(default=None, gt=0)
+    amount: Decimal | None = Field(default=None, gt=0, le=MAX_MONEY_AMOUNT)
     period: Literal["monthly", "weekly", "yearly"] | None = None
     category_id: int | None = None
     is_active: bool | None = None
@@ -33,12 +36,12 @@ class BudgetUpdate(BaseModel):
 class BudgetResponse(BaseModel):
     id: int
     name: str
-    amount: float
+    amount: Money
     period: str
     category_id: int | None
     category_name: str | None
     category_color: str | None
-    spent: float
+    spent: Money
     is_active: bool
     created_at: datetime
 
@@ -66,25 +69,11 @@ def get_period_range(period: str) -> tuple[datetime, datetime]:
     return start, end
 
 
-async def _get_spent(
-    profile_id: int, start: datetime, end: datetime, conn: asyncpg.Connection
-) -> float:
-    total = await conn.fetchval(
-        """SELECT COALESCE(SUM(amount), 0) FROM transactions
-           WHERE profile_id = $1 AND transaction_type = 'expense'
-             AND date >= $2 AND date < $3""",
-        profile_id,
-        start,
-        end,
-    )
-    return float(total)
-
-
-def _to_response(row: dict, spent: float) -> BudgetResponse:
+def _to_response(row: dict, spent: Decimal) -> BudgetResponse:
     return BudgetResponse(
         id=row["id"],
         name=row["name"],
-        amount=float(row["amount"]),
+        amount=row["amount"],
         period=row["period"],
         category_id=row["category_id"],
         category_name=row.get("category_name"),
@@ -115,7 +104,7 @@ async def get_budgets(
         if row["period"] not in period_ranges:
             period_ranges[row["period"]] = get_period_range(row["period"])
         start, end = period_ranges[row["period"]]
-        spent = await _get_spent(profile.id, start, end, conn)
+        spent = await spent_in_period(profile.id, start, end, conn, row["category_id"])
         responses.append(_to_response(dict(row), spent))
     return responses
 
@@ -126,14 +115,7 @@ async def create_budget(
     profile: Profile = Depends(get_current_profile),
     conn: asyncpg.Connection = Depends(get_db),
 ):
-    if budget_data.category_id is not None:
-        row = await conn.fetchrow(
-            "SELECT id FROM categories WHERE id = $1 AND (user_id = $2 OR is_system = TRUE)",
-            budget_data.category_id,
-            profile.user_id,
-        )
-        if not row:
-            raise HTTPException(status_code=404, detail="Category not found")
+    await check_category_owned(budget_data.category_id, profile, conn)
 
     budget_id = await conn.fetchval(
         """INSERT INTO budgets (name, amount, period, category_id, profile_id, start_date, is_active)
@@ -147,7 +129,7 @@ async def create_budget(
     )
     row = await conn.fetchrow(_BUDGET_JOIN + " WHERE b.id = $1", budget_id)
     start, end = get_period_range(row["period"])
-    spent = await _get_spent(profile.id, start, end, conn)
+    spent = await spent_in_period(profile.id, start, end, conn, row["category_id"])
     return _to_response(dict(row), spent)
 
 
@@ -164,14 +146,7 @@ async def update_budget(
     if not existing:
         raise HTTPException(status_code=404, detail="Budget not found")
 
-    if budget_data.category_id is not None:
-        row = await conn.fetchrow(
-            "SELECT id FROM categories WHERE id = $1 AND (user_id = $2 OR is_system = TRUE)",
-            budget_data.category_id,
-            profile.user_id,
-        )
-        if not row:
-            raise HTTPException(status_code=404, detail="Category not found")
+    await check_category_owned(budget_data.category_id, profile, conn)
 
     update_data = budget_data.model_dump(exclude_unset=True)
     if update_data:
@@ -185,7 +160,7 @@ async def update_budget(
 
     row = await conn.fetchrow(_BUDGET_JOIN + " WHERE b.id = $1", budget_id)
     start, end = get_period_range(row["period"])
-    spent = await _get_spent(profile.id, start, end, conn)
+    spent = await spent_in_period(profile.id, start, end, conn, row["category_id"])
     return _to_response(dict(row), spent)
 
 
@@ -215,5 +190,5 @@ async def get_budget(
         raise HTTPException(status_code=404, detail="Budget not found")
 
     start, end = get_period_range(row["period"])
-    spent = await _get_spent(profile.id, start, end, conn)
+    spent = await spent_in_period(profile.id, start, end, conn, row["category_id"])
     return _to_response(dict(row), spent)

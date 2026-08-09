@@ -1,6 +1,6 @@
 import { useEffect, type JSX } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Box, Flex, Heading, Text, Button, TextField, Callout } from '@radix-ui/themes'
+import { Box, Flex, Heading, Text, Button, Card, TextField, Callout } from '@radix-ui/themes'
 import { Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
@@ -66,13 +66,13 @@ export const Login = (): JSX.Element => {
 
   return (
     <Box className={styles.page}>
-      <Box className={styles.card}>
+      <Card size="3" className={styles.card}>
         <Flex direction="column" gap="6">
           <Box className={styles.header}>
-            <Flex justify="center" mb="3">
+            <Flex justify="center" mb={{ initial: '3', sm: '4' }}>
               <Box className={styles.logo}>F</Box>
             </Flex>
-            <Heading size="6" align="center">
+            <Heading size={{ initial: '6', sm: '7' }} align="center">
               Welcome back
             </Heading>
             <Text size="2" color="gray" align="center" mt="1">
@@ -97,7 +97,7 @@ export const Login = (): JSX.Element => {
                 </Text>
                 <TextField.Root
                   color={errors.email ? 'red' : undefined}
-                  id="mob-email"
+                  id="email"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
@@ -126,7 +126,7 @@ export const Login = (): JSX.Element => {
                 </Flex>
                 <TextField.Root
                   color={errors.password ? 'red' : undefined}
-                  id="mob-password"
+                  id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Enter your password"
                   value={password}
@@ -169,7 +169,7 @@ export const Login = (): JSX.Element => {
             </Link>
           </Text>
         </Flex>
-      </Box>
+      </Card>
     </Box>
   )
 }

@@ -16,7 +16,7 @@ email-validator==2.3.0
 httpx==0.28.1
 # S2 tier C (no-Ollama, no-cloud-opt-in extraction path): local OCR only, zero network calls.
 pytesseract==0.3.13
-Pillow==11.0.0
+Pillow==12.3.0
 # Text-layer PDF extraction (statements/bills are almost always digitally generated,
 # not scanned) — pure Python, no system binary, no OCR needed for these.
 pdfplumber==0.11.7

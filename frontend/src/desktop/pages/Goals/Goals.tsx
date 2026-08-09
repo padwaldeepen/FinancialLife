@@ -11,6 +11,7 @@ import {
   IconButton,
   Badge,
   Skeleton,
+  VisuallyHidden,
 } from '@radix-ui/themes'
 import { Plus, Trash2, Target, PiggyBank, TrendingDown, Pencil } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
@@ -168,6 +169,9 @@ export const Goals = (): JSX.Element => {
         />
         <Dialog.Content maxWidth="400px">
           <Dialog.Title>Create Goal</Dialog.Title>
+          <VisuallyHidden>
+            <Dialog.Description>Set a savings target and an optional deadline</Dialog.Description>
+          </VisuallyHidden>
           <Flex direction="column" gap="3" mt="3">
             <Flex direction="column" gap="1">
               <Text size="2" weight="medium">
@@ -254,8 +258,12 @@ export const Goals = (): JSX.Element => {
           </Flex>
         ) : goals.length === 0 ? (
           <Flex className={shared.emptyState} direction="column">
-            <span className={shared.emptyTitle}>No goals yet</span>
-            <span className={shared.emptyHint}>Create your first goal to start tracking</span>
+            <Text as="div" className={shared.emptyTitle}>
+              No goals yet
+            </Text>
+            <Text as="div" className={shared.emptyHint}>
+              Create your first goal to start tracking
+            </Text>
           </Flex>
         ) : (
           <Flex direction="column" gap="3">
@@ -338,6 +346,11 @@ export const Goals = (): JSX.Element => {
                           <Flex align="center" gap="2" mb="3">
                             {goalIcons[detailGoal.type]}
                             <Dialog.Title mb="0">{detailGoal.name}</Dialog.Title>
+                            <VisuallyHidden>
+                              <Dialog.Description>
+                                Progress, contributions and settings for this savings goal
+                              </Dialog.Description>
+                            </VisuallyHidden>
                             <Badge color={done ? 'green' : 'gray'} size="1">
                               {goalLabels[detailGoal.type]}
                             </Badge>
@@ -420,6 +433,11 @@ export const Goals = (): JSX.Element => {
                           <Dialog.Root open={contribute.open} onOpenChange={setGoalContributeOpen}>
                             <Dialog.Content maxWidth="360px">
                               <Dialog.Title>Add Contribution</Dialog.Title>
+                              <VisuallyHidden>
+                                <Dialog.Description>
+                                  Record money put towards this goal
+                                </Dialog.Description>
+                              </VisuallyHidden>
                               <Flex direction="column" gap="3" mt="3">
                                 <Flex direction="column" gap="1">
                                   <Text size="2" weight="medium">
@@ -451,6 +469,11 @@ export const Goals = (): JSX.Element => {
                           <Dialog.Root open={edit.open} onOpenChange={setGoalEditOpen}>
                             <Dialog.Content maxWidth="400px">
                               <Dialog.Title>Edit Goal</Dialog.Title>
+                              <VisuallyHidden>
+                                <Dialog.Description>
+                                  Change this goal's name, target or deadline
+                                </Dialog.Description>
+                              </VisuallyHidden>
                               <Flex direction="column" gap="3" mt="3">
                                 <Flex direction="column" gap="1">
                                   <Text size="2" weight="medium">

@@ -6,8 +6,12 @@ export interface User {
   is_admin: boolean
   is_active?: boolean
   ai_cloud_enabled?: boolean
-  name?: string
 }
+// Y5: there was also a `name?: string` here that **nothing ever set** — `/api/auth/me`
+// and the register/login responses all return `full_name`. Its only effect was to make
+// `user?.name || 'Not set'` typecheck while always falling through, which is exactly how
+// mobile Settings ended up permanently showing "Not set". Removed so the compiler
+// catches the next reader that reaches for it.
 
 export type Country = 'US' | 'IN' | 'CA'
 

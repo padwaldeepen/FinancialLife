@@ -23,7 +23,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, general_limit: int = 100, auth_limit: int = 10, window: int = 60):
+    # X2 raised this from 100. A folder upload issues one POST per file, so a 200-file
+    # drop is 200 requests in well under a minute — the app was throttling its own bulk
+    # ingestion, which surfaced as uploads failing partway through a batch. This is a
+    # localhost, single-user app: the general bucket exists to catch a runaway loop, not
+    # to police a legitimate user, so it can be generous. The strict credential bucket
+    # (login/register) is unchanged and stays tight, because that's the one that actually
+    # defends anything.
+    def __init__(self, app, general_limit: int = 2000, auth_limit: int = 10, window: int = 60):
         super().__init__(app)
         self.general_limit = general_limit
         self.auth_limit = auth_limit

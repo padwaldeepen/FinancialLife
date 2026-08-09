@@ -145,30 +145,3 @@
   border: 1px solid var(--gray-5);
   border-radius: var(--radius-2);
 }
-
-.dropzone {
-  padding: var(--space-6) var(--space-4);
-  border: 1.5px dashed var(--gray-6);
-  border-radius: var(--radius-3);
-  cursor: pointer;
-  transition:
-    border-color var(--duration-fast) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out);
-}
-
-.dropzone:hover,
-.dropzone[data-active='true'] {
-  border-color: var(--accent-9);
-  background-color: var(--accent-2);
-}
-
-.uploadQueue {
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.uploadQueueName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}

@@ -143,7 +143,7 @@ async def get_current_user(
 ) -> User:
     token = credentials.credentials
     payload = verify_token(token)
-    if payload is None:
+    if payload is None or payload.get("type") != "access":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -310,7 +310,7 @@ async def refresh_token(
     cookie: str | None = Cookie(None, alias=REFRESH_COOKIE_KEY),
 ):
     payload = verify_token(cookie)
-    if payload is None:
+    if payload is None or payload.get("type") != "refresh":
         _clear_refresh_cookie(response)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

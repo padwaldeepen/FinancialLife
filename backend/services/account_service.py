@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import asyncpg
 
 from database.models import Account, Profile
@@ -97,28 +99,49 @@ async def delete_account(account_id: int, profile_id: int, conn: asyncpg.Connect
     return result != "DELETE 0"
 
 
-async def get_account_balances(profile_id: int, conn: asyncpg.Connection) -> dict[int, float]:
+# E1: a transfer moves two balances from a single row — out of `account_id`, into
+# `to_account_id`. Expressed as a UNION of per-account deltas rather than FILTERed sums,
+# because one row now contributes to *two* accounts and a GROUP BY on `account_id` alone
+# can't express that. Income is +, everything else (expense and the outgoing leg of a
+# transfer) is -, and the second branch adds the incoming leg.
+#
+# Deliberately summed as Decimal and cast to float once at the very end — two independent
+# float() casts before subtracting reintroduces binary floating-point error on top of
+# Postgres's exact NUMERIC sums (rules/database.md).
+# Two scopes, not one: the outgoing leg is selected by `account_id`, the incoming leg by
+# `to_account_id`, and per-account queries need to filter each leg on a different column.
+# `date` is carried so time-sliced consumers (the net-worth trend) can share this one
+# definition of "what a balance is" instead of hand-rolling a second copy that drifts.
+BALANCE_DELTAS = """
+    SELECT account_id, date,
+           CASE WHEN transaction_type = 'income' THEN amount ELSE -amount END AS delta
+      FROM transactions WHERE {out_scope}
+    UNION ALL
+    SELECT to_account_id AS account_id, date, amount AS delta
+      FROM transactions
+     WHERE {in_scope} AND transaction_type = 'transfer' AND to_account_id IS NOT NULL
+"""
+
+
+async def get_account_balances(profile_id: int, conn: asyncpg.Connection) -> dict[int, Decimal]:
     rows = await conn.fetch(
-        """SELECT account_id,
-                  COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'income'), 0) AS income,
-                  COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'expense'), 0) AS expense
-           FROM transactions
-           WHERE profile_id = $1
-           GROUP BY account_id""",
+        f"""SELECT account_id, COALESCE(SUM(delta), 0) AS balance
+            FROM ({BALANCE_DELTAS.format(out_scope="profile_id = $1", in_scope="profile_id = $1")}) d
+            GROUP BY account_id""",
         profile_id,
     )
-    return {row["account_id"]: float(row["income"]) - float(row["expense"]) for row in rows}
+    return {row["account_id"]: row["balance"] for row in rows}
 
 
-async def get_account_balance(account_id: int, conn: asyncpg.Connection) -> float:
+async def get_account_balance(account_id: int, conn: asyncpg.Connection) -> Decimal:
+    """One account's balance. Scoped by the account on both legs, so an incoming
+    transfer counts here too."""
     row = await conn.fetchrow(
-        """SELECT
-             COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'income'), 0) AS income,
-             COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'expense'), 0) AS expense
-           FROM transactions WHERE account_id = $1""",
+        f"""SELECT COALESCE(SUM(delta), 0) AS balance
+            FROM ({BALANCE_DELTAS.format(out_scope="account_id = $1", in_scope="to_account_id = $1")}) d""",
         account_id,
     )
-    return float(row["income"]) - float(row["expense"])
+    return row["balance"]
 
 
 async def get_valid_account_ids(profile_id: int, conn: asyncpg.Connection) -> set[int]:

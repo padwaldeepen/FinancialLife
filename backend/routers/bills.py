@@ -1,50 +1,79 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from database.models import Profile
+from core.money import Money
+from database.models import MAX_MONEY_AMOUNT, Profile
 from database.session import get_db
 from routers.auth import get_current_profile
 from services import bill_service
+from services.transaction_service import check_category_owned, check_related_ids_owned
 
 router = APIRouter()
 
 
+# weekly/biweekly store due_day as a weekday index (0=Monday..6=Sunday, matching
+# _next_due_date's use of date.weekday()); monthly/quarterly/yearly store it as a
+# day-of-month (1-31). Same column, different valid range depending on frequency.
+_WEEKDAY_FREQUENCIES = {"weekly", "biweekly"}
+
+
+def _validate_due_day(frequency: str | None, due_day: int | None) -> None:
+    if frequency is None or due_day is None:
+        return
+    if frequency in _WEEKDAY_FREQUENCIES:
+        if not 0 <= due_day <= 6:
+            raise ValueError("due_day must be 0-6 (Monday-Sunday) for weekly/biweekly bills")
+    elif not 1 <= due_day <= 31:
+        raise ValueError("due_day must be 1-31 for monthly/quarterly/yearly bills")
+
+
 class BillCreate(BaseModel):
     name: str
-    amount: float = Field(gt=0)
+    amount: Decimal = Field(gt=0, le=MAX_MONEY_AMOUNT)
     frequency: Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"]
-    due_day: int = Field(ge=1, le=31)
+    due_day: int = Field(ge=0, le=31)
     account_id: int
     category_id: int | None = None
     merchant_id: int | None = None
-    amount_estimated: float | None = Field(default=None, gt=0)
+    amount_estimated: Decimal | None = Field(default=None, gt=0, le=MAX_MONEY_AMOUNT)
     is_variable: bool = False
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def _check_due_day(self) -> "BillCreate":
+        _validate_due_day(self.frequency, self.due_day)
+        return self
 
 
 class BillUpdate(BaseModel):
     name: str | None = None
-    amount: float | None = Field(default=None, gt=0)
+    amount: Decimal | None = Field(default=None, gt=0, le=MAX_MONEY_AMOUNT)
     frequency: Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"] | None = None
-    due_day: int | None = Field(default=None, ge=1, le=31)
+    due_day: int | None = Field(default=None, ge=0, le=31)
     account_id: int | None = None
     category_id: int | None = None
     merchant_id: int | None = None
-    amount_estimated: float | None = Field(default=None, gt=0)
+    amount_estimated: Decimal | None = Field(default=None, gt=0, le=MAX_MONEY_AMOUNT)
     is_variable: bool | None = None
     is_active: bool | None = None
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def _check_due_day(self) -> "BillUpdate":
+        _validate_due_day(self.frequency, self.due_day)
+        return self
 
 
 class BillResponse(BaseModel):
     id: int
     name: str
-    amount: float
-    amount_estimated: float | None
+    amount: Money
+    amount_estimated: Money | None
     frequency: str
     due_day: int
     category_id: int | None
@@ -65,8 +94,8 @@ class BillResponse(BaseModel):
 class UpcomingBillResponse(BaseModel):
     id: int
     name: str
-    amount: float
-    amount_estimated: float | None
+    amount: Money
+    amount_estimated: Money | None
     frequency: str
     due_day: int
     next_due: str
@@ -136,32 +165,15 @@ async def create_bill(
     profile: Profile = Depends(get_current_profile),
     conn: asyncpg.Connection = Depends(get_db),
 ):
-    if bill_data.category_id is not None:
-        row = await conn.fetchrow(
-            """SELECT id FROM categories WHERE id = $1
-               AND (user_id = $2 OR is_system = TRUE)""",
-            bill_data.category_id,
-            profile.user_id,
-        )
-        if not row:
-            raise HTTPException(status_code=404, detail="Category not found")
-
-    if bill_data.merchant_id is not None:
-        row = await conn.fetchrow(
-            "SELECT id FROM merchants WHERE id = $1 AND profile_id = $2",
-            bill_data.merchant_id,
-            profile.id,
-        )
-        if not row:
-            raise HTTPException(status_code=404, detail="Merchant not found")
-
-    row = await conn.fetchrow(
-        "SELECT id FROM accounts WHERE id = $1 AND profile_id = $2",
-        bill_data.account_id,
-        profile.id,
+    # R4(a): the same ownership gate every other write path uses, instead of three
+    # hand-rolled queries that could drift from it.
+    await check_category_owned(bill_data.category_id, profile, conn)
+    await check_related_ids_owned(
+        account_id=bill_data.account_id,
+        merchant_id=bill_data.merchant_id,
+        profile=profile,
+        conn=conn,
     )
-    if not row:
-        raise HTTPException(status_code=404, detail="Account not found")
 
     bill = await bill_service.create_bill(
         conn,
@@ -207,7 +219,7 @@ async def delete_bill(
 
 class TransactionHistory(BaseModel):
     id: int
-    amount: float
+    amount: Money
     description: str
     date: str
     category_name: str | None
@@ -230,13 +242,13 @@ async def bill_history(
 class LinkSuggestion(BaseModel):
     bill_id: int
     bill_name: str
-    bill_amount: float
+    bill_amount: Money
     confidence: str
 
 
 class SuggestLinkRequest(BaseModel):
     description: str
-    amount: float
+    amount: Money
     date: datetime
     merchant_id: int | None = None
 

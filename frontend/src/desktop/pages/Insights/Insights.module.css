@@ -98,3 +98,18 @@
   border-left: 1px solid var(--gray-4);
   padding-left: var(--space-4);
 }
+
+/* Y2: an explicit height is required — Nivo's Responsive* components measure their
+   parent, and a parent with auto height collapses to zero, which renders nothing at all
+   with no error. (Exactly what happened on the first pass: the headline number appeared
+   and the chart silently didn't.) */
+.chartHeight220 {
+  height: 220px;
+}
+
+.chartTooltip {
+  background: var(--color-panel-solid);
+  border: 1px solid var(--gray-6);
+  border-radius: var(--radius-2);
+  padding: var(--space-2) var(--space-3);
+}

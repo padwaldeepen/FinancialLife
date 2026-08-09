@@ -58,7 +58,7 @@ export const ComparisonCard = ({ title, comparison, currency }: Props): JSX.Elem
               {formatCurrency(prev, currency)}
             </Text>
             <Text size="2" weight="medium" className={styles.comparisonChange} color={color}>
-              {pct === null ? '—' : `${pct > 0 ? '+' : ''}${pct}%`}
+              {pct === null ? (current !== 0 ? 'New' : '—') : `${pct > 0 ? '+' : ''}${pct}%`}
             </Text>
           </Flex>
         </Flex>

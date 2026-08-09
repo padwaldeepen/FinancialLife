@@ -11,6 +11,7 @@ import {
   Select,
   IconButton,
   Skeleton,
+  VisuallyHidden,
 } from '@radix-ui/themes'
 import { Tags, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
@@ -18,19 +19,6 @@ import { useBoundStore } from '../../../store/useBoundStore.ts'
 import styles from './Categories.module.css'
 import shared from '../../styles/shared.module.css'
 import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
-
-const COLOR_OPTIONS = [
-  '#6B7280',
-  '#EF4444',
-  '#F97316',
-  '#EAB308',
-  '#22C55E',
-  '#14B8A6',
-  '#3B82F6',
-  '#6366F1',
-  '#A855F7',
-  '#EC4899',
-]
 
 export const Categories = (): JSX.Element => {
   const { tree, loading, fetchCategories, createCategory, updateCategory, deleteCategory } =
@@ -163,10 +151,6 @@ export const Categories = (): JSX.Element => {
                   className={styles.parentRow}
                   onClick={() => children.length > 0 && toggleExpand(parent.id)}
                 >
-                  <Box
-                    className={styles.colorDot}
-                    style={{ '--swatch-color': parent.color } as React.CSSProperties}
-                  />
                   <Box className={styles.flex1}>
                     <Flex align="center" gap="2">
                       <Text size="3" weight="bold">
@@ -196,10 +180,6 @@ export const Categories = (): JSX.Element => {
                   <Flex direction="column" className={styles.childrenList}>
                     {children.map((child) => (
                       <Flex key={child.id} align="center" gap="3" className={styles.childRow}>
-                        <Box
-                          className={styles.colorDotSmall}
-                          style={{ '--swatch-color': child.color } as React.CSSProperties}
-                        />
                         <Text size="2" className={styles.flex1}>
                           {child.name}
                         </Text>
@@ -230,6 +210,11 @@ export const Categories = (): JSX.Element => {
       <Dialog.Root open={dialogOpen} onOpenChange={setCategoryDialogOpen}>
         <Dialog.Content className={styles.dialogWide}>
           <Dialog.Title>{editId !== null ? 'Edit Category' : 'Add Category'}</Dialog.Title>
+          <VisuallyHidden>
+            <Dialog.Description>
+              Name the category and pick its colour and parent
+            </Dialog.Description>
+          </VisuallyHidden>
           <Flex direction="column" gap="3" mt="3">
             <Box>
               <Text as="label" size="2" weight="medium" mb="1">
@@ -239,31 +224,6 @@ export const Categories = (): JSX.Element => {
                 placeholder="Category name"
                 value={form.name}
                 onChange={(e) => setCategoryFormField('name', e.target.value)}
-              />
-            </Box>
-            <Box>
-              <Text as="label" size="2" weight="medium" mb="1">
-                Color
-              </Text>
-              <Flex gap="2" wrap="wrap" mb="2">
-                {COLOR_OPTIONS.map((c) => (
-                  <Box
-                    key={c}
-                    className={styles.colorSwatch}
-                    style={
-                      {
-                        '--swatch-color': c,
-                        '--swatch-outline': form.color === c ? '2px solid var(--accent-9)' : 'none',
-                      } as React.CSSProperties
-                    }
-                    onClick={() => setCategoryFormField('color', c)}
-                  />
-                ))}
-              </Flex>
-              <TextField.Root
-                placeholder="#6B7280"
-                value={form.color}
-                onChange={(e) => setCategoryFormField('color', e.target.value)}
               />
             </Box>
             <Box>
@@ -310,6 +270,9 @@ export const Categories = (): JSX.Element => {
       >
         <Dialog.Content className={styles.dialogNarrow}>
           <Dialog.Title>Delete Category</Dialog.Title>
+          <VisuallyHidden>
+            <Dialog.Description>Confirm removing this category</Dialog.Description>
+          </VisuallyHidden>
           <Text size="2" mt="2">
             Are you sure you want to delete this category? Transactions using it will be
             uncategorized.

@@ -8,6 +8,7 @@ import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import { BreakdownChart } from './BreakdownChart.tsx'
 import { ComparisonCard } from './ComparisonCard.tsx'
 import { AnnualTimeline } from './AnnualTimeline.tsx'
+import { NetWorthChart } from './NetWorthChart.tsx'
 import styles from './Insights.module.css'
 import { PageHeader } from '../../components/PageHeader/PageHeader.tsx'
 
@@ -177,6 +178,15 @@ export const Insights = (): JSX.Element => {
               />
             )}
           </Grid>
+
+          {/* Y2: net worth leads the page — it's the one number that answers "am I
+              getting ahead?", which the app previously couldn't say at all. */}
+          <Card size="2" className={styles.chartCard}>
+            <Text as="div" size="2" weight="medium" mb="3">
+              Net worth
+            </Text>
+            <NetWorthChart />
+          </Card>
 
           <Card size="2" className={styles.chartCard}>
             <Text as="div" className={styles.chartTitle}>

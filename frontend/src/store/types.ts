@@ -23,13 +23,14 @@ import type { QuickAddModalSlice } from './slices/quickAddModalSlice.ts'
 import type { ToastSlice } from './slices/toastSlice.ts'
 import type { RecurringPageSlice } from './slices/recurringPageSlice.ts'
 import type { RecurringInsightsSlice } from './slices/recurringInsightsSlice.ts'
-import type { SafeToSpendSlice } from './slices/safeToSpendSlice.ts'
+import type { SafeToSpendSlice, NetWorthSlice } from './slices/safeToSpendSlice.ts'
 import type { AdviceSlice } from './slices/adviceSlice.ts'
 import type {
   DocumentsSlice,
   DocumentReviewFormSlice,
   DocumentUploadDialogSlice,
   DocumentViewerDialogSlice,
+  DocumentLibrarySlice,
   StatementReviewSlice,
 } from './slices/documentsSlice.ts'
 import type { AdminSlice, AdminFormSlice } from './slices/adminSlice.ts'
@@ -52,6 +53,7 @@ export type StoreState = AuthSlice &
   RecurringPageSlice &
   RecurringInsightsSlice &
   SafeToSpendSlice &
+  NetWorthSlice &
   AdviceSlice &
   DocumentsSlice &
   AdminSlice &
@@ -67,6 +69,7 @@ export type StoreState = AuthSlice &
   DocumentReviewFormSlice &
   DocumentUploadDialogSlice &
   DocumentViewerDialogSlice &
+  DocumentLibrarySlice &
   AnnualTimelineSlice &
   InsightsPeriodSlice &
   ChatSlice &

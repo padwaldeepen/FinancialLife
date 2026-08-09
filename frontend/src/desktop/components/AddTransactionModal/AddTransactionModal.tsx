@@ -1,4 +1,4 @@
-import { useRef, useEffect, type JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 import {
   Flex,
   Text,
@@ -13,14 +13,10 @@ import {
   ScrollArea,
 } from '@radix-ui/themes'
 import { Sparkles, Check, Upload, X } from 'lucide-react'
-import toast from '../../../shared/utils/toast.ts'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
-import { formatCurrency, getCurrencySymbol } from '../../../shared/utils/format.ts'
+import { formatCurrency, formatDate, getCurrencySymbol } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
-import api from '../../../shared/api/client.ts'
-import { useDocumentUpload } from '../../../shared/hooks/useDocumentUpload.ts'
-import { getErrorDetail } from '../../../store/namespaceSlice.ts'
 import styles from './AddTransactionModal.module.css'
 
 export const AddTransactionModal = (): JSX.Element => {
@@ -34,22 +30,19 @@ export const AddTransactionModal = (): JSX.Element => {
     loading,
     parsed,
     saving,
-    scanning,
     selectedCategoryId,
     manualAmount,
+    dragActive,
     setInput,
-    setLoading,
     setParsed,
-    setSaving,
-    setScanning,
+    parseQuickAdd,
+    saveQuickAdd,
     setSelectedCategoryId,
     setManualAmount,
+    setDragActive,
     resetQuickAdd,
     fetchAccounts,
-    fetchTransactions,
-    fetchUpcomingBills,
-    fetchPendingDocuments,
-    fetchReports,
+    setUploadOpen,
   } = useBoundStore(
     useShallow((s) => ({
       addModalOpen: s.ui.addModalOpen,
@@ -60,108 +53,48 @@ export const AddTransactionModal = (): JSX.Element => {
       loading: s.quickAddModal.loading,
       parsed: s.quickAddModal.parsed,
       saving: s.quickAddModal.saving,
-      scanning: s.quickAddModal.scanning,
       selectedCategoryId: s.quickAddModal.selectedCategoryId,
       manualAmount: s.quickAddModal.manualAmount,
+      dragActive: s.quickAddModal.dragActive,
       setInput: s.quickAddModal.setQuickAddInput,
-      setLoading: s.quickAddModal.setQuickAddLoading,
       setParsed: s.quickAddModal.setQuickAddParsed,
-      setSaving: s.quickAddModal.setQuickAddSaving,
-      setScanning: s.quickAddModal.setQuickAddScanning,
+      parseQuickAdd: s.quickAddModal.parseQuickAdd,
+      saveQuickAdd: s.quickAddModal.saveQuickAdd,
       setSelectedCategoryId: s.quickAddModal.setQuickAddSelectedCategoryId,
       setManualAmount: s.quickAddModal.setQuickAddManualAmount,
+      setDragActive: s.quickAddModal.setQuickAddDragActive,
       resetQuickAdd: s.quickAddModal.resetQuickAddModal,
       fetchAccounts: s.accounts.fetchAccounts,
-      fetchTransactions: s.transactions.fetchTransactions,
-      fetchUpcomingBills: s.bills.fetchUpcomingBills,
-      fetchPendingDocuments: s.documents.fetchPendingDocuments,
-      fetchReports: s.reports.fetchReports,
+      setUploadOpen: s.documentUploadDialog.setDocumentUploadOpen,
     })),
   )
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const amountMissing = Boolean(parsed?.missing?.includes('amount'))
-  const { upload: uploadDocument } = useDocumentUpload()
 
   useEffect(() => {
     if (addModalOpen) {
       fetchCategories()
+      // Needed by the scanned-save path, which posts to a specific account. Opening
+      // this modal from a page that hasn't loaded accounts would otherwise leave the
+      // list empty and the save would refuse with "Create an account first".
+      fetchAccounts()
     }
-  }, [addModalOpen, fetchCategories])
+  }, [addModalOpen, fetchCategories, fetchAccounts])
 
-  const handleParse = async () => {
-    if (!input.trim()) return
-    setLoading(true)
-    try {
-      const response = await api.post('/api/transactions/parse', { text: input })
-      setParsed(response.data)
-    } catch (error) {
-      toast.error(getErrorDetail(error, 'Could not parse that text'))
-    } finally {
-      setLoading(false)
-    }
+  // Quick Add does not implement uploading — it hands off to the one upload dialog the
+  // app has (rendered by DesktopLayout, also opened by Activity's "Upload Receipt").
+  // An earlier version scanned inline and filled this card instead; that meant two
+  // upload implementations, and the file/folder queue, progress and triage that make
+  // the real dialog useful existed in only one of them.
+  const openUpload = () => {
+    resetQuickAdd()
+    closeAddModal()
+    setUploadOpen(true)
   }
 
-  const handleSave = async () => {
-    if (!parsed) return
-    if (amountMissing && !manualAmount) return
-    setSaving(true)
-    try {
-      await api.post('/api/transactions/quick-add', {
-        text: input,
-        category_id: selectedCategoryId ?? undefined,
-        amount: amountMissing ? parseFloat(manualAmount) : undefined,
-      })
-      toast.success('Transaction added!')
-      resetQuickAdd()
-      closeAddModal()
-      // Home's accounts/transactions/bills slices don't otherwise know a save just
-      // happened — force past the 30s staleness window so balance and recent
-      // activity aren't stale until the next unrelated navigation (U3).
-      fetchAccounts({ force: true })
-      fetchTransactions({ reset: true, force: true })
-      fetchUpcomingBills(30, { force: true })
-      fetchReports()
-    } catch (error) {
-      toast.error(getErrorDetail(error, 'Failed to save transaction'))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  // Same upload pipeline as Activity's "Upload Receipt" — every file (image, PDF,
-  // receipt, or statement) lands in the pending-documents queue for review there,
-  // rather than a separate client-side OCR-to-form path unique to quick-add.
-  const scanFile = async (file: File) => {
-    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
-      toast.error('Drop an image or PDF — try a receipt, bill, or statement')
-      return
-    }
-    setScanning(true)
-    try {
-      const docId = await uploadDocument(file, 'receipt')
-      if (docId) {
-        fetchPendingDocuments({ force: true })
-        toast.success('Document uploaded! Review it in Activity.')
-        resetQuickAdd()
-        closeAddModal()
-      } else {
-        toast.error('Failed to upload document')
-      }
-    } finally {
-      setScanning(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-  }
-
-  const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) await scanFile(file)
-  }
-
-  const handleDrop = async (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
-    const file = e.dataTransfer.files?.[0]
-    if (file) await scanFile(file)
+    setDragActive(false)
+    openUpload()
   }
 
   const selectedCategory = selectedCategoryId
@@ -180,9 +113,28 @@ export const AddTransactionModal = (): JSX.Element => {
     >
       <Dialog.Content
         aria-describedby={undefined}
-        onDragOver={(e) => e.preventDefault()}
+        className={styles.dialogContent}
+        onDragOver={(e) => {
+          e.preventDefault()
+          if (!dragActive) setDragActive(true)
+        }}
+        onDragLeave={(e) => {
+          // Radix Dialog.Content is one element with children — a dragleave fires when
+          // crossing onto any child, not just when actually leaving the dialog.
+          // relatedTarget is null at the true window boundary; the null check is what
+          // filtered the false-positives that made this flicker before.
+          if (!e.relatedTarget) setDragActive(false)
+        }}
         onDrop={handleDrop}
       >
+        {dragActive && (
+          <Flex className={styles.dropOverlay} direction="column" align="center" gap="2">
+            <Upload size={28} color="var(--accent-9)" />
+            <Text size="2" weight="medium" color="gray">
+              Drop to scan receipt or statement
+            </Text>
+          </Flex>
+        )}
         <Flex align="center" justify="between" mb="4">
           <Dialog.Title>Quick Add</Dialog.Title>
           <IconButton
@@ -211,42 +163,29 @@ export const AddTransactionModal = (): JSX.Element => {
                 setParsed(null)
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleParse()
+                if (e.key === 'Enter') parseQuickAdd()
               }}
             >
               <TextField.Slot side="left">
                 <Sparkles size={16} />
               </TextField.Slot>
             </TextField.Root>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,application/pdf"
-              className={styles.hiddenInput}
-              onChange={handleFileScan}
-            />
             <Text size="1" color="gray">
               Try: &ldquo;spent 15 on groceries&rdquo;, &ldquo;uber 15&rdquo;, &ldquo;salary
-              5000&rdquo; — or drag in a receipt image or PDF statement
+              5000&rdquo; — or drop a file here to open the document uploader
             </Text>
           </Flex>
 
           <Flex gap="3" justify="end">
-            <Button
-              variant="soft"
-              color="gray"
-              onClick={() => fileInputRef.current?.click()}
-              loading={scanning}
-              size="3"
-            >
-              <Upload size={16} /> {scanning ? 'Uploading…' : 'Upload receipt'}
+            <Button variant="soft" color="gray" onClick={openUpload} size="3">
+              <Upload size={16} /> Upload a document
             </Button>
-            <Button onClick={handleParse} loading={loading} size="3">
+            <Button onClick={parseQuickAdd} loading={loading} size="3">
               {parsed ? 'Re-parse' : 'Parse'}
             </Button>
             {parsed && (
               <Button
-                onClick={handleSave}
+                onClick={saveQuickAdd}
                 loading={saving}
                 disabled={amountMissing && !manualAmount}
                 size="3"
@@ -285,6 +224,15 @@ export const AddTransactionModal = (): JSX.Element => {
 
                 <Flex gap="2" align="center">
                   <Badge color={parsed.type === 'income' ? 'green' : 'orange'}>{parsed.type}</Badge>
+                  {/* Y6: amount, merchant and category were all previewed before saving
+                      but the date silently wasn't, so a relative phrase ("yesterday",
+                      "last friday") couldn't be checked until after the transaction
+                      existed. */}
+                  {parsed.date && (
+                    <Badge color="gray" variant="soft" title="Date this will be recorded on">
+                      {formatDate(parsed.date)}
+                    </Badge>
+                  )}
                   {parsed.merchant && (
                     <Badge
                       color="gray"

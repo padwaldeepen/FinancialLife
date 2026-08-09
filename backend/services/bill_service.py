@@ -150,7 +150,7 @@ async def suggest_bill_match(
 
     for bill in bills:
         if bill["merchant_id"] and bill["merchant_id"] == merchant_id:
-            next_due = _next_due_date(bill["due_day"], bill["frequency"])
+            next_due = _next_due_date(bill["due_day"], bill["frequency"], bill["created_at"])
             days_diff = abs((next_due - today).days)
             if days_diff <= 5:
                 amount_diff = abs(Decimal(str(bill["amount"])) - amount_dec)
@@ -161,7 +161,7 @@ async def suggest_bill_match(
         desc_lower = description.lower()
         bill_lower = bill["name"].lower()
         if bill_lower in desc_lower or desc_lower in bill_lower:
-            next_due = _next_due_date(bill["due_day"], bill["frequency"])
+            next_due = _next_due_date(bill["due_day"], bill["frequency"], bill["created_at"])
             days_diff = abs((next_due - today).days)
             if days_diff <= 7:
                 return bill
@@ -169,7 +169,7 @@ async def suggest_bill_match(
     return None
 
 
-def _next_due_date(due_day: int, frequency: str) -> date:
+def _next_due_date(due_day: int, frequency: str, created_at: datetime | date | None = None) -> date:
     """Calculate the next due date based on frequency and due_day."""
     today = date.today()
     current_year = today.year
@@ -199,10 +199,28 @@ def _next_due_date(due_day: int, frequency: str) -> date:
         return today + timedelta(days=days_ahead)
 
     if frequency == "biweekly":
-        days_ahead = due_day - (today.weekday() % 14)
+        # No "week parity" is stored anywhere, so the 14-day cadence is anchored to the
+        # bill's own creation date: find the first occurrence of `due_day`'s weekday
+        # on/after creation, then only every *other* weekly occurrence from there counts
+        # as a real due date. (The old `today.weekday() % 14` was a no-op — weekday()
+        # never exceeds 6 — which silently made every "biweekly" bill behave as weekly.)
+        anchor = created_at.date() if isinstance(created_at, datetime) else (created_at or today)
+        anchor_days_ahead = due_day - anchor.weekday()
+        if anchor_days_ahead < 0:
+            anchor_days_ahead += 7
+        anchor_due = anchor + timedelta(days=anchor_days_ahead)
+
+        days_ahead = due_day - today.weekday()
         if days_ahead <= 0:
-            days_ahead += 14
-        return today + timedelta(days=days_ahead)
+            days_ahead += 7
+        next_due = today + timedelta(days=days_ahead)
+        if next_due < anchor_due:
+            next_due = anchor_due
+
+        weeks_since_anchor = (next_due - anchor_due).days // 7
+        if weeks_since_anchor % 2 != 0:
+            next_due += timedelta(days=7)
+        return next_due
 
     if frequency == "quarterly":
         quarter_month = ((current_month - 1) // 3) * 3 + 1
@@ -245,7 +263,7 @@ async def compute_upcoming_async(
     upcoming: list[dict] = []
 
     for bill in bills:
-        next_due = _next_due_date(bill["due_day"], bill["frequency"])
+        next_due = _next_due_date(bill["due_day"], bill["frequency"], bill["created_at"])
         if today <= next_due <= cutoff:
             # "Already paid this period" is a transaction tied to this bill dated
             # within the ~30-day window leading up to (and including) this

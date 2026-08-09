@@ -13,6 +13,7 @@ import {
   Button,
   Select,
   Skeleton,
+  VisuallyHidden,
 } from '@radix-ui/themes'
 import { Store, Search, X, Merge, BarChart3, Pencil, Trash2 } from 'lucide-react'
 import { ResponsiveBar } from '@nivo/bar'
@@ -20,7 +21,7 @@ import { ResponsivePie } from '@nivo/pie'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import type { MerchantSortBy } from '../../../store/slices/merchantsSlice.ts'
-import { formatCurrency } from '../../../shared/utils/format.ts'
+import { formatCurrency, formatCalendarDate } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
 import styles from './Merchants.module.css'
 import shared from '../../styles/shared.module.css'
@@ -37,6 +38,7 @@ export const Merchants = (): JSX.Element => {
     toggleHidden,
     updateMerchant,
     deleteMerchant,
+    clearMerchantDefaultCategory,
     fetchSimilar,
     similarPairs,
     doMerge,
@@ -51,6 +53,7 @@ export const Merchants = (): JSX.Element => {
       toggleHidden: s.merchants.toggleHidden,
       updateMerchant: s.merchants.updateMerchant,
       deleteMerchant: s.merchants.deleteMerchant,
+      clearMerchantDefaultCategory: s.merchants.clearMerchantDefaultCategory,
       fetchSimilar: s.merchants.fetchSimilar,
       doMerge: s.merchants.doMerge,
     })),
@@ -233,6 +236,29 @@ export const Merchants = (): JSX.Element => {
                     </Badge>
                   )}
                 </Text>
+                {/* Y7: the learned rule shown in plain language, with a one-click undo.
+                    A remembered category the user can neither see nor reverse would feel
+                    like the app guessing at random. stopPropagation because the whole
+                    card opens the detail dialog. */}
+                {merchant.default_category_name && (
+                  <Flex align="center" gap="1" mt="1">
+                    <Badge size="1" color="gray" variant="soft">
+                      Always {merchant.default_category_name}
+                    </Badge>
+                    <IconButton
+                      variant="ghost"
+                      size="1"
+                      color="gray"
+                      aria-label={`Clear the ${merchant.default_category_name} rule for ${merchant.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        clearMerchantDefaultCategory(merchant.id)
+                      }}
+                    >
+                      <X size={12} />
+                    </IconButton>
+                  </Flex>
+                )}
               </Box>
               <Text size="3" weight="bold" color="red">
                 {formatCurrency(merchant.total_spent, currency)}
@@ -257,6 +283,11 @@ export const Merchants = (): JSX.Element => {
           {selected && detail && (
             <>
               <Dialog.Title>{detail.name}</Dialog.Title>
+              <VisuallyHidden>
+                <Dialog.Description>
+                  Spending history and category breakdown for this merchant
+                </Dialog.Description>
+              </VisuallyHidden>
 
               <Flex gap="6" mb="4" wrap="wrap">
                 <Box>
@@ -281,7 +312,7 @@ export const Merchants = (): JSX.Element => {
                   </Text>
                   <Text size="2">
                     {detail.first_transaction_date
-                      ? new Date(detail.first_transaction_date).toLocaleDateString()
+                      ? formatCalendarDate(detail.first_transaction_date)
                       : '-'}
                   </Text>
                 </Box>
@@ -291,7 +322,7 @@ export const Merchants = (): JSX.Element => {
                   </Text>
                   <Text size="2">
                     {detail.last_transaction_date
-                      ? new Date(detail.last_transaction_date).toLocaleDateString()
+                      ? formatCalendarDate(detail.last_transaction_date)
                       : '-'}
                   </Text>
                 </Box>
@@ -326,7 +357,7 @@ export const Merchants = (): JSX.Element => {
                         indexBy="month"
                         margin={{ top: 10, right: 20, bottom: 40, left: 60 }}
                         padding={0.3}
-                        colors={{ scheme: 'oranges' }}
+                        colors={['var(--chart-single)']}
                         axisBottom={{
                           tickSize: 5,
                           tickPadding: 5,
@@ -352,10 +383,15 @@ export const Merchants = (): JSX.Element => {
                     <Flex gap="4" direction={{ initial: 'column', sm: 'row' }}>
                       <Box className={styles.chartHeight200}>
                         <ResponsivePie
-                          data={detail.category_breakdown.map((c) => ({
+                          // Z3: the one genuinely categorical chart here. Colour
+                          // comes from the fixed validated slot order, not from each
+                          // category's stored hex — those were unvalidated seed values
+                          // (R2 already removed them as UI swatches for the same
+                          // reason). Slots are assigned by position and never cycled.
+                          data={detail.category_breakdown.map((c, i) => ({
                             id: c.category_name,
                             value: c.total,
-                            color: c.color,
+                            color: `var(--chart-${(i % 8) + 1})`,
                           }))}
                           margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
                           innerRadius={0.5}
@@ -366,12 +402,19 @@ export const Merchants = (): JSX.Element => {
                         />
                       </Box>
                       <Flex direction="column" gap="1" className={styles.flex1}>
-                        {detail.category_breakdown.map((c) => (
+                        {detail.category_breakdown.map((c, i) => (
                           <Flex key={c.category_name} justify="between" align="center">
                             <Flex align="center" gap="2">
                               <Box
                                 className={styles.categoryDot}
-                                style={{ '--dot-color': c.color } as React.CSSProperties}
+                                style={
+                                  {
+                                    // Same slot index as the slice above — the legend is
+                                    // what makes identity survive the light-mode contrast
+                                    // WARN, so it must not drift from the chart.
+                                    '--dot-color': `var(--chart-${(i % 8) + 1})`,
+                                  } as React.CSSProperties
+                                }
                               />
                               <Text size="2">{c.category_name}</Text>
                             </Flex>
@@ -397,7 +440,7 @@ export const Merchants = (): JSX.Element => {
                           <Flex direction="column" gap="1" className={styles.flex1}>
                             <Text size="2">{tx.description}</Text>
                             <Text size="1" color="gray">
-                              {new Date(tx.date).toLocaleDateString()}
+                              {formatCalendarDate(tx.date)}
                               {tx.category_name && <> &middot; {tx.category_name}</>}
                             </Text>
                           </Flex>
@@ -446,6 +489,9 @@ export const Merchants = (): JSX.Element => {
       <Dialog.Root open={renameOpen} onOpenChange={setMerchantRenameOpen}>
         <Dialog.Content className={styles.renameDialog}>
           <Dialog.Title>Rename Merchant</Dialog.Title>
+          <VisuallyHidden>
+            <Dialog.Description>Give this merchant a clearer name</Dialog.Description>
+          </VisuallyHidden>
           <Flex direction="column" gap="3" mt="3">
             <Text size="2" color="gray">
               Update the display name for this merchant.
@@ -478,6 +524,9 @@ export const Merchants = (): JSX.Element => {
       >
         <Dialog.Content className={styles.renameDialog}>
           <Dialog.Title>Delete Merchant</Dialog.Title>
+          <VisuallyHidden>
+            <Dialog.Description>Confirm removing this merchant</Dialog.Description>
+          </VisuallyHidden>
           <Text size="2" mt="2">
             Are you sure you want to delete this merchant? This action cannot be undone.
             Transactions linked to this merchant will be unaffected.
@@ -496,6 +545,11 @@ export const Merchants = (): JSX.Element => {
       <Dialog.Root open={mergeDialogOpen} onOpenChange={setMerchantMergeDialogOpen}>
         <Dialog.Content className={styles.mergeDialog}>
           <Dialog.Title>Merge Duplicate Merchants</Dialog.Title>
+          <VisuallyHidden>
+            <Dialog.Description>
+              Combine merchants that are the same business under one name
+            </Dialog.Description>
+          </VisuallyHidden>
           {similarPairs.length === 0 ? (
             <Text color="gray">No similar merchants found</Text>
           ) : (

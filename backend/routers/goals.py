@@ -1,11 +1,13 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Literal
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from database.models import Profile
+from core.money import Money
+from database.models import MAX_MONEY_AMOUNT, Profile
 from database.session import get_db
 from routers.auth import get_current_profile
 from services import goal_service
@@ -15,10 +17,10 @@ router = APIRouter()
 
 class GoalCreate(BaseModel):
     name: str
-    target_amount: float = Field(gt=0)
+    target_amount: Decimal = Field(gt=0, le=MAX_MONEY_AMOUNT)
     type: Literal["save_up", "pay_down", "monthly_envelope"]
-    current_amount: float = Field(default=0.0, ge=0)
-    monthly_contribution: float | None = Field(default=None, gt=0)
+    current_amount: Decimal = Field(default=Decimal("0"), ge=0, le=MAX_MONEY_AMOUNT)
+    monthly_contribution: Decimal | None = Field(default=None, gt=0, le=MAX_MONEY_AMOUNT)
     category_id: int | None = None
     deadline: date | None = None
     icon: str | None = None
@@ -27,9 +29,9 @@ class GoalCreate(BaseModel):
 
 class GoalUpdate(BaseModel):
     name: str | None = None
-    target_amount: float | None = Field(default=None, gt=0)
-    current_amount: float | None = Field(default=None, ge=0)
-    monthly_contribution: float | None = Field(default=None, gt=0)
+    target_amount: Decimal | None = Field(default=None, gt=0, le=MAX_MONEY_AMOUNT)
+    current_amount: Decimal | None = Field(default=None, ge=0, le=MAX_MONEY_AMOUNT)
+    monthly_contribution: Decimal | None = Field(default=None, gt=0, le=MAX_MONEY_AMOUNT)
     type: Literal["save_up", "pay_down", "monthly_envelope"] | None = None
     category_id: int | None = None
     deadline: date | None = None
@@ -42,9 +44,9 @@ class GoalUpdate(BaseModel):
 class GoalResponse(BaseModel):
     id: int
     name: str
-    target_amount: float
-    current_amount: float
-    monthly_contribution: float | None
+    target_amount: Money
+    current_amount: Money
+    monthly_contribution: Money | None
     type: str
     category_id: int | None
     category_name: str | None
@@ -61,7 +63,7 @@ class GoalResponse(BaseModel):
 
 
 class ContributeRequest(BaseModel):
-    amount: float
+    amount: Decimal = Field(gt=0, le=MAX_MONEY_AMOUNT)
 
 
 def _to_response(goal: dict) -> GoalResponse:
@@ -165,8 +167,6 @@ async def contribute_to_goal(
     profile: Profile = Depends(get_current_profile),
     conn: asyncpg.Connection = Depends(get_db),
 ):
-    if body.amount <= 0:
-        raise HTTPException(status_code=422, detail="Amount must be positive")
     goal = await goal_service.contribute_to_goal(goal_id, profile.id, body.amount, conn)
     if not goal:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found")

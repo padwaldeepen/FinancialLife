@@ -30,9 +30,9 @@ export const useHomeData = (): HomeData => {
     accounts,
     accountsLoading,
     fetchAccounts,
-    transactions,
     txLoading,
-    fetchTransactions,
+    recent,
+    fetchRecent,
     upcomingBills,
     fetchUpcomingBills,
   } = useBoundStore(
@@ -40,9 +40,9 @@ export const useHomeData = (): HomeData => {
       accounts: s.accounts.items,
       accountsLoading: s.accounts.loading,
       fetchAccounts: s.accounts.fetchAccounts,
-      transactions: s.transactions.items,
-      txLoading: s.transactions.loading,
-      fetchTransactions: s.transactions.fetchTransactions,
+      txLoading: s.transactions.recentLoading,
+      recent: s.transactions.recent,
+      fetchRecent: s.transactions.fetchRecent,
       upcomingBills: s.bills.upcoming,
       fetchUpcomingBills: s.bills.fetchUpcomingBills,
     })),
@@ -50,9 +50,9 @@ export const useHomeData = (): HomeData => {
 
   useEffect(() => {
     fetchAccounts()
-    fetchTransactions({ reset: true })
+    fetchRecent()
     fetchUpcomingBills()
-  }, [fetchAccounts, fetchTransactions, fetchUpcomingBills])
+  }, [fetchAccounts, fetchRecent, fetchUpcomingBills])
 
   const cashOnHand = accounts
     .filter((a) => CASH_TYPES.has(a.type))
@@ -68,7 +68,7 @@ export const useHomeData = (): HomeData => {
   const refresh = async (opts?: { force?: boolean }) => {
     await Promise.all([
       fetchAccounts({ force: opts?.force }),
-      fetchTransactions({ reset: true, force: opts?.force }),
+      fetchRecent({ force: opts?.force }),
       fetchUpcomingBills(30, { force: opts?.force }),
     ])
   }
@@ -78,7 +78,8 @@ export const useHomeData = (): HomeData => {
     accountsLoading,
     cashOnHand,
     creditOwed,
-    recentTransactions: transactions.slice(0, 5),
+    // Home's own unfiltered list — never a slice of Activity's filtered working set.
+    recentTransactions: recent,
     txLoading,
     upcomingBills,
     loading: accountsLoading || txLoading,

@@ -11,14 +11,20 @@ import {
   Button,
   Card,
   Skeleton,
+  AlertDialog,
+  VisuallyHidden,
 } from '@radix-ui/themes'
 import { Search, Trash2, X, Calendar, FileText } from 'lucide-react'
 import { format, isToday, isYesterday, parseISO, startOfWeek } from 'date-fns'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
-import { formatCurrency } from '../../../shared/utils/format.ts'
+import { formatCurrency, formatSignedAmount } from '../../../shared/utils/format.ts'
 import { useActiveCurrency } from '../../../shared/hooks/useActiveCurrency.ts'
-import { useTransactionFilters } from '../../../shared/hooks/useTransactionFilters.ts'
+import {
+  useTransactionFilters,
+  DATE_PRESET_LABELS,
+  type DatePreset,
+} from '../../../shared/hooks/useTransactionFilters.ts'
 import { useTransactionList } from '../../../shared/hooks/useTransactionList.ts'
 import type { Transaction } from '../../../store/slices/transactionsSlice.ts'
 import styles from './Activity.module.css'
@@ -44,10 +50,13 @@ export const Activity = (): JSX.Element => {
   const currency = useActiveCurrency()
   const {
     filters,
+    filtersActive,
+    clearFilters,
     setSearch,
     setTypeFilter,
     setCategoryFilter,
     setMerchantFilter,
+    setDatePreset,
     setStartDate,
     setEndDate,
     categories,
@@ -126,7 +135,9 @@ export const Activity = (): JSX.Element => {
         <Text size="5" weight="bold">
           Activity
         </Text>
-        <Button variant="ghost" size="1" onClick={() => setShowFilters(!showFilters)}>
+        {/* Z5: `highContrast` promotes the label to accent-12. The default ghost accent
+            measured 4.4:1 at this 12px size — marginally under the AA floor. */}
+        <Button variant="ghost" size="1" highContrast onClick={() => setShowFilters(!showFilters)}>
           {showFilters ? 'Hide filters' : 'Filters'}
         </Button>
       </Flex>
@@ -209,24 +220,44 @@ export const Activity = (): JSX.Element => {
             </Select.Content>
           </Select.Root>
 
-          <Flex gap="2" align="center">
-            <Calendar size={14} />
-            <TextField.Root
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className={styles.dateField}
-            />
-            <Text size="1" color="gray">
-              to
-            </Text>
-            <TextField.Root
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className={styles.dateField}
-            />
-          </Flex>
+          {/* Named ranges instead of two raw date fields — the win is bigger here than on
+              desktop, where a native date input on a phone means the OS spinner twice. */}
+          <Select.Root
+            value={filters.datePreset}
+            onValueChange={(v) => setDatePreset(v as DatePreset)}
+          >
+            <Select.Trigger placeholder="All time" aria-label="Date range" />
+            <Select.Content>
+              {(Object.keys(DATE_PRESET_LABELS) as DatePreset[]).map((p) => (
+                <Select.Item key={p} value={p}>
+                  {DATE_PRESET_LABELS[p]}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+
+          {filters.datePreset === 'custom' && (
+            <Flex gap="2" align="center">
+              <Calendar size={14} />
+              <TextField.Root
+                type="date"
+                aria-label="Filter start date"
+                value={filters.startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className={styles.dateField}
+              />
+              <Text size="1" color="gray">
+                to
+              </Text>
+              <TextField.Root
+                type="date"
+                aria-label="Filter end date"
+                value={filters.endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className={styles.dateField}
+              />
+            </Flex>
+          )}
         </Flex>
       )}
 
@@ -243,11 +274,16 @@ export const Activity = (): JSX.Element => {
       ) : transactions.length === 0 ? (
         <Flex direction="column" align="center" gap="2" py="6">
           <Text size="3" weight="medium">
-            No transactions
+            {filtersActive ? 'No matches' : 'No transactions'}
           </Text>
           <Text size="2" color="gray">
-            Add one using quick-add
+            {filtersActive ? 'Nothing matched these filters' : 'Add one using quick-add'}
           </Text>
+          {filtersActive && (
+            <Button variant="soft" size="2" mt="2" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
         </Flex>
       ) : (
         <Box>
@@ -293,22 +329,54 @@ export const Activity = (): JSX.Element => {
                         weight="bold"
                         color={t.transaction_type === 'income' ? 'green' : 'red'}
                       >
-                        {t.transaction_type === 'income' ? '+' : '-'}
-                        {formatCurrency(t.amount, currency)}
+                        {formatSignedAmount(t.amount, t.transaction_type, currency)}
                       </Text>
                       {swipedId === t.id && (
-                        <IconButton
-                          variant="solid"
-                          size="2"
-                          color="red"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            deleteTransaction(t.id)
-                            setSwipedId(null)
-                          }}
-                        >
-                          <Trash2 size={16} />
-                        </IconButton>
+                        <AlertDialog.Root>
+                          <AlertDialog.Trigger>
+                            <IconButton
+                              variant="solid"
+                              size="2"
+                              color="red"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Trash2 size={16} />
+                            </IconButton>
+                          </AlertDialog.Trigger>
+                          <AlertDialog.Content
+                            maxWidth="360px"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <AlertDialog.Title>Delete transaction?</AlertDialog.Title>
+                            <AlertDialog.Description size="2">
+                              This permanently deletes "{t.description}" (
+                              {formatCurrency(t.amount, currency)}). This can't be undone.
+                            </AlertDialog.Description>
+                            <Flex gap="3" mt="4" justify="end">
+                              <AlertDialog.Cancel>
+                                <Button
+                                  variant="soft"
+                                  color="gray"
+                                  onClick={() => setSwipedId(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </AlertDialog.Cancel>
+                              <AlertDialog.Action>
+                                <Button
+                                  variant="solid"
+                                  color="red"
+                                  onClick={() => {
+                                    deleteTransaction(t.id)
+                                    setSwipedId(null)
+                                  }}
+                                >
+                                  Delete
+                                </Button>
+                              </AlertDialog.Action>
+                            </Flex>
+                          </AlertDialog.Content>
+                        </AlertDialog.Root>
                       )}
                     </Flex>
                   </Flex>
@@ -333,6 +401,9 @@ export const Activity = (): JSX.Element => {
             <>
               <Flex justify="between" align="center" mb="3">
                 <Dialog.Title className={styles.dialogTitle}>{selected.description}</Dialog.Title>
+                <VisuallyHidden>
+                  <Dialog.Description>Details for this transaction</Dialog.Description>
+                </VisuallyHidden>
                 <IconButton variant="ghost" onClick={closeDetail}>
                   <X size={16} />
                 </IconButton>
@@ -345,8 +416,7 @@ export const Activity = (): JSX.Element => {
                     weight="bold"
                     color={selected.transaction_type === 'income' ? 'green' : 'red'}
                   >
-                    {selected.transaction_type === 'income' ? '+' : '-'}
-                    {formatCurrency(selected.amount, currency)}
+                    {formatSignedAmount(selected.amount, selected.transaction_type, currency)}
                   </Text>
                   <Badge color={selected.transaction_type === 'income' ? 'green' : 'red'}>
                     {selected.transaction_type}
@@ -414,17 +484,39 @@ export const Activity = (): JSX.Element => {
                   >
                     Save notes
                   </Button>
-                  <Button
-                    variant="soft"
-                    color="red"
-                    className={styles.dialogButton}
-                    onClick={() => {
-                      deleteTransaction(selected.id)
-                      closeDetail()
-                    }}
-                  >
-                    <Trash2 size={14} /> Delete
-                  </Button>
+                  <AlertDialog.Root>
+                    <AlertDialog.Trigger>
+                      <Button variant="soft" color="red" className={styles.dialogButton}>
+                        <Trash2 size={14} /> Delete
+                      </Button>
+                    </AlertDialog.Trigger>
+                    <AlertDialog.Content maxWidth="360px">
+                      <AlertDialog.Title>Delete transaction?</AlertDialog.Title>
+                      <AlertDialog.Description size="2">
+                        This permanently deletes "{selected.description}" (
+                        {formatCurrency(selected.amount, currency)}). This can't be undone.
+                      </AlertDialog.Description>
+                      <Flex gap="3" mt="4" justify="end">
+                        <AlertDialog.Cancel>
+                          <Button variant="soft" color="gray">
+                            Cancel
+                          </Button>
+                        </AlertDialog.Cancel>
+                        <AlertDialog.Action>
+                          <Button
+                            variant="solid"
+                            color="red"
+                            onClick={() => {
+                              deleteTransaction(selected.id)
+                              closeDetail()
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </AlertDialog.Action>
+                      </Flex>
+                    </AlertDialog.Content>
+                  </AlertDialog.Root>
                 </Flex>
               </Flex>
             </>

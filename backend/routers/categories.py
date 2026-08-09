@@ -1,13 +1,16 @@
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
+from core.money import Money
 from database.models import Profile, User
 from database.session import get_db
 from routers.auth import get_current_profile, get_current_user
 from services import category_service
+from services.category_spend import CATEGORY_SPEND_SOURCE
 from services.transaction_service import categorize
 
 router = APIRouter()
@@ -43,7 +46,7 @@ class CategorySpending(BaseModel):
     id: int
     name: str
     color: str
-    total: float
+    total: Money
     percentage: float
     transaction_count: int
 
@@ -85,9 +88,9 @@ async def category_spending(
     cutoff = datetime.combine(date.today(), datetime.min.time()) - timedelta(days=days)
 
     rows = await conn.fetch(
-        """SELECT t.category_id, c.name, c.color,
+        f"""SELECT t.category_id, c.name, c.color,
                   SUM(t.amount) AS total, COUNT(t.id) AS tx_count
-           FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+           FROM ({CATEGORY_SPEND_SOURCE}) t LEFT JOIN categories c ON c.id = t.category_id
            WHERE t.profile_id = $1 AND t.transaction_type = 'expense'
              AND t.category_id IS NOT NULL AND t.date >= $2
            GROUP BY t.category_id, c.name, c.color""",
@@ -95,7 +98,10 @@ async def category_spending(
         cutoff,
     )
 
-    grand_total = sum(float(r["total"]) for r in rows) or 0
+    # Sum as Decimal (matches the NUMERIC(12,2) column) before casting to float for the
+    # percentage ratio below — summing already-converted floats reintroduces binary
+    # floating-point error on top of Postgres's exact Decimal sums (rules/database.md).
+    grand_total = float(sum((r["total"] for r in rows), Decimal("0")))
 
     spending = [
         CategorySpending(

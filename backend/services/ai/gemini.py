@@ -92,7 +92,13 @@ async def call_gemini(
     chat and rephrase endpoints)."""
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
-            f"{GEMINI_URL}?key={settings.GEMINI_API_KEY}",
+            GEMINI_URL,
+            # Key goes in a header, not the URL query string — `raise_for_status()`
+            # embeds the request URL verbatim in its exception message, and every call
+            # site here logs that exception directly (log.warning("...: %s", e)), so a
+            # key-in-URL would land the live API key in the application logs on every
+            # Gemini HTTP error (quota exceeded, bad request, transient 5xx).
+            headers={"x-goog-api-key": settings.GEMINI_API_KEY},
             json={
                 "contents": [{"parts": parts}],
                 "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},

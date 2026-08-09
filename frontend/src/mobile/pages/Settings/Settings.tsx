@@ -241,7 +241,7 @@ export const Settings = (): JSX.Element => {
               <Box className={styles.labelText}>
                 <Text size="2">Name</Text>
                 <Text size="2" color="gray">
-                  {user?.name || 'Not set'}
+                  {user?.full_name || 'Not set'}
                 </Text>
               </Box>
             </Flex>

@@ -2,6 +2,14 @@
   padding-top: var(--space-5);
 }
 
+/* ZB: 7 tabs are wider than a tablet's content column. Scroll the strip itself rather
+   than letting it widen the page — the tabs stay reachable and the page never scrolls
+   horizontally. */
+.tabList {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
 .sectionTitle {
   font-size: var(--font-size-2);
   font-weight: 600;
@@ -43,4 +51,18 @@
 
 .maxWidth380 {
   max-width: 380px;
+}
+
+.docSearch {
+  min-width: 240px;
+  flex: 1;
+}
+
+.docLink {
+  color: var(--accent-11);
+  text-decoration: none;
+}
+
+.docLink:hover {
+  text-decoration: underline;
 }

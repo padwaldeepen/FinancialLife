@@ -1,6 +1,7 @@
 import { namespaceSlice } from '../namespaceSlice.ts'
 import api from '../../shared/api/client.ts'
 import { formatCurrency } from '../../shared/utils/format.ts'
+import { refreshAfterMoneyChange } from '../refreshAfterMoneyChange.ts'
 
 export interface ChatMsg {
   role: 'user' | 'assistant'
@@ -109,6 +110,10 @@ export const createChatSlice = namespaceSlice('chat', (set, get) => ({
       // account or currency itself (that was the R1 bug: a hardcoded account_id=1
       // and a hardcoded "$" broke IN/CA profiles).
       await api.post('/api/transactions/quick-add', { text: txData.sourceText })
+      // The chat can create real money, so it owes the same refresh every other write
+      // path does — this was the one money-write site that never adopted it, leaving
+      // balances and Activity stale until an unrelated navigation happened to refetch.
+      refreshAfterMoneyChange()
       set({
         messages: [
           ...get().messages,

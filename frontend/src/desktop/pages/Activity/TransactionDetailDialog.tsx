@@ -10,14 +10,20 @@ import {
   Button,
   Checkbox,
   VisuallyHidden,
+  AlertDialog,
 } from '@radix-ui/themes'
 import { Search, Trash2, Pencil, X, Link2, Unlink } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { useShallow } from 'zustand/react/shallow'
 import { useBoundStore } from '../../../store/useBoundStore.ts'
 import type { Transaction } from '../../../store/slices/transactionsSlice.ts'
-import { formatCurrency, getAmountColor } from '../../../shared/utils/format.ts'
+import {
+  formatCurrency,
+  formatSignedAmount,
+  getSignedAmountColor,
+} from '../../../shared/utils/format.ts'
 import styles from './Activity.module.css'
+import { SplitEditor } from './SplitEditor.tsx'
 
 interface FlatCategory {
   id: number
@@ -283,10 +289,11 @@ export const TransactionDetailDialog = ({
               <Text
                 as="div"
                 className={styles.detailAmount}
-                style={{ color: getAmountColor(transaction.transaction_type) }}
+                style={{
+                  color: getSignedAmountColor(transaction.amount, transaction.transaction_type),
+                }}
               >
-                {transaction.transaction_type === 'income' ? '+' : '-'}
-                {formatCurrency(transaction.amount, currency)}
+                {formatSignedAmount(transaction.amount, transaction.transaction_type, currency)}
               </Text>
               <Badge color={transaction.transaction_type === 'income' ? 'green' : 'red'}>
                 {transaction.transaction_type}
@@ -301,6 +308,23 @@ export const TransactionDetailDialog = ({
                 {format(parseISO(transaction.date), 'EEEE, MMMM d, yyyy')}
               </Text>
             </Flex>
+
+            {/* E3: splitting only makes sense for a categorised money movement — a
+                transfer between your own accounts has no categories to divide. */}
+            {transaction.transaction_type !== 'transfer' && (
+              <Flex direction="column" gap="2" className={styles.detailSection}>
+                <Text as="div" className={styles.detailLabel}>
+                  Categories
+                </Text>
+                <SplitEditor
+                  transactionId={transaction.id}
+                  total={Math.abs(transaction.amount)}
+                  currency={currency}
+                  categories={categories}
+                  isSplit={transaction.is_split}
+                />
+              </Flex>
+            )}
 
             {transaction.merchant_name && (
               <Flex direction="column" gap="1" className={styles.detailSection}>
@@ -386,16 +410,39 @@ export const TransactionDetailDialog = ({
               >
                 Save notes
               </Button>
-              <Button
-                variant="soft"
-                color="red"
-                onClick={() => {
-                  onDelete(transaction.id)
-                  onClose()
-                }}
-              >
-                <Trash2 size={14} /> Delete
-              </Button>
+              <AlertDialog.Root>
+                <AlertDialog.Trigger>
+                  <Button variant="soft" color="red">
+                    <Trash2 size={14} /> Delete
+                  </Button>
+                </AlertDialog.Trigger>
+                <AlertDialog.Content maxWidth="400px">
+                  <AlertDialog.Title>Delete transaction?</AlertDialog.Title>
+                  <AlertDialog.Description size="2">
+                    This permanently deletes "{transaction.description}" (
+                    {formatCurrency(transaction.amount, currency)}). This can't be undone.
+                  </AlertDialog.Description>
+                  <Flex gap="3" mt="4" justify="end">
+                    <AlertDialog.Cancel>
+                      <Button variant="soft" color="gray">
+                        Cancel
+                      </Button>
+                    </AlertDialog.Cancel>
+                    <AlertDialog.Action>
+                      <Button
+                        variant="solid"
+                        color="red"
+                        onClick={() => {
+                          onDelete(transaction.id)
+                          onClose()
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </AlertDialog.Action>
+                  </Flex>
+                </AlertDialog.Content>
+              </AlertDialog.Root>
             </Flex>
           </Flex>
         )}

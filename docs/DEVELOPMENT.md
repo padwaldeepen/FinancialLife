@@ -45,23 +45,58 @@ If any step fails on a clean clone, that's a setup bug — fix it and update thi
 
 ## 2. Backups (do this before trusting the app with real data)
 
-### Manual backup / restore
-```powershell
-# Backup
-docker exec myfinanciallife-postgres pg_dump -U myfinanciallife_user -d myfinanciallife > "D:\Backups\finance-$(Get-Date -Format 'yyyy-MM-dd').sql"
+`scripts/backup.ps1` exists and is the supported path (backlog.md Y1). It dumps
+**inside** the container and then `docker cp`s the bytes out — deliberately *not* a
+PowerShell redirect of `pg_dump` stdout, which re-encodes the stream and silently
+corrupts a compressed dump. It also refuses to keep an implausibly small dump, so a
+truncated file can never masquerade as a restore point.
 
-# Restore (into a running postgres container)
-Get-Content "D:\Backups\finance-YYYY-MM-DD.sql" | docker exec -i myfinanciallife-postgres psql -U myfinanciallife_user -d myfinanciallife
+### Run a backup
+```powershell
+# Defaults: D:\Backups\FinanceFlareAI, keeps the newest 14
+powershell -File scripts\backup.ps1
+
+# Or point it somewhere else (use a DIFFERENT physical disk than the Docker volume)
+powershell -File scripts\backup.ps1 -DestinationDir E:\Backups\finance -KeepCount 30
+```
+
+### Restore
+Dumps are custom-format (`-Fc`), so restore with `pg_restore`, not `psql`. Restore into a
+**scratch** database first and compare before touching the real one:
+```powershell
+docker cp D:\Backups\FinanceFlareAI\myfinanciallife-YYYY-MM-DD_HHMMSS.dump myfinanciallife-postgres:/tmp/r.dump
+docker exec myfinanciallife-postgres psql -U myfinanciallife_user -d postgres -c "CREATE DATABASE restore_test;"
+docker exec myfinanciallife-postgres pg_restore -U myfinanciallife_user -d restore_test /tmp/r.dump
+
+# Compare against the live DB before trusting it
+docker exec myfinanciallife-postgres psql -U myfinanciallife_user -d restore_test -c "SELECT COUNT(*) FROM transactions; SELECT SUM(amount) FROM transactions;"
+
+# Clean up
+docker exec myfinanciallife-postgres psql -U myfinanciallife_user -d postgres -c "DROP DATABASE restore_test;"
+docker exec myfinanciallife-postgres rm -f /tmp/r.dump
 ```
 
 ### Automated (Windows Task Scheduler)
-1. Save the backup command as `scripts/backup.ps1`
-2. Task Scheduler → weekly task → `powershell -File d:\Projects\FinanceFlareAI\scripts\backup.ps1`
-3. Keep copies in **two places** (second disk / USB / personal cloud drive — the SQL dump
-   contains your finances; encrypt it if it leaves your machine)
+1. Task Scheduler → daily task → `powershell -File D:\Projects\FinanceFlareAI\scripts\backup.ps1`
+2. Set it to run whether or not the user is logged on, and **verify the Docker containers
+   are running at that hour** — the script fails loudly (non-zero exit) if the postgres
+   container is down, which is what you want, but only if something is watching.
+3. Keep copies in **two places** (second disk / USB / personal cloud drive — the dump
+   contains your finances; encrypt it if it leaves your machine).
 
-**A backup you haven't restored is a hope, not a backup.** Do one test restore into a
-scratch database and note the date here: *last tested restore: ____*
+**A backup you haven't restored is a hope, not a backup.**
+*Last tested restore: **2026-08-08** — full `pg_restore` into a scratch DB; all five table
+row counts matched the source exactly (accounts 117, documents 20, profiles 39,
+transactions 26, users 39), `SUM(amount)` matched to the cent (10302.69), and
+`alembic_version` came back at 0006.*
+
+> **Known gap — the admin "Backup now" button does not work** (found 2026-08-08).
+> `routers/admin.py` looks for `scripts/backup.ps1` relative to the backend's working
+> directory and shells out to `pwsh`, but the backend container mounts only
+> `./backend:/app` (so the repo-root `scripts/` is invisible to it) and has no `pwsh`
+> installed. It therefore reports "not configured" no matter what exists on the host.
+> Creating the script does **not** fix it. Tracked in the Discovered list; the scheduled
+> task above is the real mechanism in the meantime.
 
 ---
 

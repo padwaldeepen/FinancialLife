@@ -13,6 +13,7 @@ import {
   TextField,
   Select,
   Skeleton,
+  VisuallyHidden,
 } from '@radix-ui/themes'
 import { Plus, Trash2, Pencil } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
@@ -443,6 +444,9 @@ export const Recurring = (): JSX.Element => {
       <Dialog.Root open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
         <Dialog.Content aria-describedby={undefined} maxWidth="400px">
           <Dialog.Title>{editingBudget ? 'Edit Budget' : 'Add Budget'}</Dialog.Title>
+          <VisuallyHidden>
+            <Dialog.Description>Set a monthly spending limit for a category</Dialog.Description>
+          </VisuallyHidden>
           <Flex direction="column" gap="3" mt="3">
             <TextField.Root
               placeholder="Budget name"
@@ -519,6 +523,9 @@ export const Recurring = (): JSX.Element => {
         <Dialog.Content maxWidth="520px">
           <Flex align="center" justify="between">
             <Dialog.Title>Bill Details</Dialog.Title>
+            <VisuallyHidden>
+              <Dialog.Description>History and linked payments for this bill</Dialog.Description>
+            </VisuallyHidden>
             <IconButton
               variant="soft"
               size="2"

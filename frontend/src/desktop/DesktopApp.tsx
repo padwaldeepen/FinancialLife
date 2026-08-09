@@ -2,8 +2,8 @@ import { type JSX } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { ProtectedRoute } from '../shared/components/ProtectedRoute/ProtectedRoute.tsx'
 import { DesktopLayout } from './layouts/DesktopLayout.tsx'
-import { Login } from './pages/Login/Login.tsx'
-import { Register } from './pages/Register/Register.tsx'
+import { Login } from '../shared/pages/Login/Login.tsx'
+import { Register } from '../shared/pages/Register/Register.tsx'
 import { Activity } from './pages/Activity/Activity.tsx'
 import { Home } from './pages/Home/Home.tsx'
 import { Insights } from './pages/Insights/Insights.tsx'
@@ -65,7 +65,7 @@ export const DesktopApp = (): JSX.Element => {
         <Route path="/reports" element={<Navigate to="/insights" replace />} />
         <Route path="/transactions" element={<Navigate to="/activity" replace />} />
         <Route path="/add" element={<Navigate to="/" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   )

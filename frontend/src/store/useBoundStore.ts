@@ -31,13 +31,14 @@ import { createQuickAddModalSlice } from './slices/quickAddModalSlice.ts'
 import { createToastSlice } from './slices/toastSlice.ts'
 import { createRecurringPageSlice } from './slices/recurringPageSlice.ts'
 import { createRecurringInsightsSlice } from './slices/recurringInsightsSlice.ts'
-import { createSafeToSpendSlice } from './slices/safeToSpendSlice.ts'
+import { createSafeToSpendSlice, createNetWorthSlice } from './slices/safeToSpendSlice.ts'
 import { createAdviceSlice } from './slices/adviceSlice.ts'
 import {
   createDocumentsSlice,
   createDocumentReviewFormSlice,
   createDocumentUploadDialogSlice,
   createDocumentViewerDialogSlice,
+  createDocumentLibrarySlice,
   createStatementReviewSlice,
 } from './slices/documentsSlice.ts'
 import { createAdminSlice, createAdminFormSlice } from './slices/adminSlice.ts'
@@ -64,6 +65,7 @@ export const useBoundStore = create<StoreState>()(
       ...(createRecurringPageSlice(...a) as unknown as StoreState),
       ...(createRecurringInsightsSlice(...a) as unknown as StoreState),
       ...(createSafeToSpendSlice(...a) as unknown as StoreState),
+      ...(createNetWorthSlice(...a) as unknown as StoreState),
       ...(createAdviceSlice(...a) as unknown as StoreState),
       ...(createDocumentsSlice(...a) as unknown as StoreState),
       ...(createAdminSlice(...a) as unknown as StoreState),
@@ -79,6 +81,7 @@ export const useBoundStore = create<StoreState>()(
       ...(createDocumentReviewFormSlice(...a) as unknown as StoreState),
       ...(createDocumentUploadDialogSlice(...a) as unknown as StoreState),
       ...(createDocumentViewerDialogSlice(...a) as unknown as StoreState),
+      ...(createDocumentLibrarySlice(...a) as unknown as StoreState),
       ...(createAnnualTimelineSlice(...a) as unknown as StoreState),
       ...(createInsightsPeriodSlice(...a) as unknown as StoreState),
       ...(createChatSlice(...a) as unknown as StoreState),

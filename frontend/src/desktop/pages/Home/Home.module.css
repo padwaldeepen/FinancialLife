@@ -1,22 +1,102 @@
-.layout {
-  gap: var(--space-6);
-  align-items: flex-start;
+/* ---- Z2: bento grid ----
+   A 12-column grid whose tiles are deliberately unequal. The point isn't decoration:
+   an even two-column layout makes every card compete for attention, while unequal
+   weights let the eye land on Safe-to-Spend first and everything else in order after.
+
+   `grid-auto-rows: min-content` keeps tiles their natural height instead of stretching
+   short ones to match tall neighbours, which is what makes a bento read as intentional
+   rather than as a broken table. */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--space-4);
+  /* `stretch` (the grid default), NOT `start`. With `start`, a short tile keeps its
+     natural height next to a taller neighbour and the row's bottom edges come out
+     ragged — which is what "the boxes aren't aligned" was. Stretching makes every tile
+     in a row share the row's height, so edges line up and the grid reads deliberate.
+     An earlier pass used `start` to avoid a *hole* under a very short tile; the right
+     fix for that was grouping tiles of similar height per row (below), not opting out
+     of alignment. */
+  align-items: stretch;
 }
 
-.leftColumn {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+/* Cards must fill the stretched track, or the tile grows and the card floats inside it. */
+.bento > * {
+  height: 100%;
 }
 
-.rightColumn {
-  width: 400px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+/* Row 1: the hero takes two-thirds, this-month rides alongside it. */
+.tileHero {
+  grid-column: span 8;
+}
+
+.tileMonth {
+  grid-column: span 4;
+}
+
+/* Row 2: three tiles of similar natural height. An earlier pass paired the short
+   cash tile (one number) against the tall accounts list and left an obvious hole
+   beneath it — in a grid, a row is as tall as its tallest tile, so pairing very
+   unequal heights is what makes a bento look broken rather than deliberate. Grouping
+   tiles of comparable height per row is the actual trick. */
+.tileCash {
+  grid-column: span 4;
+}
+
+.tileAccounts {
+  grid-column: span 4;
+}
+
+.tileInsights {
+  grid-column: span 4;
+}
+
+/* Row 3: the two lists, evenly weighted. */
+.tileActivity {
+  grid-column: span 6;
+}
+
+.tileBills {
+  grid-column: span 6;
+}
+
+/* Tablet (ZB routes >=768px here): 12 columns of ~40px are too narrow for two
+   meaningful tiles side by side, so collapse to a 6-column grid where the hero and the
+   wide tiles go full width and the rest pair up. */
+@media (max-width: 1100px) {
+  .bento {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .tileHero,
+  .tileAccounts,
+  .tileActivity,
+  .tileBills {
+    grid-column: span 6;
+  }
+
+  .tileMonth,
+  .tileCash,
+  .tileInsights {
+    grid-column: span 3;
+  }
+}
+
+/* Narrow tablet: one tile per row. Below 768px the mobile tree takes over entirely. */
+@media (max-width: 900px) {
+  .bento {
+    grid-template-columns: 1fr;
+  }
+
+  .tileHero,
+  .tileMonth,
+  .tileCash,
+  .tileAccounts,
+  .tileInsights,
+  .tileActivity,
+  .tileBills {
+    grid-column: 1 / -1;
+  }
 }
 
 /* ---- Balance Hero Card ---- */
@@ -26,6 +106,22 @@
   border-radius: var(--radius-section);
   position: relative;
   overflow: hidden;
+  /* Z0/Z2: the ONE gradient in the app, on the single most important number. One
+     deliberate focal point reads as designed; gradients everywhere read as a template
+     and wreck legibility behind dense rows. Everything else stays flat neutral. */
+  background: var(--hero-gradient);
+  border: none;
+}
+
+/* Hero text stays on the normal foreground steps: the tile is accent-TINTED, not an
+   accent fill, precisely so these remain readable. See --hero-gradient for the measured
+   reason a saturated fill was abandoned. */
+
+/* Radix Card paints its own surface via ::before, which would sit on top of the
+   gradient and hide it. */
+.balanceCard::before,
+.balanceCard::after {
+  display: none;
 }
 
 .balanceLabel {
@@ -46,7 +142,7 @@
 
 .balanceAccounts {
   font-size: var(--font-size-1);
-  color: var(--gray-10);
+  color: var(--gray-11);
 }
 
 /* ---- Section Headers ---- */
@@ -57,7 +153,10 @@
 
 .seeAll {
   font-size: var(--font-size-2);
-  color: var(--gray-10);
+  /* Z5: was --gray-10, which is Radix's SOLID-BACKGROUND/disabled step, not a text
+     step — it measured 3.78:1 here, under the 4.5:1 AA floor. --gray-11 is the
+     designated low-contrast *text* step and passes. */
+  color: var(--gray-11);
   cursor: pointer;
   font-weight: 500;
   transition: color var(--duration-fast) var(--ease-out);
@@ -96,12 +195,13 @@
 
 .accountCard {
   cursor: pointer;
-  transition: transform var(--duration-normal) var(--ease-out);
 }
 
-.accountCard:hover {
-  transform: translateY(-1px);
-}
+/* Hover lift removed (owner, 2026-08-08): a card that jumps 1px under the cursor
+   reads as jitter, especially down a long list where the pointer crosses many rows.
+   design-system.md section 2 already says motion is functional only, never
+   decorative - a decorative lift was always off-spec. Hover still responds via
+   colour; only the movement is gone. */
 
 .accountIcon {
   width: 44px;

@@ -100,4 +100,6 @@ def simulate(
         if balance < buffer:
             crunch_points.append(d)
 
-    return ForecastResult(days=days, crunch_points=crunch_points, insufficient_data=False, message=None)
+    return ForecastResult(
+        days=days, crunch_points=crunch_points, insufficient_data=False, message=None
+    )

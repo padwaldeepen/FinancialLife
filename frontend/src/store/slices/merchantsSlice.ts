@@ -10,6 +10,10 @@ interface Merchant {
   is_hidden: boolean
   transaction_count: number
   total_spent: number
+  // Y7: the category the user taught us for this merchant. Null means nothing learned
+  // yet and categorisation falls back to the keyword table.
+  default_category_id: number | null
+  default_category_name: string | null
 }
 
 interface DetailData {
@@ -52,6 +56,9 @@ export type MerchantsSlice = {
     toggleHidden: (id: number, current: boolean) => Promise<void>
     updateMerchant: (id: number, data: { name?: string; is_hidden?: boolean }) => Promise<void>
     deleteMerchant: (id: number) => Promise<void>
+    // Y7: forget the learned category. A dedicated call rather than updateMerchant with
+    // null, because the backend's MerchantUpdate drops nulls and couldn't express it.
+    clearMerchantDefaultCategory: (id: number) => Promise<void>
     fetchSimilar: () => Promise<void>
     doMerge: (targetId: number, sourceId: number) => Promise<void>
   }
@@ -102,6 +109,17 @@ export const createMerchantsSlice = namespaceSlice('merchants', (set, get) => ({
       toast.success('Merchant renamed')
     } catch (error) {
       toast.error(getErrorDetail(error, 'Failed to rename merchant'))
+      throw error
+    }
+  },
+
+  clearMerchantDefaultCategory: async (id: number) => {
+    try {
+      await api.delete(`/api/merchants/${id}/default-category`)
+      await refetchCollection<Merchant[]>(set, '/api/merchants/', 'items')
+      toast.success('Category rule cleared')
+    } catch (error) {
+      toast.error(getErrorDetail(error, 'Failed to clear the category rule'))
       throw error
     }
   },

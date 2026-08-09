@@ -29,12 +29,13 @@ export const BreakdownChart = ({ items, currency, emptyLabel }: Props): JSX.Elem
     )
   }
 
+  // Z3: one hue for the whole series. This is a *labelled ranked* bar chart — the axis
+  // already names every category and the bar length already encodes rank, so colour was
+  // carrying no information. It previously highlighted the top bar in accent and greyed
+  // the rest, which is colour-by-rank: re-sort or filter the data and every bar changes
+  // colour while meaning the same thing.
   const top = items.slice(0, 8)
-  const data = top.map((item, i) => ({
-    name: item.name,
-    total: item.total,
-    color: i === 0 ? 'var(--accent-9)' : 'var(--gray-7)',
-  }))
+  const data = top.map((item) => ({ name: item.name, total: item.total }))
 
   return (
     <Box style={{ height: Math.max(top.length, 1) * 40 + 20 }}>
@@ -45,7 +46,7 @@ export const BreakdownChart = ({ items, currency, emptyLabel }: Props): JSX.Elem
         layout="horizontal"
         margin={{ top: 4, right: 24, bottom: 4, left: 120 }}
         padding={0.3}
-        colors={(bar) => (bar.data as unknown as { color: string }).color}
+        colors={['var(--chart-single)']}
         borderRadius={2}
         axisTop={null}
         axisRight={null}

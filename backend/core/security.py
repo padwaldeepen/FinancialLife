@@ -25,13 +25,20 @@ def _create_jwt(data: dict, expires_delta: timedelta) -> str:
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    # "type" distinguishes this from a refresh token so one can't authenticate as the
+    # other if it ever leaked into the wrong place (e.g. a refresh token sent as a
+    # Bearer header) — both used to encode only {"sub", "exp"}, so a valid signature
+    # alone was enough to pass as either.
     return _create_jwt(
-        data, expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        {**data, "type": "access"},
+        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
 
 
 def create_refresh_token(data: dict):
-    return _create_jwt(data, timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
+    return _create_jwt(
+        {**data, "type": "refresh"}, timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    )
 
 
 def verify_token(token: str | None) -> dict | None:
